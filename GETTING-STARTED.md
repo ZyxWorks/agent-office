@@ -3,9 +3,9 @@
 For anyone moving from a desktop AI app to the terminal for the first time.
 No prior tmux, no prior vim, nothing assumed. Twenty minutes, once.
 
-> Landed here first? The [product page](https://hannesreinsch.github.io/agent-office/)
+> Landed here first? The [product page](https://zyxworks.github.io/agent-office/)
 > is the two-minute version, the [README](README.md) is the reference, and
-> [the rest of our tools](https://hannesreinsch.github.io/zyxworks.github.io/) are one page over.
+> [the rest of our tools](https://zyxworks.com/open-source) are one page over.
 
 ---
 

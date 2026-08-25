@@ -2,7 +2,7 @@
 #
 # CONTRIBUTING.md says there is no test suite, because almost everything here is
 # a side effect on a live tmux server. That is still true — and it is exactly
-# what these five do: each builds a throwaway office on its own socket, two of
+# what these six do: each builds a throwaway office on its own socket, two of
 # them attach a REAL client on a pty and type raw bytes at it, and they tear it
 # all down again. None needs a display, so they run headless unchanged.
 #
@@ -58,6 +58,7 @@ jobs:
       - name: syntax
         run: |
           zsh -n office.zsh
+          zsh -n bin/office
           zsh -n bin/attn-probe
           zsh -n bin/root-probe
           zsh -n bin/ctx-probe
@@ -87,7 +88,7 @@ jobs:
           mkdir -p "$HOME"
           ./install.sh
           ./install.sh
-          grep -c 'office.zsh' "$HOME/.zshrc"
+          test "$(grep -c 'office.zsh' "$HOME/.zshrc")" = 1
           test "$(grep -c 'source-file' "$HOME/.tmux.conf")" = 1
           test -L "$HOME/.local/bin/office"
 
