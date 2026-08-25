@@ -105,7 +105,10 @@ BIN=$HOME/.local/bin
 mkdir -p $BIN
 ln -sf $HERE/bin/office $BIN/office
 say "office is a command now: $BIN/office"
-if [[ :$PATH: != *:$BIN:* ]]; then
+# Both checks, because a re-run usually happens in the SAME shell: its $PATH
+# still lacks the line the last run wrote (new shells only), so testing $PATH
+# alone appended one more export per run, forever. The file is the truth here.
+if [[ :$PATH: != *:$BIN:* ]] && ! grep -q '\.local/bin' $RC 2>/dev/null; then
   print "\n# office — and everything else you install for yourself\nexport PATH=\"\$HOME/.local/bin:\$PATH\"" >> $RC
   warn "$BIN was not on your PATH. Added it to $RC — new shells only"
 fi
@@ -140,7 +143,12 @@ DYN="$HOME/Library/Application Support/iTerm2/DynamicProfiles"
 # removing the file would take their default profile with it. The new file
 # carries no "Keyboard Map" at all, which is also what drops those retired
 # entries from an existing install.
-if [[ -n $THEME && -d ${DYN:h} ]]; then
+if [[ -n $THEME && -d ${DYN:h} ]] && ! command -v python3 >/dev/null; then
+  # Only the profile writer needs python3, so only --theme asks for it. Without
+  # this check, `set -e` ended the whole install on a bare "command not found"
+  # — three steps after the message that would have explained it.
+  warn "python3 is not installed, so the iTerm2 look was skipped. Every key works without it."
+elif [[ -n $THEME && -d ${DYN:h} ]]; then
   mkdir -p $DYN
   python3 - "$HERE/iterm/office-profile.json" "$DYN/office-keys.json" "$THEME" <<'PROFILE'
 import json, plistlib, pathlib, sys
