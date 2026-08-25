@@ -1,6 +1,6 @@
 # agent-office — ONE command: `office`.
 #
-# https://github.com/hannesreinsch/agent-office
+# https://github.com/ZyxWorks/agent-office
 #
 #   office on         walk in — open your office and start the day
 #   office break      step out — detach; panes, sizes and agents all stay put
@@ -636,7 +636,7 @@ _office_reap() {
     (( (now - act) / 3600 >= OFFICE_REAP_HOURS )) || continue
     pid=$(tmux list-panes -t "$w" -F '#{pane_pid}' 2>/dev/null | head -1)
     [[ -n $pid ]] && mb=$(( mb + $(_office_pane_mb "$pid") ))
-    tmux kill-window -t "$w" 2>/dev/null && (( n++ ))
+    tmux kill-window -t "$w" 2>/dev/null && (( ++n ))
   done
   (( $(tmux list-windows -t "=$_OFFICE_STASH" 2>/dev/null | wc -l) )) \
     || tmux kill-session -t "=$_OFFICE_STASH" 2>/dev/null
@@ -646,7 +646,7 @@ _office_reap() {
   local -a stale; stale=(${(f)"$(_office_stale ${OFFICE_REAP_HOURS})"})
   if (( $#stale )); then
     local smb=0 l; for l in $stale; do smb=$(( smb + ${${(z)l}[3]} )); done
-    print -P "%F{yellow}  ${#stale} office(s) left open from earlier, holding ~${smb}MB%f — close them with '''office sweep'''"
+    print -P "%F{yellow}  ${#stale} office(s) left open from earlier, holding ~${smb}MB%f — close them with 'office sweep'"
   fi
   return 0
 }
@@ -686,9 +686,21 @@ _office_kill_groups() {                # <pgid>...
 # and every unrelated shell: a broom that wide is a footgun, not a feature.
 _office_stale() {                      # [hours] -> "<session> <idle-min> <MB>"
   local hours=${1:-12} now=$(date +%s) line name attached act mb pid
+  # Digits or the default. `office sweep -y` used to hand the FLAG in here, and
+  # zsh arithmetic reads "-y" as minus-an-unset-variable: threshold 0, every
+  # detached office "stale", and the -y meant no question was asked before the
+  # kill. One guard here covers every caller, OFFICE_REAP_HOURS included.
+  [[ $hours == <-> ]] || hours=12
   for line in ${(f)"$(tmux list-sessions -F '#{session_name}|#{session_attached}|#{session_activity}' 2>/dev/null)"}; do
     name=${${(s:|:)line}[1]}; attached=${${(s:|:)line}[2]}; act=${${(s:|:)line}[3]}
     [[ $name == _* ]] && continue                  # the pane stash is not an office
+    # ...and neither is a tmux session something else created. Every office has
+    # @office_bar written on it by _office_number; a session without it is not
+    # ours to report, and above all not ours for `office sweep` to kill.
+    # A PLAIN name, no "=": show-options answers the exact-match form with
+    # empty, silently — the same trap set-option documents in _office_bar — and
+    # the name is straight out of list-sessions, so it is already exact.
+    [[ -n $(tmux show -t "$name" -qv @office_bar 2>/dev/null) ]] || continue
     (( attached )) && continue                     # you are looking at this one
     [[ $act == <-> ]] || continue
     (( (now - act) / 3600 >= hours )) || continue
@@ -943,7 +955,7 @@ _office_free_wt() {                    # <root> <session> -> a directory, or not
   # returns nothing, and the caller falls back to the shared checkout: the exact
   # collision the whole command exists to prevent, arriving quietly.
   while [[ -e $wt/desk-$n ]] || git -C "$root" show-ref --quiet --verify "refs/heads/desk-$n"; do
-    (( n++ ))
+    (( ++n ))
   done
   git -C "$root" worktree add -b "desk-$n" "$wt/desk-$n" >/dev/null 2>&1 || return 1
   print -r -- "$wt/desk-$n"
@@ -1302,9 +1314,11 @@ office() {
       [[ -z $dir ]] && dir=$(_office_fallback "$OFFICE_DEFAULT")
       _office_open "$dir" ;;
     pick)
+      # eza is nobody's install requirement, so it gets a fallback: without one
+      # the preview pane was simply blank on the documented five-package setup.
       dir=$(_office_repos | sed "s|^$HOME/|~/|" \
             | fzf --prompt='repo> ' --height=60% --reverse \
-                  --preview "eza -la --icons --git --color=always \$(echo {} | sed \"s|^~|$HOME|\") 2>/dev/null | head -40") || return
+                  --preview "d=\$(echo {} | sed \"s|^~|$HOME|\"); { eza -la --icons --git --color=always \"\$d\" || ls -la \"\$d\"; } 2>/dev/null | head -40") || return
       _office_open "${dir/#\~/$HOME}" ;;
     new|+)
       shift; _office_new "$@" ;;
@@ -1331,7 +1345,7 @@ office() {
       s=$(_office_here)
       for p in ${(f)"$(tmux list-panes -t "=$s" -F '#{pane_id}|#{@office_kind}' 2>/dev/null | awk -F'|' '$2=="CLAUDE"{print $1}')"}; do
         [[ -n $p ]] || continue
-        _office_hide "$p"; (( n++ ))
+        _office_hide "$p"; (( ++n ))
       done
       (( n )) && { _office_number "$s"; return }
       # Restoring is bounded by the cap, not by what happens to be in the stash:
@@ -1340,7 +1354,9 @@ office() {
       local back=0
       while (( $(_office_desk_count "$s") < _OFFICE_MAX_DESKS )); do
         _office_unhide "$s" CLAUDE || break
-        (( back++ ))
+        # ++back, never back++ — see _office_unzoom: a post-increment on 0 is
+        # arithmetic-false, and under err_return that is a silent return.
+        (( ++back ))
       done
       # Nothing visible and nothing parked: make one. This key must never do
       # nothing. A silent no-op reads as a broken binding, and the honest answer
@@ -1396,7 +1412,10 @@ office() {
       _office_relayout "$(_office_here)"; print "layout rebuilt." ;;
     hide|collapse)
       _office_hide "${2:-$(tmux display -p '#{pane_id}')}" ;;
-    show|restore|back)
+    # NOT also `back`: the case above already answers to `back` (coming back
+    # from a break), and a case statement takes the first match — a second
+    # `back` here was a word the help could promise and the code never reached.
+    show|restore)
       local s k; s=$(_office_here)
       k=${2:-$(tmux list-windows -t "=$_OFFICE_STASH" -F '#{window_name}' 2>/dev/null \
                | fzf --prompt='bring back> ' --height=40% --reverse)}
@@ -1459,12 +1478,19 @@ office() {
           local mins=${${${line##*idle }%%m*}// /}
           (( mins >= hrs * 60 )) || continue
           for f in ${(z)line}; do [[ $f == *MB ]] && freed=$(( freed + ${f%MB} )); done
-          tmux kill-pane -t "${line%% *}" 2>/dev/null && (( n++ ))
+          tmux kill-pane -t "${line%% *}" 2>/dev/null && (( ++n ))
         done
         print "closed $n pane(s) idle over ${hrs}h, ~${freed}MB reclaimed."
         return
       fi
-      sel=(${(f)"$(printf '%s\n' $inv | sort -t M -k1 -nr | fzf -m --height=60% --reverse \
+      # Heaviest first means sorting on the MB column, which is not at a fixed
+      # field (titles carry spaces) or a fixed offset (titles overflow their
+      # width). Decorate with the number, sort, strip. The old `sort -t M -k1
+      # -nr` parsed "%4 CLAUDE…" as the number 0 for every line and fell back to
+      # reverse-alphabetical, which only LOOKED sorted.
+      sel=(${(f)"$(printf '%s\n' $inv \
+            | awk '{m=0; for(i=1;i<=NF;i++) if ($i ~ /MB$/){m=$i; sub(/MB$/,"",m); break} printf "%09d\t%s\n", m, $0}' \
+            | sort -rn | cut -f2- | fzf -m --height=60% --reverse \
             --header='Tab marks a pane to close, Enter closes them. Esc = close nothing.' \
             --prompt='close> ')"}) || return
       (( $#sel )) || { print "nothing closed."; return }
