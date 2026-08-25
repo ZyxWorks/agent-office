@@ -3,12 +3,13 @@
 #
 #     bin/root-probe
 #
-# No tmux server and no attach: the two functions that decide WHICH directory an
-# office opens on are pure, so a throwaway CODE_ROOT with three git repos in it
-# is a complete stand-in. That is the whole point of having this probe — the
-# decision used to be provable only by opening an office and reading the title.
+# Mostly no tmux server and never an attach: the two functions that decide WHICH
+# directory an office opens on are pure, so a throwaway CODE_ROOT with three git
+# repos in it is a complete stand-in. That is the whole point of having this
+# probe — the decision used to be provable only by opening an office and reading
+# the title. The last two cases do need a server, and get their own, never yours.
 #
-# The three cases are the three ways it has actually been wrong:
+# The cases are the ways this has actually been wrong:
 #
 #   - OFFICE_DEFAULT empty is documented as "the one you are in". The substring
 #     search matched EVERY line on an empty query and returned whatever sorted
@@ -17,6 +18,10 @@
 #     pointing at a renamed-away folder therefore opened an office on $HOME and
 #     said nothing, which is indistinguishable from the tool being broken.
 #   - a name that DOES resolve must still win from an unrelated directory.
+#   - two repos with ONE basename shared one session, so `office on` in the
+#     second attached you to the FIRST repo's office.
+#   - `bin/office`, the way in for a shell without the function, was only ever
+#     syntax-checked, never run.
 emulate -L zsh
 setopt err_exit pipe_fail
 
@@ -27,7 +32,8 @@ for r in alpha beta gamma; do
 done
 
 export CODE_ROOT=$root
-source "${0:A:h}/../office.zsh" >/dev/null 2>&1
+here=${0:A:h}                           # before any cd: $0 is relative
+source "$here/../office.zsh" >/dev/null 2>&1
 export CODE_ROOT=$root                  # the package re-defaults it on source
 
 fail=0
@@ -58,6 +64,43 @@ else print -u2 "  FAIL the fallback was silent"; fail=1; fi
 CODE_ROOT=$root/gone dir=$(_office_fallback anything 2>"$root/said2") || true
 if grep -q "CODE_ROOT" "$root/said2"; then print "  ok   a dead CODE_ROOT names itself"
 else print -u2 "  FAIL a dead CODE_ROOT blamed the name instead"; fail=1; fi
+
+# 5. two repos, ONE basename. `~/work/api` and `~/personal/api` both want the
+# session `api`, and before @office_root the second `office on` just attached
+# you to the first repo's office. This half needs a real server, so it gets its
+# own -- never yours -- and everything that would touch the machine is stubbed.
+export TMUX_TMPDIR=$(mktemp -d)
+export OFFICE_SOLO=1 OFFICE_SESSION_CMD='exec zsh' OFFICE_CHAT_OPEN=0
+export OFFICE_DEFAULT_DESKS=1
+_office_attach(){ : }; _office_update_check(){ : }; _office_reap(){ : }
+_office_always_on_up(){ : }; _office_reload_conf(){ : }; _office_watch_setup(){ : }
+said=; _office_say(){ said=$1 }
+trap 'tmux kill-server 2>/dev/null; rm -rf "$root" "$TMUX_TMPDIR"' EXIT
+
+for r in work/api personal/api; do
+  mkdir -p "$root/$r" && git -C "$root/$r" init -q
+done
+unsetopt err_exit                       # _office_open is being tested, not trusted
+_office_open "$root/work/api"     >/dev/null 2>&1
+_office_open "$root/personal/api" >/dev/null 2>&1
+
+check "same-named repos get an office each" \
+  "$(tmux list-sessions -F '#{session_name}' 2>/dev/null | sort | tr '\n' ' ')" "api api-2 "
+check "the second one is rooted in its own checkout" \
+  "$(tmux show -t api-2 -qv @office_root 2>/dev/null)" "$root/personal/api"
+check "and reopening it finds the same office" \
+  "$(_office_sessfor "$root/personal/api")" "api-2"
+if [[ -n $said ]]; then print "  ok   and the rename is said out loud"
+else print -u2 "  FAIL the office was renamed in silence"; fail=1; fi
+
+# 6. the launcher on PATH has to RUN, not just parse. CI syntax-checks
+# `bin/office` and nothing ever executed it -- and a file that parses can still
+# fail to find the package (its `${0:A:h:h}` walk) and answer "command not
+# found" to the one shell that needs it: the one without the function.
+said_help=$("$here/office" help 2>/dev/null)     # no pipe: `pipe_fail` above   # no pipe: `pipe_fail` above
+if [[ $said_help == *"office on"* ]]; then       # would read grep -q's SIGPIPE as a failure
+  print "  ok   the PATH launcher loads the package and runs"
+else print -u2 "  FAIL bin/office parses but does not run"; fail=1; fi
 
 (( fail )) && { print -u2 "\nroot-probe: FAILED"; exit 1 }
 print "\nroot-probe: ok"
