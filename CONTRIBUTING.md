@@ -15,7 +15,8 @@ something that turns out to be out of scope.
 
 ## What this project is
 
-A tmux cockpit for running several coding-agent sessions at once. Around 1,900
+A tmux cockpit for running several coding-agent sessions at once. Around 2,100
+
 lines of zsh and tmux config, six probes that drive a real tmux server, and one
 iTerm2 profile.
 
@@ -77,6 +78,20 @@ tmux kill-session -t "=$s"; rm -rf "${d:h}"
 
 `OFFICE_SOLO=1` skips the always-on hooks. Always tear the session down, and
 never test against an office you are working in.
+
+Touched `_office_find`, `_office_fallback`, `_office_sessname` or anything else
+that decides WHICH repo an office opens on? Run `bin/root-probe`. Most of it
+needs no tmux at all -- those decisions are pure, so a throwaway `CODE_ROOT` with
+three git repos in it stands in for what used to be provable only by opening an
+office and reading the title. It pins the three ways the choice has been wrong:
+an empty `OFFICE_DEFAULT` opening whatever sorted first instead of the repo you
+are standing in, a name that does not resolve falling back to `$PWD` in silence,
+and a dead `CODE_ROOT` blaming the name instead of itself. The last case does
+need a server, on its own socket: two repos with ONE basename -- `~/work/api`
+and `~/personal/api` -- must get an office each, `api` and `api-2`, each holding
+the checkout it opened on in `@office_root`. Sharing the name meant the second
+`office on` attached you to the first repo's office, with agents rooted in a
+checkout you never asked for and nothing on screen saying so.
 
 Touched anything about keys? Run `bin/key-probe`. It builds a throwaway office
 on its own socket, attaches a REAL client on a pty and types raw bytes at it,

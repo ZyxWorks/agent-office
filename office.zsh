@@ -75,6 +75,29 @@ OFFICE_CHAT_CMD="${OFFICE_CHAT_CMD:-$_OFFICE_CHAT_UNSET}"
 _office_sessname() { basename "$1" | tr ' .:' '___'; }
 _office_root()     { git -C "${1:-$PWD}" rev-parse --show-toplevel 2>/dev/null || print -r -- "${1:-$PWD}"; }
 
+# The name above is the repo's BASENAME, and two checkouts can share one:
+# ~/code/work/api and ~/code/personal/api both want the session `api`. Then
+# `office on` in the second one sees `has-session` succeed and attaches you to
+# the FIRST one's office -- agents rooted in the wrong checkout, and nothing on
+# screen saying so. So every office writes the root it opened on as
+# `@office_root`, and a name already held by a DIFFERENT root steps aside to a
+# suffix (`api-2`), the way `_office_free_wt` numbers desks.
+#
+# A session with NO `@office_root` is one this version did not create -- an
+# office already running when the package was updated. It counts as a match:
+# stepping aside from it would strand you in a second office on the repo you are
+# already sat in, which is the very thing this exists to prevent.
+_office_sessfor() {                    # <repo-path> -> the session name to use
+  local dir=${1:A} base name held n=1
+  base=$(_office_sessname "$dir"); name=$base
+  while tmux has-session -t "=$name" 2>/dev/null; do
+    held=$(tmux show -t "$name" -qv @office_root 2>/dev/null)
+    [[ -z $held || $held == $dir ]] && break
+    name=$base-$(( ++n ))
+  done
+  print -r -- "$name"
+}
+
 # Stand where the key was pressed. The bindings hand the pane's path in here
 # instead of doing their own `cd`, because that pane can be standing in a
 # directory that is GONE — a session worktree reaped by a sweep while its agent
@@ -100,7 +123,7 @@ _office_pane_cwd() {
 _office_here() {
   local s
   [[ -n $TMUX ]] && s=$(tmux display -p -t "${TMUX_PANE:-}" '#{session_name}' 2>/dev/null)
-  [[ -n $s ]] && print -r -- "$s" || _office_sessname "$(_office_root "$PWD")"
+  [[ -n $s ]] && print -r -- "$s" || _office_sessfor "$(_office_root "$PWD")"
 }
 
 # every git repo under $CODE_ROOT, agent worktrees excluded
@@ -857,10 +880,15 @@ _office_strip_title() {
 _OFFICE_DEFAULT_DESKS=${OFFICE_DEFAULT_DESKS:-1}
 _office_open() {                       # <repo-path>
   local dir=$1 s
-  s=$(_office_sessname "$dir")
+  s=$(_office_sessfor "$dir")
   if ! tmux has-session -t "=$s" 2>/dev/null; then
     local main editor strip n prev chat
     main=$(tmux new-session -d -s "$s" -c "$dir" -n office -P -F '#{pane_id}' "$OFFICE_SESSION_CMD$_OFFICE_DESK_END")
+    # what makes the name above answerable later: which checkout this office is
+    # rooted in, on the session itself.
+    tmux set -t "$s" @office_root "${dir:A}" 2>/dev/null
+    [[ $s == $(_office_sessname "$dir") ]] \
+      || _office_say "another repo already holds that name -- this office is \"$s\"."
     _office_label "$main" "$OFFICE_SESSION_LABEL" CLAUDE
     # the right strip first, at OFFICE_STRIP_WIDTH: these are glance surfaces, and
     # width once here is what leaves the sessions a full-width column.
