@@ -130,12 +130,13 @@
   /* GitHub carries weight because the licence is the pitch: a bordered target rather than a word
      in a corner. Not brass, though. Brass is the install, and a page with two primary buttons has
      none. */
-  nav .right {
+  nav .right, a.pill {
     font-size: 13.5px; color: var(--subtle); text-decoration: none; white-space: nowrap;
     border: 1px solid var(--edge-strong); border-radius: 7px; padding: 8px 13px;
     transition: color 0.14s, border-color 0.14s;
   }
-  nav .right:hover { color: var(--ink); border-color: var(--muted); }
+  nav .right:hover, a.pill:hover { color: var(--ink); border-color: var(--muted); }
+  a.pill { display: inline-block; font-size: 15px; color: var(--ink); padding: 11px 17px; }
   /* On a phone the WAY BACK is what survives, not the page you are already on. This used to hide
      `.up span` and the separator, which left a bare 22px glyph as the only route to the index: no
      label, no arrow, and nothing saying it was a link at all. The page you are on is in the <h1>
@@ -223,7 +224,7 @@
 
   <nav>
     <div class="lockup">
-      <a class="up" href="https://zyxworks.com/">
+      <a class="up" href="https://zyxworks.com/open-source">
         <svg class="mk mk-vanish" viewBox="0 0 120 120" width="22" height="22" fill="none" aria-hidden="true">
           <line x1="60" y1="60" x2="60" y2="30"/><line x1="60" y1="60" x2="30" y2="82"/><line x1="60" y1="60" x2="94" y2="74"/>
         </svg>
@@ -360,7 +361,7 @@
         120 days.</span>
       </div>
     </div>
-    <p class="after"><a href="https://zyxworks.com">What we do for companies &rarr;</a></p>
+    <p class="after"><a class="pill" href="https://zyxworks.com">What we do for companies &rarr;</a></p>
   </section>
 
 </div>
