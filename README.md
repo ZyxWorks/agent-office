@@ -796,7 +796,7 @@ MIT. See [LICENSE](LICENSE).
 
 Agent Office is one of the tools **[ZyxWorks](https://zyxworks.com)**, a product
 studio and forward deployed engineering practice, built for itself and gave away.
-It is the room [Zyx](https://zyxworks.com#zyx) gets built in, and Zyx is the runtime
+It is the room [Zyx](https://zyxworks.com#zyx) gets built in, and Zyx is the OS
 the studio runs on. If this is useful to you, that probably is too.
 
 The other one is **[MurmurFlow](https://zyxworks.github.io/murmurflow/)**:
