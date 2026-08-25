@@ -80,8 +80,8 @@ already built. Point it at your agent and it is a place to give it work.
 
 So the shape is: **agents on the left writing the code, the agent you built on
 the right doing the work.** One window, one command, and no web app in the
-middle. It is one zsh file, one tmux config and three small helpers, about 1,900
-lines all in, plus five probes that drive a real tmux server to check it. No
+middle. It is one zsh file, one tmux config and three small helpers, about 2,100
+lines all in, plus six probes that drive a real tmux server to check it. No
 daemon, no plugin manager, no config file, and one `git fetch` you can switch
 off.
 
@@ -765,7 +765,7 @@ adds a command is worth an issue first, so you do not build something that turns
 out to be out of scope.
 
 There are no unit tests, because almost everything here is a side effect on a
-live tmux server. What there is instead is five probes in `bin/` that drive a
+live tmux server. What there is instead is six probes in `bin/` that drive a
 real one, attach real clients on a pty and type raw bytes at them; CI runs every
 one of them on macOS and Ubuntu, on tmux 3.7b and 3.4, on every push. For
 anything a probe does not cover, say how you verified it: build a throwaway
