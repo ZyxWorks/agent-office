@@ -102,5 +102,31 @@ if [[ $said_help == *"office on"* ]]; then       # would read grep -q's SIGPIPE 
   print "  ok   the PATH launcher loads the package and runs"
 else print -u2 "  FAIL bin/office parses but does not run"; fail=1; fi
 
+# 7. `office cd` walks you INTO a worktree instead of trying to check its branch
+# out. `git checkout develop` in the main checkout answers "already used by
+# worktree at .../desk-5", which is git being right and is also the end of the
+# road: the branch is somewhere, and you want to be there.
+#
+# The trap this pins is a zsh one, and it failed silently: `path` is the array
+# tied to $PATH, so parsing `git worktree list` into a variable called `path`
+# replaced PATH with one directory mid-loop. No error, no output, an empty list
+# and a command that said "not in a git repo" while standing in one.
+git -C "$root/alpha" -c user.email=p@p -c user.name=probe commit -q --allow-empty -m init
+git -C "$root/alpha" branch -q side
+git -C "$root/alpha" worktree add -q "$root/alpha-side" side
+cd "$root/alpha"
+wtbefore=$(git -C "$root/alpha" rev-parse --abbrev-ref HEAD)
+wtrows=(${(f)"$(_office_worktrees)"})
+check "office cd sees both worktrees" "$#wtrows" "2"
+check "...and names the branch in the other one" \
+      "$(printf '%s\n' $wtrows | grep -c '^side')" "1"
+office cd side >/dev/null
+check "office cd walks the shell into it" "$(pwd -P)" "$root/alpha-side"
+check "...and checks nothing out: alpha keeps the branch it had" \
+      "$(git -C "$root/alpha" rev-parse --abbrev-ref HEAD)" "$wtbefore"
+wtrc=0; office cd no-such-thing >/dev/null 2>&1 || wtrc=$?
+check "a name that matches nothing refuses" "$wtrc" "1"
+check "...and leaves you where you were" "$(pwd -P)" "$root/alpha-side"
+
 (( fail )) && { print -u2 "\nroot-probe: FAILED"; exit 1 }
 print "\nroot-probe: ok"

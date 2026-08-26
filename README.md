@@ -384,6 +384,7 @@ live ones for exactly that reason.
 | `office chat` `shell` `edit` | toggle a right-strip pane |
 | `office sessions` | park or restore the whole left column |
 | `office renumber` | renumber the panes and redraw the key bar (every office command that changes the panes already does) |
+| `office cd [x]` | walk the shell into another worktree — yours, or the one an agent is in. Checks nothing out; the file editor follows |
 | `office layout` | rebuild the layout when a pane ends up somewhere wrong |
 | `office hide` / `office show` | park the current pane / bring one back |
 | `office doctor` | what is running and what it costs in RAM, read-only |
@@ -585,6 +586,23 @@ background and says nothing unless you are behind, because this package is the
 thing drawing your window and changing it under you mid-session is how a morning
 gets ruined. `office update` is the deliberate act, and it refuses on a dirty
 tree rather than merging over your edits.
+
+**`office cd` is for working next to an agent.** Every session gets its own git
+worktree, which is what stops four agents committing over each other — and it
+is also why `git checkout develop` in your own checkout answers *"already used
+by worktree at .../desk-5"* and stops. Git is right: a branch lives in exactly
+one working tree, and a session is sat in that one.
+
+The thing you wanted was never the branch, though. It was what is in it, and
+that is already on disk one directory away. `office cd develop` walks you there.
+Nothing is checked out, so nothing collides: the agent keeps its worktree, you
+keep yours, and you can read, build and run in its tree while it works. Run it
+in the SHELL pane and the file editor follows you, because the editor follows
+that pane's directory.
+
+    office cd              pick from every worktree of this repo
+    office cd develop      the one that has that branch
+    office cd desk-3       or the one that session is working in
 
 **`office sweep` is for the offices you never closed.** An office survives a
 closed terminal on purpose, and the cost is that one from three days ago is

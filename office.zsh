@@ -19,6 +19,7 @@
 #   office edit       toggle the editor pane                         (^Se)
 #   office hide/show  collapse the pane you are on / bring one back  (^Sx)
 #   office layout     rebuild the two columns if they ever look wrong
+#   office cd [x]     walk the shell into another worktree; the editor follows
 #
 #   office doctor     what's running and what it costs in RAM (read-only)
 #   office clean      pick panes to close and reclaim their RAM
@@ -675,6 +676,38 @@ _office_reap() {
   return 0
 }
 
+# --- walking into somebody else's checkout -----------------------------------
+# `git checkout develop` in the main checkout answers "already used by worktree
+# at .../desk-5" and stops. That is git being right: a branch lives in exactly
+# ONE working tree, and an agent session is sat in that one. The old advice was
+# to wait, or to close the agent, and both are wrong — what you wanted was never
+# the branch, it was what is IN it, and that is already on disk one directory
+# away.
+#
+# So `office cd` checks nothing out. It walks you to the worktree that already
+# has the branch. Nothing collides because nothing is claimed: the agent keeps
+# its worktree, you keep yours, and you can read, build and run in its tree
+# while it works. The editor pane follows the SHELL pane's directory by itself
+# (bin/office-cwd), so the file list arrives with you — which is the whole
+# reason this is a verb here and not a line in somebody's .zshrc.
+#
+# ponytail: `git worktree list --porcelain` is the registry. Nothing is cached
+# and no state is written: a worktree that was reaped a minute ago must not be
+# on this list, and asking git costs one fork.
+# `wt`, never `path`: in zsh `path` is the array tied to $PATH, so assigning a
+# worktree to it inside the loop replaces the shell's PATH with one directory
+# and everything after it is gone. Declaring it `local` does not save you.
+_office_worktrees() {                  # -> "<branch>\t<path>", in git's own order
+  local line wt
+  git -C "$(_office_root "$PWD")" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
+    case $line in
+      (worktree\ *) wt=${line#worktree } ;;
+      (branch\ *)   printf '%s\t%s\n' "${${line#branch }#refs/heads/}" "$wt" ;;
+      (detached)    printf '%s\t%s\n' '(detached)' "$wt" ;;
+    esac
+  done
+}
+
 # --- making sure nothing outlives the office ---------------------------------
 # tmux kill-server sends SIGHUP to each pane's children, which is enough for
 # anything still attached to a terminal and not enough for anything that
@@ -1291,6 +1324,10 @@ ${r}"
   print -P "  ${g}office list${r}    Same as doctor."
   print -P "  ${g}office update${r}  Pull the newest agent-office. Never happens on its own:"
   print -P "                 ${d}'office on' only tells you when you are behind.${r}"
+  print -P "  ${g}office cd${r} ${d}[x]${r}  Walk the shell into another worktree — yours, or the one an"
+  print -P "                 ${d}agent is working in. Checks nothing out, so nothing collides;${r}"
+  print -P "                 ${d}the file editor follows. 'office cd develop' when git says that${r}"
+  print -P "                 ${d}branch is already used by another worktree.${r}"
   print -P "  ${g}office sweep${r}   Offices you walked away from, still holding memory with no"
   print -P "                 ${d}window anywhere. Lists them, asks, then closes them and${r}"
   print -P "                 ${d}everything inside. 'office sweep 2' for a 2-hour threshold.${r}"
@@ -1336,7 +1373,7 @@ office() {
   # a zoomed window does to the geometry underneath. The exemptions are the
   # verbs that only print, detach, or close the whole thing: those never read a
   # column, so taking the operator's zoom away for them would be rude.
-  [[ $cmd == (help|-h|--help|list|ls|status|doctor|check|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home) ]] \
+  [[ $cmd == (help|-h|--help|list|ls|status|doctor|check|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home|cd|goto|hop) ]] \
     || _office_unzoom "$(_office_here)"
   case $cmd in
     on|up|in|back|work|resume)
@@ -1438,6 +1475,35 @@ office() {
       done
       (( $#groups )) && _office_kill_groups ${(u)groups}
       print -P "swept ${#stale} office(s). %F{green}~${mb}MB%f back." ;;
+    cd|goto|hop)
+      # With a word: the first worktree whose branch or path contains it, so
+      # `office cd develop` is the answer to the checkout git just refused.
+      # Without one: pick from the list. Either way it only ever cds.
+      local -a rows; rows=(${(f)"$(_office_worktrees)"})
+      if (( ! $#rows )); then
+        print -u2 "office: not in a git repo, so there is no worktree to hop to."; return 1
+      fi
+      local pick
+      if [[ -n $2 ]]; then
+        pick=${rows[(r)*${2}*]}
+        if [[ -z $pick ]]; then
+          print -u2 "office: no worktree matching '$2'. There is:"
+          printf '  %s\n' ${rows//$'\t'/'  '} >&2
+          return 1
+        fi
+      else
+        pick=$(printf '%s\n' $rows | fzf --prompt='hop to> ' --height=40% --reverse \
+                 --header='the branch, and the checkout it lives in. Nothing is checked out.') || return
+      fi
+      local dir=${pick##*$'\t'}
+      # A worktree git still lists can be gone from disk — an agent session
+      # reaped mid-sentence leaves exactly that. cd would fail with the shell's
+      # own error, which says nothing about what happened.
+      [[ -d $dir ]] || { print -u2 "office: '$dir' is not there any more (stale worktree)."; return 1 }
+      cd "$dir" || return 1
+      print -P "%F{green}${pick%%$'\t'*}%f  $dir"
+      [[ -n $TMUX && $(tmux display -p '#{@office_kind}' 2>/dev/null) == SHELL ]] \
+        || print -P "%F{240}  (the file editor follows the SHELL pane — run this there and it comes along)%f" ;;
     layout|fix|repair)
       _office_relayout "$(_office_here)"; print "layout rebuilt." ;;
     hide|collapse)

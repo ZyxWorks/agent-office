@@ -257,6 +257,7 @@ Nothing here ever needs a restart of anything.
 | what you see | what to do |
 |---|---|
 | a pane is frozen and its keys do nothing | it is in scroll mode. Press `q` |
+| git says a branch is "already used by worktree" | `office cd <branch>` — go to it instead of checking it out |
 | the panes are in silly positions | `office layout` |
 | you closed something and cannot get it back | its key again, or `office show` |
 | you have no idea what is running | `office doctor` |
