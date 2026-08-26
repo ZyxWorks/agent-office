@@ -51,8 +51,9 @@
 # waiting @office_attn_secs its border says so.
 #
 # Called once per desk pane per status-interval from pane-border-format, which is
-# also what gates it: desks only, and never the pane you are already sitting in.
-# The gate is @office_attn_gate in office.tmux.conf.
+# also what gates it: desks only. Including the one you are sitting in -- a desk
+# you left focused overnight is the exact case this readout is for. The gate is
+# @office_attn_gate in office.tmux.conf.
 #
 # ponytail: a measured heuristic with a knob on it, not a protocol. The exact
 # signal does exist for one agent — Claude Code's Stop hook fires the moment it

@@ -181,7 +181,7 @@ Everything else is **`Ctrl-Space`, then one letter**:
 | `n` | new session, in its own git worktree |
 | `c` `s` `e` | toggle chat / shell / file editor. On a pane that quit whatever it was running, the same key restarts it |
 | `a` | park every session, bring them all back, or open one if there are none |
-| `q` | close this pane |
+| `q` | close this pane. A menu: click it, or `c` to close and `k` or Escape to keep |
 | `x` | park this pane. Still running, `office show` brings it back |
 | `z` | zoom this pane full screen, and back |
 | arrows | move, and the only way out of a file you have open |
@@ -249,11 +249,27 @@ eighteen seconds of it, in the session that produced this. What separates them i
 the rate, not the amount: a spinner moves within half a second, a hint that
 rotates every eight does not.
 
-The pane you are sitting in never says it, because you are already looking at it,
-and neither do the shell and the file list. With the theme it arrives in
+The shell and the file list never say it -- they are yours to be slow in. The
+pane you are sitting in does say it, though: "you are already looking at it" is
+true for the ten seconds you are at the keyboard and false for the eight hours
+you are not, and the desk you left focused overnight was the one desk with no
+number on it in the morning. Typing in a pane moves it and restarts its clock, so
+a desk you are actually working in never reaches the wait. With the theme it arrives in
 `$ACCENT`, which now has exactly one meaning anywhere on the screen. The wait is
 `OFFICE_ATTN_SECS` and it is the only knob: raise it if your agent can go quiet
 mid-task without redrawing anything at all. `bin/attn-probe` is the check.
+
+**A blip does not cost the wait.** The two looks answer different questions, so
+they get different answers. Only the slow one restarts the clock: lines that
+changed between ticks are output, and output is an agent working. The fast look
+only silences the current look -- it cannot tell a spinner from an unlucky hint
+rotation, and saying nothing is right for both. Both used to restart the clock,
+and at one unlucky look in twenty that is a reset every minute or two: the marker
+blinked out, came back with no number, and a desk that had been waiting since
+midnight could never say so. And because the clock now survives a blip, a desk
+has to be still for **two** looks running before it speaks -- one still look in
+fifteen happens mid-spinner, and `your turn` on a busy desk is the one failure
+this whole thing exists to avoid.
 
 **The number keeps counting, and past the hour it means something else.** It is
 the time since that agent last did anything at all, so it is also the age of its
@@ -374,7 +390,8 @@ live ones for exactly that reason.
 |---|---|
 | `office on` | walk in: open the office, start your always-on stack |
 | `office break` | step out: detach, everything keeps running |
-| `office off` | go home: quit every office, stop the stack, asks first |
+| `office off` | go home: quit the office you are IN, asks first |
+| `office off --all` | ...and every other office on the machine, and the always-on stack |
 | `office <name>` | open another repo by fuzzy name |
 | `office pick` | fuzzy-pick from every repo under `$CODE_ROOT` |
 | `office solo` | like `on`, but starts nothing: the panes and nothing in them |
@@ -575,6 +592,24 @@ at startup starts lying, and you steer by it and wonder why the arrows do
 nothing. The border reads `#{pane_title}`, which is what the pane shows right
 now.
 
+**A destructive key is never one letter.** `confirm-before` accepts exactly one
+key for yes -- the letter `y` -- and on a German QWERTZ keyboard `y` and `z` are
+swapped, so the key the hand reaches for is read as "no", the prompt closes and
+nothing happens. Twice, three times, and the tool looks broken while the config
+is fine. `q` and `X` open a menu instead: clickable, and its shortcuts (`c`, `k`)
+sit on the same physical key on both layouts. Enter and Escape both cancel, so
+the reflex press is the safe one. On tmux 3.4 the click is not available (`-M` is
+3.5 and newer) and the same menu arrives keyboard-only rather than the whole
+config failing to parse.
+
+**`office off` closes the office you are IN.** It used to close every office on
+the machine, and an agent asked to tidy up took four unrelated sessions with it,
+mid-task. The confirmation was never the guard it looks like: one keypress, and
+`-y` skips it. `office off --all` is the old behaviour, spelled out, and the
+always-on stack stops only when the last office does -- it belongs to the
+machine, not to one office. Asked from outside every office, `off` refuses and
+says where to look, because "all of them" is the answer that caused this.
+
 **`office off` kills everything an office started.** Not just the panes:
 `kill-server` only sends SIGHUP to a pane's children, which anything that
 detached itself survives, and agent CLIs leave host and daemon processes behind
@@ -742,9 +777,10 @@ action is a tmux operation, so the blast radius is panes and sessions:
 
 | | |
 |---|---|
-| `Ctrl-Space q` | close a pane, after a y/n confirmation |
-| `Ctrl-Space X` | close the session, after a y/n confirmation |
-| `office off` | quits every office, lists what it will do and asks first |
+| `Ctrl-Space q` | close a pane, after a menu whose default is *keep it* |
+| `Ctrl-Space X` | close the session, after the same menu |
+| `office off` | quits the office you are in, lists what it will do and asks first |
+| `office off --all` | the same, for every office. The blast radius is a word you type |
 | `office clean` | you pick the panes, Esc closes nothing |
 | `office clean --idle` | **no confirmation, by design.** It is the unattended form |
 

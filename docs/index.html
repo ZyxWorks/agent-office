@@ -323,9 +323,34 @@
   </section>
 
   <section>
+    <h2>Working next to them</h2>
+    <p>Every session gets its own git worktree. That is what stops four agents committing over each
+    other &mdash; and it is also why <code>git checkout develop</code> in your own checkout answers
+    <em>&ldquo;already used by worktree at &hellip;/desk-5&rdquo;</em> and stops. Git is right: a branch lives in
+    exactly one working tree, and a session is sat in that one.</p>
+    <p>The thing you wanted was never the branch, though. It was what is <em>in</em> it, and that is
+    already on disk one directory away. <strong><code>office cd</code> walks you there.</strong>
+    Nothing is checked out, so nothing collides: the agent keeps its worktree, you keep yours, and
+    you can read, build and run in its tree while it works. Run it in the shell pane and the file
+    list follows you, because the file editor follows that pane&rsquo;s directory.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>you type</th><th>you get</th></tr></thead>
+        <tbody>
+          <tr><td><code>office cd</code></td><td>a picker: every worktree of this repo, and the branch in each</td></tr>
+          <tr><td><code>office cd develop</code></td><td>the checkout that has that branch &mdash; the one git just refused you</td></tr>
+          <tr><td><code>office cd desk-3</code></td><td>or the one that session is working in</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Read-only is a choice, not a rule: it is a normal checkout and you can edit and
+    commit in it. Just remember whose branch it is.</p>
+  </section>
+
+  <section>
     <h2>What it does not do</h2>
     <ul>
-      <li><strong>No daemon.</strong> Nothing runs between sessions, and <code>office off</code> takes the tmux server and every process its panes started, detached ones included.</li>
+      <li><strong>No daemon.</strong> Nothing runs between sessions, and <code>office off</code> takes the office you are in and every process its panes started, detached ones included. <code>office off --all</code> for every office on the machine &mdash; the blast radius is a word you type.</li>
       <li><strong>No config file.</strong> Every setting is an <code>OFFICE_*</code> environment variable, and the defaults are the product.</li>
       <li><strong>No plugin system</strong>, and no package manager. Two files and three small helpers is the whole surface.</li>
       <li><strong>No hiding what it costs.</strong> Measured with its own <code>office doctor</code>: an agent pane is about 500&nbsp;MB, while the office's own shell pane is 9&nbsp;MB and its file list 16&nbsp;MB. Four agents is a RAM decision, so there is a command that shows you the bill.</li>

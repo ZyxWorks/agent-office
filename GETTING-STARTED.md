@@ -224,7 +224,7 @@ And `Ctrl+Space`, then:
 | `n` | new agent session |
 | `s` `e` `c` | show or hide shell / editor / chat |
 | `a` | hide every agent, bring them all back, or open one if you have none |
-| `q` | close this pane for good |
+| `q` | close this pane for good. A menu opens: click **close it**, or press `c`. Enter, Escape or `k` keeps it |
 | `x` | park this pane: hidden, still running |
 | `z` | zoom this pane full screen, and back |
 
@@ -243,6 +243,9 @@ And the thing you actually wanted from four agents at once: a desk that has
 stopped and is waiting on you says **your turn** on its own border, with how long
 it has been waiting. You never have to read all four panes to find the one that
 finished. Nothing to press, and nothing to set up.
+
+That number keeps counting all night, so a desk you left at midnight says
+`your turn 8h12m` when you sit down, and not just `your turn`.
 
 If Shift+arrow ever does not move you, you have a file open in the editor, where
 it selects text instead. **Ctrl+Space then an arrow** always moves, from
