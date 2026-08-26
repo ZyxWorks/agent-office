@@ -60,6 +60,7 @@ jobs:
           zsh -n office.zsh
           zsh -n bin/office
           zsh -n bin/attn-probe
+          zsh -n bin/off-probe
           zsh -n bin/root-probe
           zsh -n bin/ctx-probe
           zsh -n bin/zoom-probe
@@ -78,6 +79,22 @@ jobs:
           tmux -L cfg source-file "$PWD/theme/office-theme.tmux.conf"
           tmux -L cfg list-keys -T prefix | grep -qE '^bind-key +-T prefix +n ' \
             || { echo "prefix n is not bound"; exit 1; }
+          # No destructive action may sit behind one hard-coded letter again.
+          # `confirm-before` takes exactly one key for yes -- y -- and on a
+          # QWERTZ keyboard the key the hand reaches for sends z, so the prompt
+          # closed and nothing happened. A menu is clickable and its shortcuts
+          # (c/k) are on the same key on both layouts. This is a grep and not a
+          # probe because it is the SHAPE that is wrong, not any one keystroke.
+          tmux -L cfg list-keys -T prefix | grep -qE '^bind-key +-T prefix +q +display-menu' \
+            || { echo "prefix q is not a menu"; exit 1; }
+          tmux -L cfg list-keys -T prefix | grep -qE '^bind-key +-T prefix +X +display-menu' \
+            || { echo "prefix X is not a menu"; exit 1; }
+          # tmux's own prefix-& keeps its confirm-before and that is tmux's call,
+          # not this config's. What may not come back is a confirm-before in
+          # FRONT of a pane or a session, which is what these two keys close.
+          if tmux -L cfg list-keys -T prefix | grep 'confirm-before' | grep -qE 'kill-pane|kill-session'; then
+            echo "a confirm-before is back: one letter is gating a destructive action"; exit 1
+          fi
           tmux -L cfg kill-server
 
       # A fresh HOME, so the installer is tested the way a stranger meets it:
@@ -124,6 +141,11 @@ jobs:
 
       - name: ctx-probe
         run: bin/ctx-probe
+
+      # `office off` closes ONE office. It used to close every office on the
+      # machine, agents mid-task included, and nothing here would have said so.
+      - name: off-probe
+        run: bin/off-probe
 
       - name: key-probe
         run: bin/key-probe

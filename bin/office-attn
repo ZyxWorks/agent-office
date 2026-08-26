@@ -51,8 +51,9 @@
 # waiting @office_attn_secs its border says so.
 #
 # Called once per desk pane per status-interval from pane-border-format, which is
-# also what gates it: desks only, and never the pane you are already sitting in.
-# The gate is @office_attn_gate in office.tmux.conf.
+# also what gates it: desks only. Including the one you are sitting in -- a desk
+# you left focused overnight is the exact case this readout is for. The gate is
+# @office_attn_gate in office.tmux.conf.
 #
 # ponytail: a measured heuristic with a knob on it, not a protocol. The exact
 # signal does exist for one agent — Claude Code's Stop hook fires the moment it
@@ -68,8 +69,8 @@ id=${1:?usage: office-attn <pane-id>}
 # ONE tmux call for all of it, the clock included: `%s` is strftime, which
 # display-message expands alongside the #{} formats, so there is no `date` fork
 # in a job that runs every few seconds for every desk on screen.
-IFS='|' read -r now since secs sock <<EOF
-$(tmux display -p -t "$id" '%s|#{@office_still}|#{@office_attn_secs}|#{socket_path}' 2>/dev/null)
+IFS='|' read -r now since secs sock wasquiet <<EOF
+$(tmux display -p -t "$id" '%s|#{@office_still}|#{@office_attn_secs}|#{socket_path}|#{@office_quiet}' 2>/dev/null)
 EOF
 [ -n "$now" ] || exit 0                # no such pane any more: say nothing
 [ -n "$secs" ] || secs=20
@@ -103,11 +104,47 @@ set -- $(tmux capture-pane -p -t "$id" 2>/dev/null | awk -v tick="$snap" -v look
               (m ? d + 0 + (FNR > m ? FNR - m : m - FNR) : -1) }')
 slow=${1:--1} fast=${2:--1}
 
-if [ "$slow" -lt 0 ] || [ "$slow" -gt "$SLOW_OK" ] \
-   || [ "$fast" -lt 0 ] || [ "$fast" -gt "$FAST_OK" ]; then
+# THE TWO SIGNALS ANSWER DIFFERENT QUESTIONS, and folding them into one `if` is
+# what made the readout unusable overnight. Both used to restart the clock, so
+# the single unlucky look this file's own measurement predicts — the rotating
+# hint landing inside the half-second window, about one look in twenty — threw
+# the whole accumulated wait away. At a 5s interval that is a reset every minute
+# or two: the marker vanished, came back with no number, and a desk that had been
+# quiet since midnight could never say so. Reported from exactly that morning:
+# "I came back to my PC and I had no idea how long this session was already
+# stale." The wait is the number the border exists for; losing it is the bug.
+#
+# ONLY THE SLOW LOOK RESTARTS THE CLOCK. Lines that changed between ticks are
+# output, and output is the agent working. The hint moves one line, which is
+# inside SLOW_OK, so a rotation never trips this — the same test as before.
+if [ "$slow" -lt 0 ] || [ "$slow" -gt "$SLOW_OK" ]; then
+  [ "$wasquiet" = 1 ] && tmux set -p -t "$id" @office_quiet 0 2>/dev/null
   tmux set -p -t "$id" @office_still "$now" 2>/dev/null
   exit 0                               # it is working. Nothing on the border.
 fi
+
+# THE FAST LOOK ONLY SILENCES THIS ONE LOOK. It cannot tell a spinner from an
+# unlucky hint, and the two want opposite answers: a thinking agent must not be
+# called waiting, and a waiting agent must not lose its clock over a coin toss.
+# Saying nothing satisfies both. One look costs 5s of readout; the wait survives.
+if [ "$fast" -lt 0 ] || [ "$fast" -gt "$FAST_OK" ]; then
+  [ "$wasquiet" = 1 ] && tmux set -p -t "$id" @office_quiet 0 2>/dev/null
+  exit 0                               # moving right now. Nothing on the border.
+fi
+
+# ...and because the clock now survives a fast blip, ONE quiet look is no longer
+# enough to speak on. It was, when every blip reset the clock: the marker could
+# not appear mid-task because the wait was always seconds old. Now it can, and
+# the measured thinking sample has one still look in fifteen — so a spinner would
+# put "your turn" on the border of a busy desk about every other minute, which is
+# the one failure this whole file was written to avoid.
+#
+# So a quiet look only counts once the look BEFORE it was quiet as well. Two in a
+# row is a pane that has stopped; one is noise either way. It costs 5s on the
+# first appearance and nothing after, and it needs no new timing assumption — the
+# flag is written only when it changes, so a steady desk, busy or waiting, adds
+# no work per look at all.
+[ "$wasquiet" = 1 ] || { tmux set -p -t "$id" @office_quiet 1 2>/dev/null; exit 0; }
 
 # Still. Since when, though — a pane that has never moved has no answer yet.
 [ -n "$since" ] || { tmux set -p -t "$id" @office_still "$now" 2>/dev/null; exit 0; }

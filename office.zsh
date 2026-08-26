@@ -4,7 +4,8 @@
 #
 #   office on         walk in — open your office and start the day
 #   office break      step out — detach; panes, sizes and agents all stay put
-#   office off        go home — quit everything, and reset the layout to default
+#   office off        go home — quit the office you are in, layout and all
+#   office off --all  ...and every other office on the machine with it
 #
 #   office <repo>     open a different repo (fuzzy name, e.g. `office myproj`)
 #   office pick       fuzzy-pick from all your repos
@@ -18,6 +19,7 @@
 #   office edit       toggle the editor pane                         (^Se)
 #   office hide/show  collapse the pane you are on / bring one back  (^Sx)
 #   office layout     rebuild the two columns if they ever look wrong
+#   office cd [x]     walk the shell into another worktree; the editor follows
 #
 #   office doctor     what's running and what it costs in RAM (read-only)
 #   office clean      pick panes to close and reclaim their RAM
@@ -674,6 +676,38 @@ _office_reap() {
   return 0
 }
 
+# --- walking into somebody else's checkout -----------------------------------
+# `git checkout develop` in the main checkout answers "already used by worktree
+# at .../desk-5" and stops. That is git being right: a branch lives in exactly
+# ONE working tree, and an agent session is sat in that one. The old advice was
+# to wait, or to close the agent, and both are wrong — what you wanted was never
+# the branch, it was what is IN it, and that is already on disk one directory
+# away.
+#
+# So `office cd` checks nothing out. It walks you to the worktree that already
+# has the branch. Nothing collides because nothing is claimed: the agent keeps
+# its worktree, you keep yours, and you can read, build and run in its tree
+# while it works. The editor pane follows the SHELL pane's directory by itself
+# (bin/office-cwd), so the file list arrives with you — which is the whole
+# reason this is a verb here and not a line in somebody's .zshrc.
+#
+# ponytail: `git worktree list --porcelain` is the registry. Nothing is cached
+# and no state is written: a worktree that was reaped a minute ago must not be
+# on this list, and asking git costs one fork.
+# `wt`, never `path`: in zsh `path` is the array tied to $PATH, so assigning a
+# worktree to it inside the loop replaces the shell's PATH with one directory
+# and everything after it is gone. Declaring it `local` does not save you.
+_office_worktrees() {                  # -> "<branch>\t<path>", in git's own order
+  local line wt
+  git -C "$(_office_root "$PWD")" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
+    case $line in
+      (worktree\ *) wt=${line#worktree } ;;
+      (branch\ *)   printf '%s\t%s\n' "${${line#branch }#refs/heads/}" "$wt" ;;
+      (detached)    printf '%s\t%s\n' '(detached)' "$wt" ;;
+    esac
+  done
+}
+
 # --- making sure nothing outlives the office ---------------------------------
 # tmux kill-server sends SIGHUP to each pane's children, which is enough for
 # anything still attached to a terminal and not enough for anything that
@@ -1218,8 +1252,9 @@ _office_help() {
   print -P "                 ${d}Use it every morning, and to come back from a break.${r}"
   print -P "  ${g}office break${r}   Stepping away. Nothing stops — agents keep running,"
   print -P "                 ${d}the Mac stays busy. Lunch, a meeting, closing the laptop lid.${r}"
-  print -P "  ${g}office off${r}     Done for the day. Quits every office and every agent in"
-  print -P "                 ${d}them${OFFICE_OFF_CMD:+, and runs '$OFFICE_OFF_CMD'}. Asks first.${r}\n"
+  print -P "  ${g}office off${r}     Done for the day. Quits the office you are IN and every"
+  print -P "                 ${d}agent in it. Other offices keep running.${r}"
+  print -P "  ${g}office off --all${r} ${d}...and every other office too${OFFICE_OFF_CMD:+, and runs '$OFFICE_OFF_CMD'}. Both ask first.${r}\n"
 
   print -P "${g}WHAT YOU GET${r} ${d}— ONE window. Everything visible at once.${r}"
   print -P "    ${d}┌─────────────────────────────┬──────────────┐${r}"
@@ -1289,6 +1324,10 @@ ${r}"
   print -P "  ${g}office list${r}    Same as doctor."
   print -P "  ${g}office update${r}  Pull the newest agent-office. Never happens on its own:"
   print -P "                 ${d}'office on' only tells you when you are behind.${r}"
+  print -P "  ${g}office cd${r} ${d}[x]${r}  Walk the shell into another worktree — yours, or the one an"
+  print -P "                 ${d}agent is working in. Checks nothing out, so nothing collides;${r}"
+  print -P "                 ${d}the file editor follows. 'office cd develop' when git says that${r}"
+  print -P "                 ${d}branch is already used by another worktree.${r}"
   print -P "  ${g}office sweep${r}   Offices you walked away from, still holding memory with no"
   print -P "                 ${d}window anywhere. Lists them, asks, then closes them and${r}"
   print -P "                 ${d}everything inside. 'office sweep 2' for a 2-hour threshold.${r}"
@@ -1334,7 +1373,7 @@ office() {
   # a zoomed window does to the geometry underneath. The exemptions are the
   # verbs that only print, detach, or close the whole thing: those never read a
   # column, so taking the operator's zoom away for them would be rude.
-  [[ $cmd == (help|-h|--help|list|ls|status|doctor|check|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home) ]] \
+  [[ $cmd == (help|-h|--help|list|ls|status|doctor|check|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home|cd|goto|hop) ]] \
     || _office_unzoom "$(_office_here)"
   case $cmd in
     on|up|in|back|work|resume)
@@ -1436,6 +1475,35 @@ office() {
       done
       (( $#groups )) && _office_kill_groups ${(u)groups}
       print -P "swept ${#stale} office(s). %F{green}~${mb}MB%f back." ;;
+    cd|goto|hop)
+      # With a word: the first worktree whose branch or path contains it, so
+      # `office cd develop` is the answer to the checkout git just refused.
+      # Without one: pick from the list. Either way it only ever cds.
+      local -a rows; rows=(${(f)"$(_office_worktrees)"})
+      if (( ! $#rows )); then
+        print -u2 "office: not in a git repo, so there is no worktree to hop to."; return 1
+      fi
+      local pick
+      if [[ -n $2 ]]; then
+        pick=${rows[(r)*${2}*]}
+        if [[ -z $pick ]]; then
+          print -u2 "office: no worktree matching '$2'. There is:"
+          printf '  %s\n' ${rows//$'\t'/'  '} >&2
+          return 1
+        fi
+      else
+        pick=$(printf '%s\n' $rows | fzf --prompt='hop to> ' --height=40% --reverse \
+                 --header='the branch, and the checkout it lives in. Nothing is checked out.') || return
+      fi
+      local dir=${pick##*$'\t'}
+      # A worktree git still lists can be gone from disk — an agent session
+      # reaped mid-sentence leaves exactly that. cd would fail with the shell's
+      # own error, which says nothing about what happened.
+      [[ -d $dir ]] || { print -u2 "office: '$dir' is not there any more (stale worktree)."; return 1 }
+      cd "$dir" || return 1
+      print -P "%F{green}${pick%%$'\t'*}%f  $dir"
+      [[ -n $TMUX && $(tmux display -p '#{@office_kind}' 2>/dev/null) == SHELL ]] \
+        || print -P "%F{240}  (the file editor follows the SHELL pane — run this there and it comes along)%f" ;;
     layout|fix|repair)
       _office_relayout "$(_office_here)"; print "layout rebuilt." ;;
     hide|collapse)
@@ -1458,23 +1526,69 @@ office() {
       [[ -n $TMUX ]] && tmux detach-client ;;
 
     off|out|end|quit|stop|home)
+      # `off` CLOSES THE OFFICE YOU ARE IN. It used to close every office on the
+      # machine, and that blast radius is not something a one-word command gets
+      # to have: an agent told to tidy up ran it and took four unrelated agent
+      # sessions with it, mid-task, in windows nobody had asked about. The
+      # confirmation was no help — it is one keypress, and `-y` skips it.
+      #
+      # `office off --all` is the old behaviour, spelled out. Same work, same
+      # prompt; you just have to say the word that means "everything".
+      local a all=0 yes=0
+      for a in "${@[2,-1]}"; do
+        case $a in (-a|--all) all=1 ;; (-y|--yes) yes=1 ;; esac
+      done
       local -a live always; live=(${(f)"$(_office_sessions)"})
       _office_always_on && always=1
       if (( ! $#live )) && (( ! $#always )); then print "office: nothing running"; return; fi
+
+      local -a doomed
+      if (( all )); then
+        doomed=($live)
+      else
+        # `_office_here` asks tmux which session this pane is in, and outside
+        # tmux it answers with the office for the repo you are standing in.
+        # Either way it can name one that is not running, so it is checked and
+        # not trusted: "the office you are in", asked from outside every office,
+        # is a question with no answer, and guessing one is how this broke.
+        local here=$(_office_here)
+        if [[ -z $here ]] || (( ! ${live[(I)$here]} )); then
+          print -u2 "office: you are not in an office, so there is nothing here to close."
+          print -u2 "        'office list' shows what is running, 'office off --all' closes all of it."
+          return 1
+        fi
+        doomed=($here)
+      fi
+
+      # The always-on stack belongs to the MACHINE and not to one office, so it
+      # only stops when the last office does. Stopping it while three offices
+      # keep working is how the Mac goes to sleep on top of them.
+      local last=0
+      (( $#doomed >= $#live )) && last=1
+
       print "going home means:"
-      (( $#live )) && { print "  quit ${#live} office(s) + every agent in them:"; printf '    %s\n' $live }
-      (( $#live )) && print "  reset the layout to default: sizes, parked panes, all of it"
-      (( $#live )) && print "  kill every process any pane started, detached ones included"
-      (( $#always )) && print "  run '$OFFICE_OFF_CMD' (stops the always-on stack, Mac can sleep)"
-      if [[ $2 != (-y|--yes) ]]; then
+      (( $#doomed )) && { print "  quit ${#doomed} office(s) + every agent in them:"; printf '    %s\n' $doomed }
+      (( $#doomed )) && print "  reset the layout to default: sizes, parked panes, all of it"
+      (( $#doomed )) && print "  kill every process any pane started, detached ones included"
+      (( $#doomed )) && (( ! last )) && print "  leave $(( $#live - $#doomed )) other office(s) running, untouched"
+      (( $#always )) && (( last )) && print "  run '$OFFICE_OFF_CMD' (stops the always-on stack, Mac can sleep)"
+      if (( ! yes )); then
         print -n "go home? [y/N] "; read -q _ans 2>/dev/null; print
         [[ $_ans == y ]] || { unset _ans; print "still here."; return }
         unset _ans
       fi
-      (( $#always )) && { print -P "%F{green}==> $OFFICE_OFF_CMD%f"; eval "$OFFICE_OFF_CMD" }
-      local -a groups; groups=(${(f)"$(_office_pane_groups)"})
-      tmux kill-server 2>/dev/null
-      (( $#groups )) && _office_kill_groups $groups
+      (( $#always )) && (( last )) && { print -P "%F{green}==> $OFFICE_OFF_CMD%f"; eval "$OFFICE_OFF_CMD" }
+      # Each office's process groups are taken BEFORE its session goes: a pane
+      # that is gone has no pid left to ask. The whole-server kill is for --all
+      # only — that is what also takes the stash session and anything else this
+      # tool never named.
+      local -a groups; local sess
+      for sess in $doomed; do
+        groups+=(${(f)"$(_office_pane_groups "$sess")"})
+        (( all )) || tmux kill-session -t "=$sess" 2>/dev/null
+      done
+      (( all )) && tmux kill-server 2>/dev/null
+      (( $#groups )) && _office_kill_groups ${(u)groups}
       print -P "%F{green}office closed. see you tomorrow.%f" ;;
 
     list|ls|status|doctor|check)

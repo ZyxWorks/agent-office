@@ -85,7 +85,9 @@ want() { [[ $2 == $3 ]] && ok "$1" || bad "$1: got '$2', wanted '$3'" }
 busy=$(desks | head -1)
 quiet=$(desks | tail -1)
 [[ -n $busy && -n $quiet && $busy != $quiet ]] || { print -u2 "probe setup failed: two desks needed"; exit 1 }
-# neither desk may be the active pane, or the gate turns them both off
+# Sit in the SHELL pane. Not because the gate needs it any more -- a desk is
+# watched wherever the cursor is -- but so that selecting a desk below is a
+# deliberate step in the case that tests it.
 tmux select-pane -t "$(pane_of SHELL)"
 
 # --- the gate ----------------------------------------------------------------
@@ -93,7 +95,12 @@ want "gate: a desk you are not in is watched"  "$(gate $busy)" 1
 want "gate: the SHELL is never watched"        "$(gate "$(pane_of SHELL)")" 0
 want "gate: the FILE EDITOR is never watched"  "$(gate "$(pane_of EDITOR)")" 0
 tmux select-pane -t "$busy"
-want "gate: the pane you are IN is not watched" "$(gate $busy)" 0
+# The pane you are IN is watched too. It was not, on the reasoning that you can
+# see it -- which holds for the ten seconds you are at the keyboard and not for
+# the night you are not, and the desk you left focused was the one desk with no
+# number on it in the morning. Typing in a pane moves it and restarts its clock,
+# so a desk you are actually working in still never reaches the wait.
+want "gate: the pane you are IN is watched as well" "$(gate $busy)" 1
 tmux select-pane -t "$(pane_of SHELL)"
 # An office opened by an older office.zsh has no @office_home, and running a
 # path that is not there on every border redraw is not an acceptable way to fail.
@@ -141,6 +148,11 @@ want "stopped: nothing before the wait is up"        "$(watch $quiet; :)" ""
 # look above. Give it the wait and it has to speak.
 watch "$quiet" >/dev/null; sleep $(( OFFICE_ATTN_SECS + 1 ))
 want "stopped: says your turn once the wait is up"   "$(watch $quiet)" "  your turn"
+# TWO quiet looks, not one. A single still look is now silent by design: with the
+# clock surviving a fast blip, one look is no longer enough to tell a stopped
+# desk from a spinner that happened to be between frames. $quiet above already
+# had its second; $busy has had one, so give it the other.
+watch "$busy" >/dev/null
 want "stopped: the busy desk says it too, now"       "$(watch $busy)"  "  your turn"
 
 # --- the border itself --------------------------------------------------------
@@ -181,6 +193,7 @@ run "$quiet" "$STILL"
 sleep 1
 watch "$quiet" >/dev/null
 sleep $(( OFFICE_ATTN_SECS + 1 ))
+watch "$quiet" >/dev/null                              # the second quiet look
 want "resumed: and comes back when it stops again"     "$(watch $quiet)" "  your turn"
 
 # --- the trap: one line moving is still "waiting" ----------------------------
@@ -218,6 +231,7 @@ done
 run "$quiet" "$STILL"
 sleep 1
 watch "$quiet" >/dev/null
+watch "$quiet" >/dev/null               # ...and the second, which is what unmutes it
 now=$(tmux display -p '%s')
 tmux set -p -t "$quiet" @office_still $(( now - 500 ))
 want "waiting a while: the border counts the minutes" "$(watch $quiet)" "  your turn 8m"
@@ -226,6 +240,33 @@ want "waiting a while: the border counts the minutes" "$(watch $quiet)" "  your 
 # "over an hour" at a glance.
 tmux set -p -t "$quiet" @office_still $(( now - 4800 ))
 want "waiting past an hour: it counts in hours"      "$(watch $quiet)" "  your turn 1h20m"
+
+# --- a blip does not cost the wait -------------------------------------------
+# The bug this section exists for, reported after an overnight run: the border
+# said "your turn" for a minute or two, then went blank, then came back with no
+# number, over and over — so a desk that had been waiting since midnight could
+# never say so. Both looks used to restart the clock, and the fast one is a coin
+# toss on an idle agent: the hint rotating under the input box lands inside the
+# half-second window about once in twenty looks, and that single unlucky look
+# threw the whole accumulated wait away.
+#
+# THINK is the fast signal on its own — one line, ten times a second, which is
+# inside the between-ticks tolerance and outside the between-looks one. That is
+# what a blip looks like, deterministically, instead of waiting for an unlucky
+# rotation. The clock is moved by hand for the same reason it is in the block
+# above: eight minutes of waiting is not a probe.
+run "$quiet" "$THINK"
+sleep 1
+watch "$quiet" >/dev/null               # the respawn was a change: it restarts the clock
+tmux set -p -t "$quiet" @office_still $(( now - 500 ))
+want "a blip says nothing"                     "$(watch $quiet)" ""
+want "a blip does not restart the wait"        "$(tmux display -p -t "$quiet" '#{@office_still}')" "$(( now - 500 ))"
+run "$quiet" "$STILL"
+sleep 1
+watch "$quiet" >/dev/null
+watch "$quiet" >/dev/null
+tmux set -p -t "$quiet" @office_still $(( now - 500 ))
+want "and the number comes back whole"         "$(watch $quiet)" "  your turn 8m"
 
 # --- a pane that is gone ------------------------------------------------------
 # The border of a pane can be redrawn as the pane dies. It must say nothing and

@@ -191,11 +191,14 @@ When one is finished, **Ctrl+Space, then `q`** closes that pane. It asks first.
 |---|---|
 | `office on` | start work. Opens everything, exactly as you left it |
 | `office break` | stepping away. Detaches, and **everything keeps running**, exactly as you left it |
-| `office off` | done for the day. Closes everything and **resets the layout**. Asks first |
+| `office off` | done for the day. Closes the office you are **in**, and **resets its layout**. Asks first |
+| `office off --all` | ...and every other office on the machine with it. Asks first |
 
 **Closing your terminal window does not stop anything.** It is the same as
 `office break`. Your agents keep working, and `office on` brings you back to
-the same panes in the same places. Only `office off` actually ends things.
+the same panes in the same places. Only `office off` actually ends things — and it
+ends the office you are in, not the four others you left working. That is what
+`--all` is for, and it is a word you have to type.
 
 And `office off` is your escape hatch: it throws the layout away too, so if you
 have dragged panes into a mess or something looks wrong, off and on gives you a
@@ -221,7 +224,7 @@ And `Ctrl+Space`, then:
 | `n` | new agent session |
 | `s` `e` `c` | show or hide shell / editor / chat |
 | `a` | hide every agent, bring them all back, or open one if you have none |
-| `q` | close this pane for good |
+| `q` | close this pane for good. A menu opens: click **close it**, or press `c`. Enter, Escape or `k` keeps it |
 | `x` | park this pane: hidden, still running |
 | `z` | zoom this pane full screen, and back |
 
@@ -241,6 +244,9 @@ stopped and is waiting on you says **your turn** on its own border, with how lon
 it has been waiting. You never have to read all four panes to find the one that
 finished. Nothing to press, and nothing to set up.
 
+That number keeps counting all night, so a desk you left at midnight says
+`your turn 8h12m` when you sit down, and not just `your turn`.
+
 If Shift+arrow ever does not move you, you have a file open in the editor, where
 it selects text instead. **Ctrl+Space then an arrow** always moves, from
 anywhere, including from inside a file.
@@ -254,6 +260,7 @@ Nothing here ever needs a restart of anything.
 | what you see | what to do |
 |---|---|
 | a pane is frozen and its keys do nothing | it is in scroll mode. Press `q` |
+| git says a branch is "already used by worktree" | `office cd <branch>` — go to it instead of checking it out |
 | the panes are in silly positions | `office layout` |
 | you closed something and cannot get it back | its key again, or `office show` |
 | you have no idea what is running | `office doctor` |
