@@ -191,11 +191,14 @@ When one is finished, **Ctrl+Space, then `q`** closes that pane. It asks first.
 |---|---|
 | `office on` | start work. Opens everything, exactly as you left it |
 | `office break` | stepping away. Detaches, and **everything keeps running**, exactly as you left it |
-| `office off` | done for the day. Closes everything and **resets the layout**. Asks first |
+| `office off` | done for the day. Closes the office you are **in**, and **resets its layout**. Asks first |
+| `office off --all` | ...and every other office on the machine with it. Asks first |
 
 **Closing your terminal window does not stop anything.** It is the same as
 `office break`. Your agents keep working, and `office on` brings you back to
-the same panes in the same places. Only `office off` actually ends things.
+the same panes in the same places. Only `office off` actually ends things — and it
+ends the office you are in, not the four others you left working. That is what
+`--all` is for, and it is a word you have to type.
 
 And `office off` is your escape hatch: it throws the layout away too, so if you
 have dragged panes into a mess or something looks wrong, off and on gives you a

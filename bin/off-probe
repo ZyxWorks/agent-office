@@ -1,0 +1,89 @@
+#!/usr/bin/env zsh
+# off-probe — `office off` closes ONE office. The one you are in.
+#
+# Run it after ANY change to the off/out/end/quit/stop/home branch.
+#
+#     bin/off-probe
+#
+# The incident this exists for: an agent was asked to tidy up, ran `office off`,
+# and every office on the machine went down with four unrelated agent sessions
+# still working in them. Nothing was broken — that is what the command did. A
+# one-word command with a machine-wide blast radius is the defect, and the
+# confirmation was never the guard people assume: it is one keypress, and `-y`
+# skips it entirely.
+#
+# So there are four questions here, and the middle two are the ones a smaller
+# probe would miss:
+#
+#   - `office off` closes the office you are in.
+#   - ...and leaves every other one running. This is the whole point.
+#   - asked from OUTSIDE every office it refuses, rather than picking one. The
+#     old code needed no answer to this question, so there was none.
+#   - `office off --all` still closes everything, because that is what it says.
+#
+# It runs on its own tmux server (TMUX_TMPDIR) and its own throwaway repos, so
+# it never sees, and can never close, a real office.
+emulate -L zsh
+# no err_return: every step is checked explicitly, and a probe that stops at the
+# first non-zero return stops inside the code it is testing.
+
+export TMUX_TMPDIR=$(mktemp -d)        # its own server, never yours
+export OFFICE_SOLO=1
+export OFFICE_SESSION_CMD='exec zsh' OFFICE_CHAT_CMD='exec zsh' OFFICE_CHAT_OPEN=0
+export OFFICE_DEFAULT_DESKS=1
+export OFFICE_ON_CMD='' OFFICE_OFF_CMD=''
+
+root=$(mktemp -d)
+a=$root/alpha b=$root/beta out=$root/nowhere
+mkdir -p "$a" "$b" "$out"
+git -C "$a" init -q; git -C "$b" init -q
+
+here=${0:A:h}
+source "$here/../office.zsh"
+_office_attach(){ : }; _office_update_check(){ : }; _office_reap(){ : }
+_office_always_on_up(){ : }; _office_reload_conf(){ : }; _office_say(){ : }
+# The always-on stack is a MACHINE-wide thing and this probe has none. Left
+# alone, `_office_always_on` shells out to whatever the host's config says is
+# "running", which is not this probe's business to ask about or to stop.
+_office_always_on(){ return 1 }
+
+cleanup() { tmux kill-server 2>/dev/null; rm -rf "$TMUX_TMPDIR" "$root" }
+trap cleanup EXIT INT TERM
+
+fail=0
+ok()   { print "  ok   $1" }
+bad()  { print -u2 "  FAIL $1"; fail=1 }
+want() { [[ $2 == $3 ]] && ok "$1" || bad "$1: got '$2', wanted '$3'" }
+
+live() { tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -v '^_' | sort | tr '\n' ' ' }
+
+cd "$a"; _office_open "$a" >/dev/null 2>&1
+cd "$b"; _office_open "$b" >/dev/null 2>&1
+sa=$(_office_sessfor "$a"); sb=$(_office_sessfor "$b")
+[[ -n $sa && -n $sb && $sa != $sb ]] || { print -u2 "probe setup failed: two offices needed"; exit 1 }
+want "two offices are up" "$(live)" "$sa $sb "
+
+# --- the office you are in ----------------------------------------------------
+# Outside tmux `_office_here` answers with the office for the directory you are
+# standing in, which is why `cd` is the whole fixture here: it is the same
+# question a pane answers with its session name.
+cd "$a"
+office off -y >/dev/null 2>&1
+want "off closes the office you are in"      "$(tmux has-session -t "=$sa" 2>/dev/null; print $?)" 1
+want "off leaves the other one running"      "$(live)" "$sb "
+
+# --- from nowhere -------------------------------------------------------------
+# A plain directory that is not a repo and not an office. There is no answer to
+# "the one you are in" here, and the only safe thing is to say so: picking one,
+# or falling back to all of them, is the original bug wearing a different hat.
+cd "$out"
+office off -y >/dev/null 2>&1; rc=$?
+want "off outside every office refuses"      "$rc" 1
+want "...and closes nothing"                 "$(live)" "$sb "
+
+# --- and the word that means everything ---------------------------------------
+office off --all -y >/dev/null 2>&1
+want "off --all closes the rest"             "$(live)" ""
+
+(( fail )) && { print -u2 "\noff-probe FAILED"; exit 1 }
+print "\noff-probe passed"

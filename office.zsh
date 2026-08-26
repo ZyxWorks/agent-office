@@ -4,7 +4,8 @@
 #
 #   office on         walk in — open your office and start the day
 #   office break      step out — detach; panes, sizes and agents all stay put
-#   office off        go home — quit everything, and reset the layout to default
+#   office off        go home — quit the office you are in, layout and all
+#   office off --all  ...and every other office on the machine with it
 #
 #   office <repo>     open a different repo (fuzzy name, e.g. `office myproj`)
 #   office pick       fuzzy-pick from all your repos
@@ -1218,8 +1219,9 @@ _office_help() {
   print -P "                 ${d}Use it every morning, and to come back from a break.${r}"
   print -P "  ${g}office break${r}   Stepping away. Nothing stops — agents keep running,"
   print -P "                 ${d}the Mac stays busy. Lunch, a meeting, closing the laptop lid.${r}"
-  print -P "  ${g}office off${r}     Done for the day. Quits every office and every agent in"
-  print -P "                 ${d}them${OFFICE_OFF_CMD:+, and runs '$OFFICE_OFF_CMD'}. Asks first.${r}\n"
+  print -P "  ${g}office off${r}     Done for the day. Quits the office you are IN and every"
+  print -P "                 ${d}agent in it. Other offices keep running.${r}"
+  print -P "  ${g}office off --all${r} ${d}...and every other office too${OFFICE_OFF_CMD:+, and runs '$OFFICE_OFF_CMD'}. Both ask first.${r}\n"
 
   print -P "${g}WHAT YOU GET${r} ${d}— ONE window. Everything visible at once.${r}"
   print -P "    ${d}┌─────────────────────────────┬──────────────┐${r}"
@@ -1458,23 +1460,69 @@ office() {
       [[ -n $TMUX ]] && tmux detach-client ;;
 
     off|out|end|quit|stop|home)
+      # `off` CLOSES THE OFFICE YOU ARE IN. It used to close every office on the
+      # machine, and that blast radius is not something a one-word command gets
+      # to have: an agent told to tidy up ran it and took four unrelated agent
+      # sessions with it, mid-task, in windows nobody had asked about. The
+      # confirmation was no help — it is one keypress, and `-y` skips it.
+      #
+      # `office off --all` is the old behaviour, spelled out. Same work, same
+      # prompt; you just have to say the word that means "everything".
+      local a all=0 yes=0
+      for a in "${@[2,-1]}"; do
+        case $a in (-a|--all) all=1 ;; (-y|--yes) yes=1 ;; esac
+      done
       local -a live always; live=(${(f)"$(_office_sessions)"})
       _office_always_on && always=1
       if (( ! $#live )) && (( ! $#always )); then print "office: nothing running"; return; fi
+
+      local -a doomed
+      if (( all )); then
+        doomed=($live)
+      else
+        # `_office_here` asks tmux which session this pane is in, and outside
+        # tmux it answers with the office for the repo you are standing in.
+        # Either way it can name one that is not running, so it is checked and
+        # not trusted: "the office you are in", asked from outside every office,
+        # is a question with no answer, and guessing one is how this broke.
+        local here=$(_office_here)
+        if [[ -z $here ]] || (( ! ${live[(I)$here]} )); then
+          print -u2 "office: you are not in an office, so there is nothing here to close."
+          print -u2 "        'office list' shows what is running, 'office off --all' closes all of it."
+          return 1
+        fi
+        doomed=($here)
+      fi
+
+      # The always-on stack belongs to the MACHINE and not to one office, so it
+      # only stops when the last office does. Stopping it while three offices
+      # keep working is how the Mac goes to sleep on top of them.
+      local last=0
+      (( $#doomed >= $#live )) && last=1
+
       print "going home means:"
-      (( $#live )) && { print "  quit ${#live} office(s) + every agent in them:"; printf '    %s\n' $live }
-      (( $#live )) && print "  reset the layout to default: sizes, parked panes, all of it"
-      (( $#live )) && print "  kill every process any pane started, detached ones included"
-      (( $#always )) && print "  run '$OFFICE_OFF_CMD' (stops the always-on stack, Mac can sleep)"
-      if [[ $2 != (-y|--yes) ]]; then
+      (( $#doomed )) && { print "  quit ${#doomed} office(s) + every agent in them:"; printf '    %s\n' $doomed }
+      (( $#doomed )) && print "  reset the layout to default: sizes, parked panes, all of it"
+      (( $#doomed )) && print "  kill every process any pane started, detached ones included"
+      (( $#doomed )) && (( ! last )) && print "  leave $(( $#live - $#doomed )) other office(s) running, untouched"
+      (( $#always )) && (( last )) && print "  run '$OFFICE_OFF_CMD' (stops the always-on stack, Mac can sleep)"
+      if (( ! yes )); then
         print -n "go home? [y/N] "; read -q _ans 2>/dev/null; print
         [[ $_ans == y ]] || { unset _ans; print "still here."; return }
         unset _ans
       fi
-      (( $#always )) && { print -P "%F{green}==> $OFFICE_OFF_CMD%f"; eval "$OFFICE_OFF_CMD" }
-      local -a groups; groups=(${(f)"$(_office_pane_groups)"})
-      tmux kill-server 2>/dev/null
-      (( $#groups )) && _office_kill_groups $groups
+      (( $#always )) && (( last )) && { print -P "%F{green}==> $OFFICE_OFF_CMD%f"; eval "$OFFICE_OFF_CMD" }
+      # Each office's process groups are taken BEFORE its session goes: a pane
+      # that is gone has no pid left to ask. The whole-server kill is for --all
+      # only — that is what also takes the stash session and anything else this
+      # tool never named.
+      local -a groups; local sess
+      for sess in $doomed; do
+        groups+=(${(f)"$(_office_pane_groups "$sess")"})
+        (( all )) || tmux kill-session -t "=$sess" 2>/dev/null
+      done
+      (( all )) && tmux kill-server 2>/dev/null
+      (( $#groups )) && _office_kill_groups ${(u)groups}
       print -P "%F{green}office closed. see you tomorrow.%f" ;;
 
     list|ls|status|doctor|check)
