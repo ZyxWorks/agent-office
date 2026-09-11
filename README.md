@@ -81,7 +81,7 @@ already built. Point it at your agent and it is a place to give it work.
 So the shape is: **agents on the left writing the code, the agent you built on
 the right doing the work.** One window, one command, and no web app in the
 middle. It is one zsh file, one tmux config and three small helpers, about 2,100
-lines all in, plus six probes that drive a real tmux server to check it. No
+lines all in, plus seven probes that drive a real tmux server to check it. No
 daemon, no plugin manager, no config file, and one `git fetch` you can switch
 off.
 
@@ -463,6 +463,7 @@ Environment variables, set before sourcing `office.zsh`. All optional.
 | `CODE_ROOT` | `~/code` | where `office pick` looks for repos |
 | `OFFICE_SESSION_CMD` | `claude` | **what a session is.** Any agent CLI |
 | `OFFICE_SESSION_LABEL` | `CLAUDE` | what its panes are called |
+| `OFFICE_AGENTS` | *(built from the two above)* | an array of desks to choose between — `"LABEL command words..."` per element. One entry: no change. Two or more: `Ctrl-Space n` asks which |
 | `OFFICE_WORKTREE_DIR` | `.claude/worktrees` | where `office new` looks for worktrees, and puts the ones it creates |
 | `OFFICE_EDITOR` | `$EDITOR`, else micro/nano/vi | what the editor pane opens files in. Set it to `micro` if `$EDITOR` is vim and you would rather it were not |
 | `OFFICE_DEFAULT_DESKS` | `1` | sessions opened at startup |
@@ -666,13 +667,32 @@ binding makes tmux force the active pane into view-mode, where every office key
 stops working and the pane looks frozen. Messages go to the status line
 instead.
 
-**It works with any agent CLI.** A session is just `OFFICE_SESSION_CMD`, so
-`office` has no idea what Claude Code is:
+**It works with any agent CLI, and with several at once.** A session is just
+`OFFICE_SESSION_CMD`, so `office` has no idea what Claude Code is:
 
 ```sh
 OFFICE_SESSION_CMD="codex"
 OFFICE_SESSION_LABEL="CODEX"
 ```
+
+Desks on different providers — Claude, Codex, a local model — are
+`OFFICE_AGENTS` instead, an array of `"LABEL command words..."`:
+
+```sh
+OFFICE_AGENTS=(
+  "CLAUDE claude"
+  "CODEX  codex"
+  "LOCAL  ollama launch claude --model gemma4:12b"
+)
+```
+
+(`ollama launch claude --model <m>` runs Claude Code on a local Ollama model;
+`ollama launch codex` does the same for Codex.) One entry and nothing changes:
+`Ctrl-Space n` still opens it directly. Two or more, and it asks which with a
+menu — `office new --agent 2` or `office new --agent CODEX` skips straight to
+one. Every other door that opens a desk (`office desk`, `office task`, the
+startup desks, the `sessions` refill) always takes the first entry; the menu
+is `Ctrl-Space n` alone.
 
 There is deliberately no integration with any one agent's own session manager.
 An office pane is a terminal running your agent, and that is the whole
@@ -819,7 +839,7 @@ adds a command is worth an issue first, so you do not build something that turns
 out to be out of scope.
 
 There are no unit tests, because almost everything here is a side effect on a
-live tmux server. What there is instead is six probes in `bin/` that drive a
+live tmux server. What there is instead is seven probes in `bin/` that drive a
 real one, attach real clients on a pty and type raw bytes at them; CI runs every
 one of them on macOS and Ubuntu, on tmux 3.7b and 3.4, on every push. For
 anything a probe does not cover, say how you verified it: build a throwaway

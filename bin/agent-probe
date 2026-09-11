@@ -1,0 +1,119 @@
+#!/usr/bin/env zsh
+# agent-probe — OFFICE_AGENTS: one is invisible, several ask which.
+#
+# Run it after ANY change to OFFICE_AGENTS, _office_new or _office_agent_menu.
+# It builds a throwaway office on its own tmux server and drives `office new`
+# directly, the same call `bind n` makes.
+#
+#     bin/agent-probe
+#
+# What it is looking for:
+#
+#   - one agent (the default, built from OFFICE_SESSION_CMD/_LABEL): Ctrl-Space
+#     n opens a desk directly, running that command under that label. No menu,
+#     ever — this is the case every existing .zshrc is in today, and it must
+#     stay indistinguishable from before this feature existed.
+#   - 2+ agents and none named: opens NOTHING. There is no attached client on
+#     this throwaway server, which is deliberate — display-menu cannot be made
+#     to draw headless, so this is also the proof that the no-agent path
+#     really does defer to the menu instead of falling back to agent 1 quietly.
+#   - `--agent 2` and `--agent <LABEL>` both resolve to the second entry's own
+#     command and label, whichever way it was named.
+emulate -L zsh
+# no err_return: every step is checked explicitly, and a probe that stops at
+# the first non-zero return stops inside the code it is testing.
+
+# A bare `office new` asks fzf which worktree, if stdout looks like a terminal
+# (`_office_new`'s `[[ -t 1 ]]`) — the right thing for someone typing it, and a
+# hang for a script driving it headless. Every call below names a worktree
+# instead, so the picker is never in play regardless of what fd 1 happens to
+# be under whichever harness ran this probe.
+exec </dev/null
+
+export TMUX_TMPDIR=$(mktemp -d)        # its own server, never yours
+unset TMUX TMUX_PANE                     # inside a desk $TMUX outranks TMUX_TMPDIR: without this every tmux call below, cleanup included, reached YOUR office (2026-09-11)
+export OFFICE_SOLO=1
+export OFFICE_SESSION_CMD='exec zsh' OFFICE_CHAT_CMD='exec zsh' OFFICE_CHAT_OPEN=0
+export OFFICE_DEFAULT_DESKS=1
+repo=$(mktemp -d)/probe; mkdir -p "$repo"; git -C "$repo" init -q
+# `office new <name>` branches a new worktree off HEAD, which needs a real
+# commit to branch from -- an empty repo has none.
+git -C "$repo" -c user.email=p@p -c user.name=probe commit -q --allow-empty -m init
+
+here=${0:A:h}
+source "$here/../office.zsh"
+# nothing here may touch the machine it runs on: no attach, no update check,
+# no always-on stack, no ~/.tmux.conf.
+_office_attach(){ : }; _office_update_check(){ : }; _office_reap(){ : }
+_office_always_on_up(){ : }; _office_reload_conf(){ : }; _office_say(){ : }
+
+cleanup() { tmux kill-server 2>/dev/null; rm -rf "$TMUX_TMPDIR" "${repo:h}" }
+trap cleanup EXIT INT TERM
+
+fail=0
+ok()   { print "  ok   $1" }
+bad()  { print -u2 "  FAIL $1"; fail=1 }
+want() { [[ $2 == $3 ]] && ok "$1" || bad "$1: got '$2', wanted '$3'" }
+
+cd "$repo"
+_office_open "$repo" >/dev/null 2>&1
+s=$(_office_sessname "$repo")
+sleep 1
+
+panes()   { tmux list-panes -t "=$s" -F '#{pane_id}' 2>/dev/null | wc -l | tr -d ' ' }
+newest()  { tmux list-panes -t "=$s" -F '#{@office_kind} #{pane_id}' 2>/dev/null \
+            | awk '$1=="CLAUDE"{p=$2} END{print p}' }
+label_of(){ tmux show -p -t "$1" -qv @office_label 2>/dev/null }
+cmd_of()  { tmux display -p -t "$1" '#{pane_start_command}' 2>/dev/null }
+
+# Every call below names a worktree explicitly (never a bare `office new`), so
+# the fzf-picker branch is out of play regardless of what fd 1 is — see above.
+
+# --- one agent: no change at all ---------------------------------------------
+want "default OFFICE_AGENTS has exactly one entry" "${#OFFICE_AGENTS}" 1
+before=$(panes)
+office new wt-1 >/dev/null 2>&1
+sleep 0.5
+want "one agent: Ctrl-Space n opens a desk directly" "$(panes)" $(( before + 1 ))
+p=$(newest)
+[[ $(cmd_of "$p") == *'exec zsh'* ]] \
+  && ok "one agent: it runs OFFICE_SESSION_CMD" \
+  || bad "one agent: it runs OFFICE_SESSION_CMD: got '$(cmd_of "$p")'"
+want "one agent: labeled with OFFICE_SESSION_LABEL" "$(label_of "$p")" "CLAUDE · wt-1"
+
+# --- 2+ agents, none named: the menu, never a silent default -----------------
+OFFICE_AGENTS=("ONE printf ONE-RAN" "TWO printf TWO-RAN")
+before=$(panes)
+office new wt-2 >/dev/null 2>&1
+sleep 0.5
+want "2 agents, no --agent: opens nothing (no client to ask)" "$(panes)" $before
+
+# --- --agent by index ---------------------------------------------------------
+office new --agent 2 wt-3 >/dev/null 2>&1
+sleep 0.5
+want "--agent 2: opens a desk" "$(panes)" $(( before + 1 ))
+p=$(newest)
+[[ $(cmd_of "$p") == *'printf TWO-RAN'* ]] \
+  && ok "--agent 2: runs the second command" \
+  || bad "--agent 2: runs the second command: got '$(cmd_of "$p")'"
+want "--agent 2: labeled with the second label" "$(label_of "$p")" "TWO · wt-3"
+
+# --- --agent by label, case-insensitively -------------------------------------
+before=$(panes)
+office new --agent one wt-4 >/dev/null 2>&1
+sleep 0.5
+want "--agent one: opens a desk" "$(panes)" $(( before + 1 ))
+p=$(newest)
+[[ $(cmd_of "$p") == *'printf ONE-RAN'* ]] \
+  && ok "--agent one: resolves by label to the first command" \
+  || bad "--agent one: resolves by label to the first command: got '$(cmd_of "$p")'"
+want "--agent one: labeled ONE, not lowercased" "$(label_of "$p")" "ONE · wt-4"
+
+# --- an unknown agent name never opens anything ------------------------------
+before=$(panes)
+office new --agent nope wt-5 >/dev/null 2>&1
+sleep 0.3
+want "--agent nope: opens nothing" "$(panes)" $before
+
+(( fail )) && { print -u2 "\nagent-probe FAILED"; exit 1 }
+print "\nagent-probe passed"

@@ -64,6 +64,7 @@ jobs:
           zsh -n bin/root-probe
           zsh -n bin/ctx-probe
           zsh -n bin/zoom-probe
+          zsh -n bin/agent-probe
           zsh -n install.sh
           sh -n bin/office-attn
           sh -n bin/office-ctx
@@ -152,3 +153,6 @@ jobs:
 
       - name: mouse-probe
         run: bin/mouse-probe
+
+      - name: agent-probe
+        run: bin/agent-probe
