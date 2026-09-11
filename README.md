@@ -408,6 +408,7 @@ live ones for exactly that reason.
 | `office clean` | pick panes to close, heaviest first (rarely needed) |
 | `office sweep [h]` | close offices you walked away from, and everything in them |
 | `office update` | pull the newest agent-office |
+| `office install [--theme]` | wire office into zsh and tmux again — the same as `./install.sh`, safe to re-run, starts nothing |
 | `office clean --idle [h]` | no picker: close anything idle over `h` hours |
 | `office help` | all of the above, with the diagram |
 

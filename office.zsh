@@ -25,6 +25,7 @@
 #   office clean      pick panes to close and reclaim their RAM
 #   office sweep      close offices you walked away from, and all they run
 #   office update     pull the newest agent-office (never happens on its own)
+#   office install    wire office into zsh + tmux again: ./install.sh [--theme]
 #
 # Bare `office` prints this. `ao` and `o` are the short aliases.
 # Key bindings live in office.tmux.conf; `office help` lists every one of them.
@@ -1405,6 +1406,8 @@ ${r}"
   print -P "  ${g}office list${r}    Same as doctor."
   print -P "  ${g}office update${r}  Pull the newest agent-office. Never happens on its own:"
   print -P "                 ${d}'office on' only tells you when you are behind.${r}"
+  print -P "  ${g}office install${r} Wire office into zsh and tmux again. Safe to re-run;"
+  print -P "                 ${d}starts nothing. Same as ./install.sh, and --theme works.${r}"
   print -P "  ${g}office cd${r} ${d}[x]${r}  Walk the shell into another worktree — yours, or the one an"
   print -P "                 ${d}agent is working in. Checks nothing out, so nothing collides;${r}"
   print -P "                 ${d}the file editor follows. 'office cd develop' when git says that${r}"
@@ -1454,7 +1457,7 @@ office() {
   # a zoomed window does to the geometry underneath. The exemptions are the
   # verbs that only print, detach, or close the whole thing: those never read a
   # column, so taking the operator's zoom away for them would be rude.
-  [[ $cmd == (help|-h|--help|list|ls|status|doctor|check|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home|cd|goto|hop) ]] \
+  [[ $cmd == (help|-h|--help|list|ls|status|doctor|check|install|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home|cd|goto|hop) ]] \
     || _office_unzoom "$(_office_here)"
   case $cmd in
     on|up|in|back|work|resume)
@@ -1513,6 +1516,11 @@ office() {
       (( back )) || _office_add_pane "$OFFICE_SESSION_LABEL" "$OFFICE_SESSION_CMD$_OFFICE_DESK_END" \
                       "$(_office_root "$PWD")" CLAUDE
       _office_number "$s" ;;
+    install)
+      # The verb every tool here shares (zyx, murmurflow): set it up, start nothing.
+      # Here that is install.sh, which is idempotent. Without this arm the word fell
+      # through to the fuzzy repo match below and looked for a repo called "install".
+      zsh "$_OFFICE_HOME/install.sh" "${@[2,-1]}" ;;
     update|upgrade)
       [[ -d $_OFFICE_HOME/.git ]] || { print -u2 "office: $_OFFICE_HOME is not a git checkout"; return 1 }
       if [[ -n $(git -C "$_OFFICE_HOME" status --porcelain) ]]; then

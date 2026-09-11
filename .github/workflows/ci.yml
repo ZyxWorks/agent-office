@@ -100,12 +100,13 @@ jobs:
 
       # A fresh HOME, so the installer is tested the way a stranger meets it:
       # nothing sourced yet, no ~/.tmux.conf, and it has to be safe to run twice.
+      # The second run goes through `office install`, so the verb is proven to reach the script.
       - name: install.sh on a fresh HOME, twice
         run: |
           export HOME="$RUNNER_TEMP/fresh"
           mkdir -p "$HOME"
           ./install.sh
-          ./install.sh
+          zsh -f -c 'bin/office install'
           test "$(grep -c 'office.zsh' "$HOME/.zshrc")" = 1
           test "$(grep -c 'source-file' "$HOME/.tmux.conf")" = 1
           test -L "$HOME/.local/bin/office"
