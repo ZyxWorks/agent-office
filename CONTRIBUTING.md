@@ -17,7 +17,7 @@ something that turns out to be out of scope.
 
 A tmux cockpit for running several coding-agent sessions at once. Around 2,100
 
-lines of zsh and tmux config, six probes that drive a real tmux server, and one
+lines of zsh and tmux config, seven probes that drive a real tmux server, and one
 iTerm2 profile.
 
 **In scope:** making that faster, clearer or harder to get wrong. Support for
@@ -150,7 +150,22 @@ one is always empty there. Measured on 3.7b — five calls over five seconds and
 the command never ran once. A drawn border does run it; a probe reading one back
 does not.
 
-CI runs all six on every push, on **macOS and Ubuntu**, and the gap between them
+Touched `OFFICE_AGENTS`, `_office_new` or the `Ctrl-Space n` menu? Run
+`bin/agent-probe`. It builds a throwaway office and drives `office new`
+directly — no real client, so it also proves the shape display-menu cannot be
+made to draw headless: one agent opens the desk with no menu at all, `--agent
+2` (by number) and `--agent <LABEL>` both split the right command and label
+out of the array, and 2+ agents with none named opens nothing, because the
+picker needs a client this probe deliberately does not attach.
+
+**A probe must never reach your office.** `TMUX_TMPDIR` alone does not isolate
+it: inside a desk, tmux talks to the server in `$TMUX` first. A probe run from a
+desk on 2026-09-11 cleaned up with a bare `tmux kill-server` and killed the whole
+live office. So every new probe either names its socket on every call (`tmux -L`,
+as `key-probe` does) or runs `unset TMUX TMUX_PANE` right after exporting
+`TMUX_TMPDIR`, as the zsh probes do.
+
+CI runs all seven on every push, on **macOS and Ubuntu**, and the gap between them
 is worth keeping: Ubuntu ships tmux 3.4 against macOS's 3.7b, and that alone
 found two version-dependent bugs on its first run — `#{!:...}` silently inverting
 a gate, and a probe asserting one Shift-Enter encoding when tmux picks it by

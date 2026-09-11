@@ -47,6 +47,23 @@ OFFICE_SESSION_CMD="${OFFICE_SESSION_CMD:-claude}"
 # printf, not print: this string is run by tmux's default shell, not by zsh.
 _OFFICE_DESK_END="; printf '\n  session ended — the pane is a shell now. Ctrl-Space n opens a new one.\n'; exec zsh"
 OFFICE_SESSION_LABEL="${OFFICE_SESSION_LABEL:-CLAUDE}"
+
+# Desks on more than one provider: Claude, Codex, a local model. Each element
+# is "LABEL command words...", the label first and the rest the pane command —
+# see the README for the shape. Left unset, it is built from the two variables
+# above, so an existing .zshrc sees no change at all: one agent, and Ctrl-Space
+# n still opens it directly. `_office_agent_menu` is what asks when there are
+# more.
+typeset -ga OFFICE_AGENTS
+(( ${#OFFICE_AGENTS} )) || OFFICE_AGENTS=("$OFFICE_SESSION_LABEL $OFFICE_SESSION_CMD")
+# Agent 1 is also what every path older than OFFICE_AGENTS still runs — the
+# startup desks, `office desk`, `office task`, the `sessions` refill — because
+# all four of those read these two variables and nothing else. Re-deriving
+# them here means setting OFFICE_AGENTS alone (without touching these two)
+# still changes what those open, and nothing downstream had to learn a new
+# variable.
+OFFICE_SESSION_LABEL="${${(z)OFFICE_AGENTS[1]}[1]}"
+OFFICE_SESSION_CMD="${(j: :)${(z)OFFICE_AGENTS[1]}[2,-1]}"
 # Where `office new` looks for git worktrees. Claude Code's default location.
 OFFICE_WORKTREE_DIR="${OFFICE_WORKTREE_DIR:-.claude/worktrees}"
 # How much of the window the right strip takes. Wide enough that a chat pane
@@ -790,6 +807,9 @@ _office_stale() {                      # [hours] -> "<session> <idle-min> <MB>"
 #
 # @office_kind is the STABLE identity (CHAT, SHELL, EDITOR, CLAUDE) that
 # the toggles match on — the visible label carries a repo and a branch and moves.
+# CLAUDE means "an agent desk" now, whichever OFFICE_AGENTS entry is actually
+# running there — office-attn and the toggles only ever needed "is this a
+# session", never which one, so nothing downstream had to change.
 _office_label() {                      # <pane> <label> [kind]
   # '#' is stripped: the label is rendered through tmux's format engine, where
   # #(...) runs a shell command. A branch name or an `office task` description
@@ -1023,8 +1043,59 @@ _office_free_wt() {                    # <root> <session> -> a directory, or not
   print -r -- "$wt/desk-$n"
 }
 
-_office_new() {                        # [worktree-name] -> extra session
-  local root wt dir label s
+# Agent <n> (1-based OFFICE_AGENTS index): its label, or its command. Split
+# the way a shell would ((z)), so a command word that was itself quoted in the
+# array survives instead of being torn apart by the re-join below.
+_office_agent_label() { local -a w; w=(${(z)OFFICE_AGENTS[$1]}); print -r -- "${w[1]}" }
+_office_agent_cmd()   { local -a w; w=(${(z)OFFICE_AGENTS[$1]}); print -r -- "${(j: :)w[2,-1]}" }
+
+# "<label|index>" -> its 1-based OFFICE_AGENTS index, or fail (1). Numeric
+# first, then a case-insensitive label match, because a label is what a person
+# types — the menu's own items always pass the index instead.
+_office_agent_index() {                # <label-or-index> -> index, or fail
+  local q=$1 i
+  [[ $q == <-> ]] && (( q >= 1 && q <= ${#OFFICE_AGENTS} )) && { print -r -- "$q"; return 0 }
+  for (( i = 1; i <= ${#OFFICE_AGENTS}; i++ )); do
+    [[ ${(L)$(_office_agent_label $i)} == ${(L)q} ]] && { print -r -- "$i"; return 0 }
+  done
+  return 1
+}
+
+# 2+ agents and none named: ask, natively, instead of guessing. Every item
+# re-enters `office new --agent <n>` — the exact call the binding makes once
+# you pick one — so the menu is not a second way to open a desk, it is the
+# same one called a second time.
+#
+# Needs a CLIENT to draw on: a run-shell binding has none of its own (it is
+# detached), which is why `bind n` hands one down as OFFICE_CLIENT. Typed in a
+# shell inside tmux there already is one attached, tmux finds it unaided, and
+# -c is left off.
+_office_agent_menu() {                 # [worktree-name] -> ()
+  local dir=$PWD i n=${#OFFICE_AGENTS} extra="" lbl
+  local client=$OFFICE_CLIENT; unset OFFICE_CLIENT
+  (( n > 9 )) && n=9                    # menu keys are the digits 1-9, no more
+  [[ -n $1 ]] && extra=" ${(q)1}"
+  # ponytail: $dir goes into a tmux FORMAT unescaped below (name/command both
+  # are one) — fine for an ordinary path, and a literal '#' in one would need
+  # the same stripping _office_label already does, if that ever bites.
+  local -a items menu_c
+  for (( i = 1; i <= n; i++ )); do
+    lbl=$(_office_agent_label "$i")
+    items+=(
+      "${lbl//\#/}" "$i"
+      "run-shell -b \"OFFICE_PANE_PATH='$dir' zsh -ic 'office new --agent $i$extra'\""
+    )
+  done
+  [[ -n $client ]] && menu_c=(-c "$client")
+  tmux display-menu $menu_c -T "#[align=centre] new desk " -x P -y P $items 2>/dev/null
+}
+
+_office_new() {                        # [--agent <label|index>] [worktree-name] -> extra session
+  local root wt dir label s agent=""
+  if [[ $1 == --agent ]]; then
+    agent=$(_office_agent_index "$2") || { print -u2 "office: no such agent '$2'"; return 1 }
+    shift 2
+  fi
   root=$(_office_root "$PWD"); wt="$root/$OFFICE_WORKTREE_DIR"
 
   s=$(_office_here)
@@ -1037,6 +1108,13 @@ _office_new() {                        # [worktree-name] -> extra session
   if (( $(_office_desk_count "$s") >= _OFFICE_MAX_DESKS )); then
     _office_say "left column is full ($_OFFICE_MAX_DESKS sessions) — close one with Ctrl-Space q"
     return 0
+  fi
+
+  # More than one agent and none named: Ctrl-Space n always asks, rather than
+  # guessing which one you meant.
+  if [[ -z $agent ]]; then
+    (( ${#OFFICE_AGENTS} > 1 )) && { _office_agent_menu "$@"; return }
+    agent=1
   fi
 
   if [[ -z $1 ]]; then
@@ -1075,8 +1153,9 @@ _office_new() {                        # [worktree-name] -> extra session
       || { print -u2 "office: could not create worktree '$1'"; return 1 }
     print -r -- "office: new worktree $dir"
   fi
+  local acmd alabel; acmd=$(_office_agent_cmd "$agent"); alabel=$(_office_agent_label "$agent")
   label=$(basename "$dir")
-  [[ $dir == "$root" ]] && label="$OFFICE_SESSION_LABEL" || label="$OFFICE_SESSION_LABEL · $label"
+  [[ $dir == "$root" ]] && label="$alabel" || label="$alabel · $label"
 
   # Picking the repo root out of the picker lands in the checkout a session is
   # usually already in, which is the collision this command exists to avoid.
@@ -1086,7 +1165,7 @@ _office_new() {                        # [worktree-name] -> extra session
   # split the tallest desk in the left column, so agents stack down the left and
   # the right strip keeps its width
   local newp
-  newp=$(tmux split-window -v -t "$(_office_desk_pane "$s")" -c "$dir" -P -F '#{pane_id}' "$OFFICE_SESSION_CMD$_OFFICE_DESK_END")
+  newp=$(tmux split-window -v -t "$(_office_desk_pane "$s")" -c "$dir" -P -F '#{pane_id}' "$acmd$_OFFICE_DESK_END")
   _office_label "$newp" "$label" CLAUDE
   _office_even_desks "$s"
   # `_office_add_pane` has always ended this way and this one did not, so a desk
@@ -1302,6 +1381,8 @@ ${r}"
   print -P "                 ${d}see which one to compact without walking into it to ask.${r}"
   print -P "                 ${d}OFFICE_CTX_WARN / _ALARM move the marks. Claude Code only.${r}"
   print -P "  ${g}office new X${r}   Straight into worktree X — created if it is not there yet."
+  print -P "  ${g}--agent A${r}      With OFFICE_AGENTS set to 2+, name one by label or number;"
+  print -P "                 ${d}Ctrl-Space n asks with a menu instead. One agent, no menu.${r}"
   print -P "  ${g}office task X${r}  A new session already working on X."
   print -P "  ${g}office desk${r}    One more session in THIS checkout, when you mean it: two"
   print -P "                 ${d}agents on one branch, which the status line says out loud.${r}"
