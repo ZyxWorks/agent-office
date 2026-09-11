@@ -35,6 +35,7 @@ emulate -L zsh
 # first non-zero return stops inside the code it is testing.
 
 export TMUX_TMPDIR=$(mktemp -d)        # its own server, never yours
+unset TMUX TMUX_PANE                     # inside a desk $TMUX outranks TMUX_TMPDIR: without this every tmux call below, cleanup included, reached YOUR office (2026-09-11)
 export OFFICE_SOLO=1
 export OFFICE_SESSION_CMD='exec zsh' OFFICE_CHAT_CMD='exec zsh' OFFICE_CHAT_OPEN=0
 export OFFICE_DEFAULT_DESKS=2
