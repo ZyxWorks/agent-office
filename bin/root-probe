@@ -70,6 +70,7 @@ else print -u2 "  FAIL a dead CODE_ROOT blamed the name instead"; fail=1; fi
 # you to the first repo's office. This half needs a real server, so it gets its
 # own -- never yours -- and everything that would touch the machine is stubbed.
 export TMUX_TMPDIR=$(mktemp -d)
+unset TMUX TMUX_PANE                     # inside a desk $TMUX outranks TMUX_TMPDIR: without this every tmux call below, cleanup included, reached YOUR office (2026-09-11)
 export OFFICE_SOLO=1 OFFICE_SESSION_CMD='exec zsh' OFFICE_CHAT_OPEN=0
 export OFFICE_DEFAULT_DESKS=1
 _office_attach(){ : }; _office_update_check(){ : }; _office_reap(){ : }
