@@ -796,7 +796,13 @@ _office_wait() {
   while :; do
     clear
     print -P "\n  %F{240}what should this pane be?  any key shows the list again.%f"
-    [[ $(tmux display -p -t "$TMUX_PANE" '#{session_attached}' 2>/dev/null) == 0 ]] || office new
+    # Attached is not yet READY: on a slow machine (Ubuntu CI, measured) the
+    # first display-menu right after the attach is refused with "no current
+    # client", and the pane then sat waiting for a key with no list on screen.
+    # So a refused menu is asked again, for up to two seconds.
+    if [[ $(tmux display -p -t "$TMUX_PANE" '#{session_attached}' 2>/dev/null) != 0 ]]; then
+      for (( i = 0; i < 20; i++ )); do office new && break; sleep 0.1; done
+    fi
     read -rsk 1 || break
   done
 }
@@ -956,7 +962,7 @@ _office_new() {                        # [--agent <a> [wt] | --shell | --edit | 
   # behind for a pane that never opened.
   _office_room "$s" || return 0
   case $1 in
-    '')      _office_menu "$s"; return 0 ;;
+    '')      _office_menu "$s"; return ;;   # its status: _office_wait retries a refused menu
     --back)  _office_unhide "$s" "$2" || _office_say "that pane is not parked any more"; return 0 ;;
     --shell) _office_add_pane "$(_office_strip_title "$PWD")" 'exec zsh' "$PWD" SHELL; return ;;
     --edit)  _office_add_pane "FILE EDITOR" "$_OFFICE_EDITOR_CMD" "$PWD" EDITOR; return ;;
