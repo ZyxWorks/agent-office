@@ -57,15 +57,38 @@ if pid == 0:
                       f'_office_open "{repo}"'])
 
 
-def drain(seconds):
-    """Keep the client's output flowing, or tmux blocks writing to it."""
+def drain(seconds, want=None):
+    """Keep the client's output flowing, or tmux blocks writing to it. With
+    `want`, return True as soon as those bytes have been drawn."""
+    seen = b""
     end = time.time() + seconds
     while time.time() < end:
         if select.select([fd], [], [], 0.1)[0]:
             try:
-                os.read(fd, 65536)
+                seen = (seen + os.read(fd, 65536))[-65536:]
             except OSError:
-                return
+                return False
+            if want and want in seen:
+                return True
+    return False
+
+
+# Every step WAITS for what a hand would wait for, never a fixed number of
+# seconds: on the Ubuntu runner a pane's `zsh -ic` takes about eight seconds to
+# start (measured 2026-09-17), so a fixed 8s wait typed "1" at a pane whose menu
+# had not drawn yet, and every step after it was off by one.
+def menu():
+    """Wait for a menu to be on screen: its title is the word open."""
+    return drain(60, b" open ")
+
+
+def until(test, seconds=60):
+    end = time.time() + seconds
+    while time.time() < end:
+        if test():
+            return True
+        drain(0.5)
+    return False
 
 
 def office():
@@ -88,36 +111,36 @@ def check(name, ok, got):
 
 
 try:
-    # a zsh -ic per pane, and each one reads an rc: a cold runner needs the time
-    drain(8)
+    drew = menu()
     panes = office()
     check("the office opens as one pane, and it is the question",
           len(panes) == 1 and panes[0].startswith("NEW "), panes)
 
+    check("the menu drew by itself", drew, "no menu on screen after 60s")
     os.write(fd, b"1")
-    drain(6)
+    until(lambda: any(p.startswith("CLAUDE ") for p in office()))
     panes = office()
-    check("the menu drew by itself, and 1 made that pane agent ONE",
+    check("1 made that pane agent ONE",
           len(panes) == 1 and panes[0].startswith('CLAUDE "sleep 61'), panes)
 
     os.write(fd, b"\x00n")  # Ctrl-Space is NUL
-    drain(3)
+    menu()
     os.write(fd, b"s")
-    drain(6)
+    until(lambda: len(office()) == 2)
     panes = office()
     check("Ctrl-Space n, s adds a shell beside it",
           len(panes) == 2 and any(p.startswith("SHELL ") for p in panes), panes)
 
     os.write(fd, b"\x00x")  # the shell was focused when it opened
-    drain(6)
+    until(lambda: "SHELL" in stash())
     panes = office()
     check("Ctrl-Space x parks it, still running",
           len(panes) == 1 and "SHELL" in stash(), (panes, stash()))
 
     os.write(fd, b"\x00n")
-    drain(3)
+    menu()
     os.write(fd, b"a")      # the first parked pane's key
-    drain(6)
+    until(lambda: "SHELL" not in stash())
     panes = office()
     check("the next menu lists it under a, and a brings it back",
           len(panes) == 2 and "SHELL" not in stash(), (panes, stash()))
