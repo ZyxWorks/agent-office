@@ -63,13 +63,13 @@ jobs:
           zsh -n bin/off-probe
           zsh -n bin/root-probe
           zsh -n bin/ctx-probe
-          zsh -n bin/zoom-probe
+          zsh -n bin/grid-probe
           zsh -n bin/agent-probe
           zsh -n install.sh
           sh -n bin/office-attn
           sh -n bin/office-ctx
           sh -n bin/office-cwd
-          python3 -m py_compile bin/key-probe bin/mouse-probe
+          python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe
 
       # tmux refuses to parse a config it cannot read, and a broken one would
       # otherwise only surface as "the keys do nothing" inside a probe.
@@ -80,6 +80,10 @@ jobs:
           tmux -L cfg source-file "$PWD/theme/office-theme.tmux.conf"
           tmux -L cfg list-keys -T prefix | grep -qE '^bind-key +-T prefix +n ' \
             || { echo "prefix n is not bound"; exit 1; }
+          # the pane toggles are gone: a pane is whatever you pick from n
+          if tmux -L cfg list-keys -T prefix | grep -qE "^bind-key +-T prefix +[scea] .*office"; then
+            echo "a pane toggle key is back"; exit 1
+          fi
           # No destructive action may sit behind one hard-coded letter again.
           # `confirm-before` takes exactly one key for yes -- y -- and on a
           # QWERTZ keyboard the key the hand reaches for sends z, so the prompt
@@ -135,8 +139,9 @@ jobs:
       - name: root-probe
         run: bin/root-probe
 
-      - name: zoom-probe
-        run: bin/zoom-probe
+      # one pane that asks, then the grid: three across, two down, six in all
+      - name: grid-probe
+        run: bin/grid-probe
 
       - name: attn-probe
         run: bin/attn-probe
@@ -157,3 +162,7 @@ jobs:
 
       - name: agent-probe
         run: bin/agent-probe
+
+      # the menu draws only on a real client, so this one attaches one
+      - name: menu-probe
+        run: bin/menu-probe

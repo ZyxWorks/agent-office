@@ -1,0 +1,154 @@
+#!/usr/bin/env zsh
+# grid-probe — one pane that asks, then a grid that fills the top row first: at most three across, two down.
+#
+# Run it after ANY change to the grid, adding, parking, moving or closing a pane.
+# It builds a throwaway office on its own tmux server and drives the same calls
+# the menu items and the key bindings make.
+#
+#     env -u TMUX bin/grid-probe
+#
+# The menu itself cannot be drawn headless (display-menu needs a client), so
+# every pick is made the way the menu makes it: `office new --agent N`,
+# `--shell`, `--edit`, `--back <window>`.
+emulate -L zsh
+# no err_return: every step is checked explicitly, and a probe that stops at the
+# first non-zero return stops inside the code it is testing.
+exec </dev/null
+
+export TMUX_TMPDIR=$(mktemp -d)        # its own server, never yours
+unset TMUX TMUX_PANE                     # inside a desk $TMUX outranks TMUX_TMPDIR: without this every tmux call below, cleanup included, reached YOUR office (2026-09-11)
+export OFFICE_SOLO=1
+export OFFICE_SESSION_CMD='exec zsh'
+repo=$(mktemp -d)/probe; mkdir -p "$repo"; git -C "$repo" init -q
+# the second agent gets a worktree, and a worktree needs a commit to branch from
+git -C "$repo" -c user.email=p@p -c user.name=probe commit -q --allow-empty -m init
+repo=${repo:A}
+
+here=${0:A:h}
+source "$here/../office.zsh"
+OFFICE_AGENTS=("ONE exec zsh" "TWO exec zsh")
+# nothing here may touch the machine it runs on: no attach, no update check,
+# no always-on stack, no ~/.tmux.conf.
+_office_attach(){ : }; _office_update_check(){ : }; _office_reap(){ : }
+_office_always_on_up(){ : }; _office_reload_conf(){ : }; _office_say(){ : }
+
+cleanup() { tmux kill-server 2>/dev/null; rm -rf "$TMUX_TMPDIR" "${repo:h}" }
+trap cleanup EXIT INT TERM
+
+fail=0
+ok()   { print "  ok   $1" }
+bad()  { print -u2 "  FAIL $1"; fail=1 }
+want() { [[ $2 == $3 ]] && ok "$1" || bad "$1: got '$2', wanted '$3'" }
+
+cd "$repo"
+_office_open "$repo" >/dev/null 2>&1
+s=$(_office_sessname "$repo")
+# the shipped config on this server: the close hook lives there
+tmux source-file "$here/../office.tmux.conf" 2>/dev/null
+tmux resize-window -t "$s:" -x 200 -y 50 2>/dev/null
+sleep 0.5
+
+panes() { tmux list-panes -t "=$s" -F '#{pane_id}' 2>/dev/null | wc -l | tr -d ' ' }
+kinds() { tmux list-panes -t "=$s" -F '#{@office_kind}' 2>/dev/null | tr '\n' ' ' }
+ids()   { tmux list-panes -t "=$s" -F '#{pane_id}' 2>/dev/null | tr '\n' ' ' }
+of()    { tmux list-panes -t "=$s" -F '#{@office_kind} #{pane_id}' | awk -v k="$1" '$1==k {p=$2} END {print p}' }
+# The whole contract, in one place: <what> <panes>. Rows are counted from real
+# geometry, and every pane in a row must be the same width give or take the one
+# cell an odd split leaves over.
+# The grid fills the TOP row first, and the top row takes the odd pane: three
+# panes are "2 1", five are "3 2", never "1 2" or "2 3". That per-row count is
+# the fingerprint a close without the re-fit gets wrong while every total adds up.
+shape() {
+  local what=$1 n=$2 geo spread fill want
+  geo=$(tmux list-panes -t "=$s" -F '#{pane_left} #{pane_top} #{pane_width}' 2>/dev/null)
+  fill=$(print -r -- "$geo" | awk '{n[$2]++} END {for (t in n) print t, n[t]}' | sort -n | awk '{printf "%s ", $2}')
+  (( n <= 2 )) && want="$n " || want="$(( (n + 1) / 2 )) $(( n / 2 )) "
+  spread=$(print -r -- "$geo" | awk '!($2 in lo) {lo[$2]=$3; hi[$2]=$3} {if ($3<lo[$2]) lo[$2]=$3; if ($3>hi[$2]) hi[$2]=$3} END {m=0; for (t in lo) if (hi[t]-lo[t]>m) m=hi[t]-lo[t]; print m}')
+  if [[ $(panes) == $n && $fill == $want ]] && (( spread <= 1 )) \
+     && [[ $(tmux list-windows -t "=$s" -F '#{window_zoomed_flag}' | head -1) == 0 ]]; then
+    ok "$what"
+  else
+    bad "$what: $(panes) panes, rows filled '$fill', widths in a row spread $spread (wanted $n, '$want')"
+    print -r -- "$geo" | sed 's/^/        /' >&2
+  fi
+}
+
+# --- walking in: ONE pane, and it is the question ----------------------------
+want "office opens as one pane" "$(panes)" 1
+want "...and that pane is the question" "$(kinds)" "NEW "
+
+# --- the first agent takes its cell, in the checkout --------------------------
+office new --agent 1 >/dev/null 2>&1; sleep 0.3
+want "a pick replaces the question, it does not add beside it" "$(kinds)" "CLAUDE "
+want "the first agent works in the checkout" \
+  "$(tmux display -p -t "$(of CLAUDE)" '#{pane_start_path}')" "$repo"
+
+# --- the second agent gets its OWN worktree, side by side ----------------------
+office new --agent TWO >/dev/null 2>&1; sleep 0.3
+p=$(of CLAUDE)
+want "the second agent is labelled with its worktree" "$(tmux show -p -t "$p" -qv @office_label)" "TWO · desk-2"
+want "...and works in it" "$(tmux display -p -t "$p" '#{pane_start_path}')" "$repo/.claude/worktrees/desk-2"
+shape "2 panes: side by side" 2
+
+office new --shell >/dev/null 2>&1; sleep 0.3
+shape "3 panes: two on top, the third underneath" 3
+office new --edit >/dev/null 2>&1; sleep 0.3
+shape "4 panes: two by two" 4
+office new --shell >/dev/null 2>&1; sleep 0.3
+shape "5 panes: three on top, two underneath" 5
+office new --shell >/dev/null 2>&1; sleep 0.3
+shape "6 panes: three by two" 6
+office new --shell >/dev/null 2>&1; sleep 0.3
+shape "a 7th is refused: six is the cap" 6
+
+# --- parking: out of the grid, still running, on the list ---------------------
+ed=$(of EDITOR)
+office hide "$ed" >/dev/null 2>&1; sleep 0.3
+shape "parking one re-fits the grid" 5
+want "the parked pane is on this office's list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 1
+want "...under its own label" "$(_office_parked "$s" | cut -f2)" "FILE EDITOR"
+[[ $(tmux show -t "$s" -qv @office_bar) == *"(1 parked)"* ]] \
+  && ok "the bar counts it" || bad "the bar counts it: '$(tmux show -t "$s" -qv @office_bar)'"
+[[ -n $(tmux display -p -t "$ed" '#{pane_pid}' 2>/dev/null) ]] \
+  && ok "...and it is still running" || bad "...and it is still running"
+office new --back "$(_office_parked "$s" | cut -f1)" >/dev/null 2>&1; sleep 0.3
+shape "bringing it back re-fits the grid" 6
+want "...and it is off the list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 0
+
+# --- moving: the pane goes where it was dropped, the rest shift along ---------
+local -a before; before=(${=$(ids)})
+_office_move "${before[1]}" "${before[4]}" >/dev/null 2>&1; sleep 0.3
+want "dropping pane 1 on pane 4 moves it to 4" "$(ids)" "${before[2]} ${before[3]} ${before[4]} ${before[1]} ${before[5]} ${before[6]} "
+shape "...and the grid holds" 6
+_office_move "${before[1]}" "${before[2]}" >/dev/null 2>&1; sleep 0.3
+want "dropping it back on pane 1 undoes it" "$(ids)" "${(j: :)before} "
+
+# --- closing: the config's hook re-fits the grid -------------------------------
+tmux kill-pane -t "${before[3]}"; sleep 1.5
+shape "a close re-fits the grid (the after-kill-pane hook)" 5
+
+# ...and so does a pane whose own command ends (pane-exited, not a kill)
+local -a now; now=(${=$(ids)})
+tmux respawn-pane -k -t "${now[1]}" 'exit 0'; sleep 1.5
+shape "a pane that exits on its own re-fits the grid (the pane-exited hook)" 4
+
+# --- zoom lies about geometry; an office command drops it first ---------------
+# a pane that is still here: before[1] was the one the exit above just ended
+now=(${=$(ids)}); tmux resize-pane -Z -t "${now[1]}"
+want "...zoomed first, or the next check proves nothing" \
+  "$(tmux list-windows -t "=$s" -F '#{window_zoomed_flag}' | head -1)" 1
+office renumber >/dev/null 2>&1; sleep 0.3
+shape "a zoomed office comes back as a grid" 4
+
+# --- parking the last pane never closes the office ----------------------------
+for p in ${=$(ids)}; do office hide "$p" >/dev/null 2>&1; sleep 0.2; done
+want "parking everything leaves the question, not an empty office" "$(kinds)" "NEW "
+want "...and everything parked is on the list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 4
+office hide "$(of NEW)" >/dev/null 2>&1; sleep 0.2
+want "the question pane itself is never parked" "$(kinds)" "NEW "
+want "...so it never lands on the list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 4
+office new --back "$(_office_parked "$s" | head -1 | cut -f1)" >/dev/null 2>&1; sleep 0.3
+want "bringing one back takes the question's cell" "$(panes)" 1
+
+(( fail )) && { print -u2 "\ngrid-probe FAILED"; exit 1 }
+print "\ngrid-probe passed"

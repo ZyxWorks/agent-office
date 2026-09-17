@@ -1,6 +1,6 @@
 # Agent Office
 
-### Four agents. One window.
+### Several agents. One window.
 
 Each one in its own git worktree. The one that has stopped and is waiting on you
 says so, on its own border, without being asked.
@@ -10,10 +10,10 @@ says so, on its own border, without being asked.
 ![Platform: macOS, Linux and WSL2](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-6a6c77)
 ![No daemon](https://img.shields.io/badge/daemons-0-6a6c77)
 
-**Build agents with agents, and talk to what you built, in one window.**
-Several coding-agent sessions side by side, each in its own git worktree, plus a
-shell, a file editor that follows that shell, and a chat pane wired to your own
-agent. Claude Code out of the box, Codex or any other CLI with one variable.
+**Several coding agents side by side, each in its own git worktree, plus shells
+and a file editor, in one window.** "Your turn" and how full each context
+window is, right on the border. Claude Code out of the box, Codex, a local
+model, or any other CLI — one more line in `OFFICE_AGENTS`.
 
 [**The product page**](https://zyxworks.github.io/agent-office/) ·
 [Our other tools](https://zyxworks.com/) ·
@@ -24,31 +24,22 @@ office on
 ```
 
 ```
-┌─────────────────────────────┬──────────────┐
-│ 1 CLAUDE                    │ 4 AGENT CHAT │  ^Space c
-│                             │              │
-├─────────────────────────────┼──────────────┤
-│ 2 CLAUDE 2   ^Space n adds  │ 5 SHELL      │  ^Space s
-│                 one more    │              │
-├─────────────────────────────┼──────────────┤
-│ 3 CLAUDE 3                  │ 6 FILE EDITOR│  ^Space e
-│                             │              │
-└─────────────────────────────┴──────────────┘
-   the agents that build it       the agent
-   claude / codex / your own      you built
+┌──────────────┬──────────────┬──────────────┐
+│ 1 CLAUDE     │ 2 CODEX      │ 3 SHELL      │
+│              │              │              │
+│              │              │              │
+└──────────────┴──────────────┴──────────────┘
 ```
 
-**Left: the agents that build.** Claude Code, Codex, or whatever CLI you use,
-stacked and kept at equal height. One variable points them at your agent, so
-nothing here knows or cares which one you run.
-
-**Right: the agent you built.** Once your own agent has a chat command, that
-pane is it: you talk to the thing you have been building, in the same window you
-built it in, and it does the work. No dashboard to stand up, no Slack app to
-register, no browser tab. If it runs in a terminal, it belongs in that pane.
+`office on` opens ONE pane that asks what it should be: any `OFFICE_AGENTS`
+entry, a shell, or the file editor. `Ctrl-Space n` asks the same question for
+every pane after that, and the grid re-fits itself — three across at most, two
+down, six in all. Park a pane with `Ctrl-Space x` and it keeps running, listed
+at the top of that same menu as `back: <label>`; drag a pane's title onto
+another to move it there; the rest shift along.
 
 Closing the window kills nothing: `office on` puts you back exactly where you
-were, panes, layout and all.
+were, panes and all.
 
 > **New to running an agent in the terminal?**
 > Start with **[GETTING-STARTED.md](GETTING-STARTED.md)**: what each pane is,
@@ -63,27 +54,22 @@ idea which one was stuck. Every window looked equally busy, so finding the one
 waiting on you meant reading all four, then doing it again five minutes later.
 That last part is why this exists. The window is the easy half.
 
-| 4 | 20s | 0 |
+| 6 | 20s | 0 |
 |---|---|---|
-| agents in one window, each in its own git worktree | before a desk that has stopped says so on its border | daemons, config files and dashboards to stand up |
+| panes in one window — agents, shells, the file editor — three across at most | before a desk that has stopped says so on its border | daemons, config files and dashboards to stand up |
 
-Four is the cap because a fifth session in a fifty-row window gets about nine
-rows, which is a slit and not a desk. Twenty seconds is the default and it is
-one variable. Four agents you can keep track of is a different tool from four
-agents in four windows.
+Six is the cap, three across and two down, because past that a pane is a slit
+and not a desk. Twenty seconds is the default wait and it is one variable.
+Several agents you can keep track of is a different tool from several agents in
+several windows.
 
-That is the first half of what this fixes. The second half is what you do with
-those agents. People building an agent of their own hit the same wall every
-time: the thing works in a terminal, and then they lose a week standing up a
-dashboard or wiring a Slack app just to talk to it. The chat pane is that,
-already built. Point it at your agent and it is a place to give it work.
-
-So the shape is: **agents on the left writing the code, the agent you built on
-the right doing the work.** One window, one command, and no web app in the
-middle. It is one zsh file, one tmux config and three small helpers, about 2,100
-lines all in, plus seven probes that drive a real tmux server to check it. No
-daemon, no plugin manager, no config file, and one `git fetch` you can switch
-off.
+So the shape is: **several coding agents side by side, each in its own
+worktree, plus the shells and the file editor you check their work in — one
+window, one command, "your turn" and how full each one's context is on every
+border.** No web app in the middle. It is one zsh file, one tmux config and
+three small helpers, about 2,100 lines all in, plus nine probes that drive a
+real tmux server to check it. No daemon, no plugin manager, no config file, and
+one `git fetch` you can switch off.
 
 ## Setup
 
@@ -170,58 +156,48 @@ you were coming back to is worse than a full disk.
 
 ## The keys
 
+Five things you can do to a pane, and nothing else:
+
 | | |
 |---|---|
 | `⇧←↑↓→` | move between panes |
+| `Ctrl-Space` `n` | one more pane: a menu — parked panes, every agent, shell, file editor |
+| `Ctrl-Space` `x` | park this pane. Still running; `Ctrl-Space n` lists it to bring back |
+| `Ctrl-Space` `q` | close this pane. A menu: click it, or `c` to close and `k` or Escape to keep |
+| `Ctrl-Space` `z` | zoom this pane full screen, and back |
+| drag a pane's title onto another | it moves there, the rest shift along |
 
-Everything else is **`Ctrl-Space`, then one letter**:
-
-| | |
-|---|---|
-| `n` | new session, in its own git worktree |
-| `c` `s` `e` | toggle chat / shell / file editor. On a pane that quit whatever it was running, the same key restarts it |
-| `a` | park every session, bring them all back, or open one if there are none |
-| `q` | close this pane. A menu: click it, or `c` to close and `k` or Escape to keep |
-| `x` | park this pane. Still running, `office show` brings it back |
-| `z` | zoom this pane full screen, and back |
-| arrows | move, and the only way out of a file you have open |
-
-
-Two rules, and the second covers everything. Movement is a chord because it is
-what you do most and arrows carry their modifier natively; every action is the
-prefix, which is the tmux convention and needs **no terminal configuration on
-any platform**. **One action, one key** — there is no second way to close a
-pane or move between them, because a scheme with synonyms is one you have to
-read twice to learn once. The mouse works too: click a pane to focus it, drag a
-border to resize, and **drag across text to copy it** — it is on the system
-clipboard the moment you let go, in the shell and in the file editor both. It
-stays that way until `office off`.
+Movement is a chord because it is what you do most and arrows carry their
+modifier natively; every other action is the prefix, which is the tmux
+convention and needs **no terminal configuration on any platform**. **One
+action, one key** — there is no second way to close a pane or move between
+them, because a scheme with synonyms is one you have to read twice to learn
+once. The mouse works too: click a pane to focus it, and **drag across text to
+copy it** — it is on the system clipboard the moment you let go, in the shell
+and in the file editor both. Dragging a *border* no longer resizes: the grid
+puts every size back on the next change anyway, so that gesture moves a pane
+instead.
 
 ### The keys are on the status bar
 
-A pane's border carries the key that toggles it, which is no help at all once
-the pane is closed and the border went with it. So the bar carries the whole
-set:
+The bar carries the whole set, and it updates the instant a pane opens, closes,
+parks or comes back — `office` writes it into a tmux option rather than the
+status bar polling a command, which would always be one interval behind:
 
 ```
-^Space then  │  n new  sessions a · shell s · editor e · chat c
-               ^^^^^^^^ dim = open            lit = closed ^^^^
+^Space │ n new (2 parked) │ x park │ q close │ z zoom │ ⇧←↑↓→ move · drag a title to reorder
 ```
 
-It updates the instant a pane opens or closes, because `office` writes it into
-a tmux option rather than the status bar polling a command. A polled job is
-always one interval behind the thing it describes.
-
-Brightness means one thing and one thing only: **lit means that pane is
-closed**, so the thing standing out is the thing you cannot find. `new` sits
-behind a divider because it is an action rather than a state. Clicking the
-strip opens a new session.
+`^Space` lights up while you are holding the prefix, `(N parked)` only shows
+when something is, and `z zoom` becomes `z unzoom` and lights up while a pane
+*is* zoomed — every other pane is hidden then, so the way back says so itself.
+Clicking the strip opens the same menu as `Ctrl-Space n`.
 
 It ships with the optional theme, or take it on its own:
 
 ```tmux
-set -g status-left "#{@office_bar} "
-set -g status-left-length 70
+set -g status-left "#{E:@office_bar} "
+set -g status-left-length 120
 ```
 
 ### Which one is waiting on you
@@ -373,12 +349,23 @@ select-to-copy; and even where it worked it was slow, because tmux cannot fire a
 double-click until the triple-click window has passed, and that wait is not
 tunable. A key that works in every pane and answers instantly wins.
 
+### Moving a pane: drag its title
+
+Needs tmux 3.7 or newer. Older tmux sends no event for a press on a title.
+
+Press on a pane's title line, drag, and let go over another pane: it moves
+there, and the panes in between shift along to make room. The cost, on purpose,
+is that dragging a *border* no longer resizes it — tmux cannot tell the two
+gestures apart by coordinates alone, only one can win, and the grid puts every
+size back on the next change regardless. `Ctrl-Space z` gives a pane the whole
+window when you need more room than the grid gives it.
 
 ## Park versus close
 
-`Ctrl-Space x` parks a pane: it is moved to a hidden tmux session and keeps running.
-Its own toggle brings it back, in its proper place, or `office show` picks from
-everything parked.
+`Ctrl-Space x` parks a pane: it is moved to a hidden tmux session and keeps
+running. `Ctrl-Space n` lists it at the top of the menu as `back: <label>` —
+pick it and it rejoins the grid — or `office show` fuzzy-picks from everything
+parked.
 
 `Ctrl-Space q` closes a pane for good. Parking is not free, a parked agent session
 still holds its 400 to 700MB, and `office doctor` lists parked panes alongside
@@ -395,15 +382,16 @@ live ones for exactly that reason.
 | `office <name>` | open another repo by fuzzy name |
 | `office pick` | fuzzy-pick from every repo under `$CODE_ROOT` |
 | `office solo` | like `on`, but starts nothing: the panes and nothing in them |
-| `office new [wt]` | one more session in its own git worktree — `Ctrl-Space n`. A free one, or a new `desk-N`, or the worktree you name, created if it is not there yet |
+| `office new` | one more pane — `Ctrl-Space n`: a menu of parked panes, every agent, a shell and the file editor |
+| `office new [wt]` | skip the menu: agent 1, in worktree `wt` — a free one, an existing one, or a new `desk-N`, created if it is not there yet |
+| `office new --agent <a> [wt]` | skip the menu: that agent (label or number), in worktree `wt` if named |
+| `office new --shell` / `office new --edit` | skip the menu: straight to a shell pane / the file editor |
 | `office task <what>` | one more session, already working on `<what>` |
 | `office desk` | one more session in THIS checkout, when you mean it |
-| `office chat` `shell` `edit` | toggle a right-strip pane |
-| `office sessions` | park or restore the whole left column |
-| `office renumber` | renumber the panes and redraw the key bar (every office command that changes the panes already does) |
+| `office renumber` / `office grid` | rebuild the grid and redraw the key bar (every office command that changes the panes already does this on its own) |
 | `office cd [x]` | walk the shell into another worktree — yours, or the one an agent is in. Checks nothing out; the file editor follows |
-| `office layout` | rebuild the layout when a pane ends up somewhere wrong |
-| `office hide` / `office show` | park the current pane / bring one back |
+| `office hide` | park the current pane — `Ctrl-Space x` |
+| `office show` | fuzzy-pick a parked pane and bring it back |
 | `office doctor` | what is running and what it costs in RAM, read-only |
 | `office clean` | pick panes to close, heaviest first (rarely needed) |
 | `office sweep [h]` | close offices you walked away from, and everything in them |
@@ -416,40 +404,29 @@ The command is `office`. `ao` and `o` are aliases for it.
 
 ## Bringing your own agent
 
-`office` does not know what Claude Code is. A session is a command and the chat
-pane is a command. Point them at yours.
-
-**The sessions** in the left column:
+`office` does not know what Claude Code is. A session is a command, and that is
+the whole integration. Point it at yours:
 
 ```sh
 OFFICE_SESSION_CMD="my-agent"        # whatever you type to start it
 OFFICE_SESSION_LABEL="MY AGENT"      # what its panes are called
 ```
 
-That is the whole integration. `Ctrl-Space n` opens one. `office task <what>`
-opens one already working
-on a task, by running `$OFFICE_SESSION_CMD "<your task>"`, so that one needs an
-agent that takes a prompt as its first argument. If yours does not, `Ctrl-Space n` still
-works and you type the task into the pane.
+`Ctrl-Space n` offers it in the menu. `office task <what>` opens one already
+working on a task, by running `$OFFICE_SESSION_CMD "<your task>"`, so that one
+needs an agent that takes a prompt as its first argument. If yours does not,
+`Ctrl-Space n` still works and you type the task into the pane.
 
-**The chat pane** is separate, and it is for the conversational side of your
-agent rather than a coding session. Three shapes cover almost everything:
+**Want to talk to an agent you built, not just a coding one?** It is not a
+separate kind of pane any more — it is just one more entry:
 
 ```sh
-# 1. your agent has a REPL
-OFFICE_CHAT_CMD="my-agent chat"
-
-# 2. your agent writes a log and you want to watch it live
-OFFICE_CHAT_CMD="sh -c 'tail -f ~/.my-agent/stream.log'"
-
-# 3. a stream to watch AND a prompt to type at, in one pane
-OFFICE_CHAT_CMD="sh -c 'tail -f ~/.my-agent/stream.log & while read -r q; do my-agent ask \"$q\"; done'"
-OFFICE_CHAT_LABEL="MY AGENT"
+OFFICE_AGENTS+=("MYAGENT my-agent chat")
 ```
 
-Shape 3 is what a streaming chat actually is: something following the output in
-the background, and a loop reading your input. Anything that behaves like a
-terminal program works, because the pane is a terminal and nothing more.
+`Ctrl-Space n` lists it next to your coding agent, a shell and the file editor.
+Anything that behaves like a terminal program works, because the pane is a
+terminal and nothing more.
 
 Put those lines in your `.zshrc` **above** the `source .../office.zsh` line,
 then `office off` and `office on`.
@@ -464,31 +441,18 @@ Environment variables, set before sourcing `office.zsh`. All optional.
 | `CODE_ROOT` | `~/code` | where `office pick` looks for repos |
 | `OFFICE_SESSION_CMD` | `claude` | **what a session is.** Any agent CLI |
 | `OFFICE_SESSION_LABEL` | `CLAUDE` | what its panes are called |
-| `OFFICE_AGENTS` | *(built from the two above)* | an array of desks to choose between — `"LABEL command words..."` per element. One entry: no change. Two or more: `Ctrl-Space n` asks which |
+| `OFFICE_AGENTS` | *(built from the two above)* | an array of desks to offer in the `Ctrl-Space n` menu — `"LABEL command words..."` per element |
 | `OFFICE_WORKTREE_DIR` | `.claude/worktrees` | where `office new` looks for worktrees, and puts the ones it creates |
 | `OFFICE_EDITOR` | `$EDITOR`, else micro/nano/vi | what the editor pane opens files in. Set it to `micro` if `$EDITOR` is vim and you would rather it were not |
-| `OFFICE_DEFAULT_DESKS` | `1` | sessions opened at startup |
-| `OFFICE_STRIP_WIDTH` | `32` | percent of the window the right strip takes |
 | `OFFICE_REAP_HOURS` | `12` | parked panes older than this are closed on `office on` |
 | `OFFICE_ATTN_SECS` | `20` | how long a desk sits still before its border says **your turn** |
 | `OFFICE_CTX_WARN` | `400000` | context tokens at which a desk's number takes the accent colour |
 | `OFFICE_CTX_ALARM` | `600000` | ...and the alarm colour. Use `120000` / `170000` for a 200k window |
 | `OFFICE_UPDATE_CHECK` | `1` | `0` stops the background `git fetch` on `office on`. The only network call there is |
-| `OFFICE_CHAT_LABEL` | `AGENT CHAT` | name on the chat pane's border |
-| `OFFICE_CHAT_CMD` | your shell | what the chat pane runs |
-| `OFFICE_CHAT_OPEN` | on once `OFFICE_CHAT_CMD` is set | whether the chat pane opens at startup |
 | `OFFICE_ON_CMD` | *(empty)* | your own command, run when you walk in |
 | `OFFICE_OFF_CMD` | *(empty)* | your own command, run when you go home |
 | `OFFICE_RUNNING_CHECK` | `false` | exits 0 when it is already up |
 | `OFFICE_ON_ALWAYS` | `0` | `1` runs `OFFICE_ON_CMD` every walk-in, even when the check says up |
-
-The chat pane is the interesting one. Point `OFFICE_CHAT_CMD` at whatever
-talking to your agent looks like for you, and that becomes the pane:
-
-```sh
-OFFICE_CHAT_LABEL="ASK"
-OFFICE_CHAT_CMD="zsh -ic my-agent-chat"
-```
 
 The always-on trio is for anything that should come up when you sit down and go
 down when you leave, a local server, a tunnel, a sync daemon:
@@ -525,19 +489,18 @@ Nothing here ever needs a reboot. In rough order of how often you will want them
 | changed a setting, want it live | `Ctrl-Space r`, or `tmux source-file ~/.tmux.conf` |
 | one pane's keys do nothing, the arrows walk a cursor around, the others are fine | it scrolled into copy-mode. **Click in it, or press Escape.** Until 2026-08-15 only `q` did that and nothing on screen said so, so the pane read as dead |
 | Shift-Enter submits instead of making a line break, and does the right thing outside the office | an old `office.tmux.conf`. `office update`, then `Ctrl-Space r`. tmux drops the modifier on any key ASCII has no byte for unless it is told not to; the office tells it |
-| changed `OFFICE_CHAT_CMD`, the pane is unchanged | close it with `Ctrl-Space q`, reopen with `Ctrl-Space c` |
 | `Ctrl-Space w` does nothing | `w` is gone: it is `Ctrl-Space q` now, and it is the only close key |
-| need an image in a task | `Ctrl-Space n`, then paste into your agent's own prompt |
-| the columns look scrambled | `office layout` |
-| the file editor pane is just a shell prompt | you left the file list. `Ctrl-Space e` rebuilds it |
-| the chat pane quit and left a prompt | `Ctrl-Space c` restarts it |
+| need an image in a task | `Ctrl-Space n`, pick your agent, then paste into its own prompt |
+| a pane ended up in the wrong cell | it fixes itself on the next add, park, unpark or close — or run `office renumber` (`office grid`) now |
+| the file editor pane is just a shell prompt | you left the file list. `Ctrl-Space n`, then **file editor** brings it back |
 | a pane went red with `returned 1` | it is in a mode. Any office key now cancels it, or press `q` |
 | everything is wedged | `office off`, then `office on`. That resets the layout completely |
 
-**A parked or toggled pane keeps its old process.** After changing what a pane
-*runs*, close it with `Ctrl-Space q` and reopen it rather than toggling it off and on.
-The one exception is a pane that has *stopped* running it: its own key restarts it
-instead of hiding it, so there is no way to end up with a pane you cannot revive.
+**A parked pane keeps its old process.** Parking and bringing a pane back does
+not restart whatever is running in it — it never stopped. After changing what a
+pane *runs* (editing `OFFICE_AGENTS`, say), close it with `Ctrl-Space q` and
+open a fresh one with `Ctrl-Space n` rather than expecting a parked one to pick
+up the change.
 
 **If a key does nothing, it is not your terminal.** Nothing office binds needs
 terminal support beyond `Shift+arrow` and `Ctrl-Space`. Reload with
@@ -546,24 +509,25 @@ not re-read the config: `tmux source-file ~/.tmux.conf`.
 
 ## Details worth knowing
 
-**Desk 1 is the checkout you opened. Every extra desk gets its own worktree.**
-`Ctrl-Space n` takes a free worktree under `.claude/worktrees/` — nobody
-sitting in it, nothing uncommitted, nothing on its branch that has not landed
-in the default branch — or makes `desk-2`, `desk-3` when there is none. "Landed"
-is asked by merging the branch in memory and comparing trees, not by ancestry,
-so a **squash-merged** branch reads as finished instead of unfinished forever.
-Anything git cannot answer means "not free", and you get a new worktree rather
-than an agent dropped into somebody's branch. That is the
-whole point of running several agents at once: they edit separate checkouts, so
-two of them cannot land on one branch and commit over each other. When git
-cannot give one (not a repo, no commit to branch from) the session still opens,
-in the checkout you are in, and the status line says so. `office desk` is that
-on purpose, and says it too.
+**The first agent works in the checkout you opened. Every one after it gets its
+own worktree.** Picking an agent from `Ctrl-Space n` takes a free worktree under
+`.claude/worktrees/` — nobody sitting in it, nothing uncommitted, nothing on
+its branch that has not landed in the default branch — or makes `desk-2`,
+`desk-3` when there is none. "Landed" is asked by merging the branch in memory
+and comparing trees, not by ancestry, so a **squash-merged** branch reads as
+finished instead of unfinished forever. Anything git cannot answer means "not
+free", and you get a new worktree rather than an agent dropped into somebody's
+branch. That is the whole point of running several agents at once: they edit
+separate checkouts, so two of them cannot land on one branch and commit over
+each other. When git cannot give one (not a repo, no commit to branch from) the
+agent still opens, in the checkout you are in, and the status line says so.
+`office desk` is that on purpose, and says it too.
 
 **Pane numbers are ours, not tmux's.** tmux numbers panes by their position in
 the layout tree, which moving a pane leaves in an order your eye disagrees with
-(you get 4 = FILE EDITOR, 6 = AGENT). `office` numbers them from actual geometry, so
-they always read down the left column and then down the right strip.
+(you get 4 = FILE EDITOR, 6 = AGENT). `office` numbers them from actual
+geometry, so they always read like a page: the top row left to right, then the
+row below.
 
 **Pane borders stay quiet.** A border shows the pane's number, what it is, the
 key that acts on it, and what it is currently doing, but only when that last one
@@ -581,12 +545,13 @@ the pane looks frozen (often with a red `returned 1` line). Every office
 keybinding exits non-zero-proof now, and the movement, zoom, close and park
 keys all cancel the mode first, so there is always a way out.
 
-**A missing column rebuilds itself.** Park every session, or every glance pane,
-and tmux collapses the two-column layout: from then on the leftmost and
-rightmost pane are the same one, and everything coming back lands in a single
-tall stack. Only a window with one pane can be split into two root-level
-columns, so when the shape is wrong `office` breaks the panes out, keeps one,
-and re-joins them in order. `office layout` does it on demand.
+**The grid rebuilds itself, every time.** Add a pane, park one, bring one back,
+close one, drag one somewhere else — `office` recomputes the whole layout as
+one string (the top row first, three across at most, two down at most, six in
+all) and hands it to
+tmux in a single call, rather than nudging borders. A border you dragged snaps
+back the moment the office next changes shape. `office renumber` (`office
+grid`) runs it by hand, for the rare case nothing else triggered it.
 
 **Pane labels are derived, not trusted.** Claude Code can move a conversation
 to the background and swap which pane displays the agent list. A label pinned
@@ -688,12 +653,11 @@ OFFICE_AGENTS=(
 ```
 
 (`ollama launch claude --model <m>` runs Claude Code on a local Ollama model;
-`ollama launch codex` does the same for Codex.) One entry and nothing changes:
-`Ctrl-Space n` still opens it directly. Two or more, and it asks which with a
-menu — `office new --agent 2` or `office new --agent CODEX` skips straight to
-one. Every other door that opens a desk (`office desk`, `office task`, the
-startup desks, the `sessions` refill) always takes the first entry; the menu
-is `Ctrl-Space n` alone.
+`ollama launch codex` does the same for Codex.) `Ctrl-Space n` always shows the
+menu now — one agent, or several, plus a shell and the file editor — and
+`office new --agent 2` or `office new --agent CODEX` skips straight to one, in
+its own worktree. `office desk` and `office task` always take the first entry;
+the menu is `Ctrl-Space n` alone.
 
 There is deliberately no integration with any one agent's own session manager.
 An office pane is a terminal running your agent, and that is the whole
@@ -840,7 +804,7 @@ adds a command is worth an issue first, so you do not build something that turns
 out to be out of scope.
 
 There are no unit tests, because almost everything here is a side effect on a
-live tmux server. What there is instead is seven probes in `bin/` that drive a
+live tmux server. What there is instead is nine probes in `bin/` that drive a
 real one, attach real clients on a pty and type raw bytes at them; CI runs every
 one of them on macOS and Ubuntu, on tmux 3.7b and 3.4, on every push. For
 anything a probe does not cover, say how you verified it: build a throwaway

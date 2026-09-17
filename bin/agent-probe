@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
-# agent-probe — OFFICE_AGENTS: one is invisible, several ask which.
+# agent-probe — OFFICE_AGENTS: every entry is on the list, and a pick runs that one.
 #
-# Run it after ANY change to OFFICE_AGENTS, _office_new or _office_agent_menu.
+# Run it after ANY change to OFFICE_AGENTS, _office_new or _office_menu.
 # It builds a throwaway office on its own tmux server and drives `office new`
 # directly, the same call `bind n` makes.
 #
@@ -9,14 +9,12 @@
 #
 # What it is looking for:
 #
-#   - one agent (the default, built from OFFICE_SESSION_CMD/_LABEL): Ctrl-Space
-#     n opens a desk directly, running that command under that label. No menu,
-#     ever — this is the case every existing .zshrc is in today, and it must
-#     stay indistinguishable from before this feature existed.
-#   - 2+ agents and none named: opens NOTHING. There is no attached client on
-#     this throwaway server, which is deliberate — display-menu cannot be made
-#     to draw headless, so this is also the proof that the no-agent path
-#     really does defer to the menu instead of falling back to agent 1 quietly.
+#   - one agent (the default, built from OFFICE_SESSION_CMD/_LABEL): a named
+#     worktree opens that agent, running that command under that label.
+#   - a bare `office new` opens NOTHING. There is no attached client on this
+#     throwaway server, which is deliberate — display-menu cannot be made to
+#     draw headless, so this is also the proof that the bare path really does
+#     defer to the menu instead of quietly opening agent 1.
 #   - `--agent 2` and `--agent <LABEL>` both resolve to the second entry's own
 #     command and label, whichever way it was named.
 emulate -L zsh
@@ -33,8 +31,7 @@ exec </dev/null
 export TMUX_TMPDIR=$(mktemp -d)        # its own server, never yours
 unset TMUX TMUX_PANE                     # inside a desk $TMUX outranks TMUX_TMPDIR: without this every tmux call below, cleanup included, reached YOUR office (2026-09-11)
 export OFFICE_SOLO=1
-export OFFICE_SESSION_CMD='exec zsh' OFFICE_CHAT_CMD='exec zsh' OFFICE_CHAT_OPEN=0
-export OFFICE_DEFAULT_DESKS=1
+export OFFICE_SESSION_CMD='exec zsh'
 repo=$(mktemp -d)/probe; mkdir -p "$repo"; git -C "$repo" init -q
 # `office new <name>` branches a new worktree off HEAD, which needs a real
 # commit to branch from -- an empty repo has none.
@@ -58,6 +55,9 @@ want() { [[ $2 == $3 ]] && ok "$1" || bad "$1: got '$2', wanted '$3'" }
 cd "$repo"
 _office_open "$repo" >/dev/null 2>&1
 s=$(_office_sessname "$repo")
+# the office opens as one pane that asks; answer it, so every count below is a
+# pane ADDED and not the question's cell being filled
+office new --shell >/dev/null 2>&1
 sleep 1
 
 panes()   { tmux list-panes -t "=$s" -F '#{pane_id}' 2>/dev/null | wc -l | tr -d ' ' }
@@ -81,12 +81,12 @@ p=$(newest)
   || bad "one agent: it runs OFFICE_SESSION_CMD: got '$(cmd_of "$p")'"
 want "one agent: labeled with OFFICE_SESSION_LABEL" "$(label_of "$p")" "CLAUDE · wt-1"
 
-# --- 2+ agents, none named: the menu, never a silent default -----------------
+# --- a bare `office new`: the menu, never a silent default ---------------------
 OFFICE_AGENTS=("ONE printf ONE-RAN" "TWO printf TWO-RAN")
 before=$(panes)
-office new wt-2 >/dev/null 2>&1
+office new >/dev/null 2>&1
 sleep 0.5
-want "2 agents, no --agent: opens nothing (no client to ask)" "$(panes)" $before
+want "bare office new: opens nothing (no client to ask)" "$(panes)" $before
 
 # --- --agent by index ---------------------------------------------------------
 office new --agent 2 wt-3 >/dev/null 2>&1

@@ -20,7 +20,7 @@ like a terminal that had died.
 it writes to the pane's tty and never consults a key table. Only real mouse
 bytes at a real client test what a hand does.
 """
-import os, pathlib, pty, subprocess, sys, tempfile, time
+import os, pathlib, pty, re, subprocess, sys, tempfile, time
 
 SOCK = "office-mouse-probe"
 CONF = pathlib.Path(__file__).resolve().parent.parent / "office.tmux.conf"
@@ -133,6 +133,69 @@ def main():
     press(DRAG)
     check("CLAUDE pane: the app gets the drag", "0", False)
 
+    # Drag a pane's TITLE onto another pane and it moves there. The drop runs
+    # office.zsh's _office_move, so the server has to know where the package is.
+    # tmux before 3.7 has no event for it: measured on 3.4, 3.5a and 3.6b, a
+    # press on a title sends nothing and the drag arrives as a plain
+    # MouseDrag1Pane with no coordinates, which a fast drag out of a pane body
+    # also sends. So there it stays a copy, and this block says it skipped.
+    ver = subprocess.run(["tmux", "-V"], capture_output=True, text=True).stdout.split()[-1]
+    if tuple(int(x) for x in re.findall(r"\d+", ver)[:2]) < (3, 7):
+        print(f"a title dragged onto another pane moves it there\n  SKIP tmux {ver}: needs 3.7")
+        return finish(fails)
+    print("a title dragged onto another pane moves it there")
+    tmux("set", "-g", "@office_home", str(CONF.parent))
+    tmux("new-window", "-n", "grid", "sleep 60")
+    tmux("split-window", "-h", "-t", "grid", "sleep 60")
+    tmux("split-window", "-h", "-t", "grid", "sleep 60")
+    tmux("select-layout", "-t", "grid", "even-horizontal")
+    tmux("set", "-w", "-t", "grid", "pane-border-status", "top")
+    time.sleep(0.5)
+
+    def panes():
+        out = tmux("list-panes", "-t", "grid", "-F", "#{pane_id} #{pane_left} #{pane_top}").stdout.split("\n")
+        return [line.split() for line in out if line]
+
+    def title(p):  # the 1-based cell on a pane's title line
+        return int(p[1]) + 3, int(p[2])
+
+    def body(p):
+        return int(p[1]) + 3, int(p[2]) + 3
+
+    def order():
+        return [p[0] for p in panes()]
+
+    def moved(name, want):
+        time.sleep(1.5)  # the drop runs a zsh in the background
+        got = order()
+        ok = got == want
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+        if not ok:
+            fails.append(f"{name}: order {got}, wanted {want}")
+
+    a, b, c = panes()
+    press(sgr(0, *title(b)) + sgr(0, *title(b), press=False))
+    moved("a click on a title moves nothing", [a[0], b[0], c[0]])
+    tx, ty = title(a)
+    bx, by = body(c)
+    press(sgr(0, tx, ty) + sgr(32, tx + 2, ty + 1) + sgr(32, bx, by) + sgr(0, bx, by, press=False))
+    moved("title of pane 1 dropped on pane 3: it is last now", [b[0], c[0], a[0]])
+    in_mode = [tmux("display", "-p", "-t", p, "#{pane_in_mode}").stdout.strip() for p in (a[0], b[0], c[0])]
+    ok = in_mode == ["0", "0", "0"]
+    print(f"  {'ok  ' if ok else 'FAIL'} ...and no pane was left in copy mode by the drag")
+    if not ok:
+        fails.append(f"a title drag left copy mode on: {in_mode}")
+    # a drag that started in a pane body is a copy, never a move
+    first = panes()
+    press(sgr(0, *body(first[0])) + sgr(32, body(first[2])[0], body(first[2])[1])
+          + sgr(0, *body(first[2]), press=False))
+    press(b"\x1b")
+    moved("a drag across pane bodies moves nothing", [p[0] for p in first])
+
+    finish(fails)
+
+
+def finish(fails):
     tmux("kill-server")
     if fails:
         print("\n" + "\n".join(fails))
