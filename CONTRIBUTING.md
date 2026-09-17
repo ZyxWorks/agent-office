@@ -119,8 +119,8 @@ anything that reads `pane_left`, `pane_top` or a window size? Run
 menu items and key bindings make (`office new --agent N`, `--shell`, `--edit`,
 `--back <window>` — `display-menu` cannot be made to draw headless, so the menu
 itself is out of reach), then checks the geometry after every step: at most
-three columns, at most two rows, the columns holding two panes filling first
-(five panes is always "2 2 1", never "2 1 2"), zoom dropped before anything is
+three across, at most two rows, the top row filling first and taking the odd
+pane (three panes is always "2 1", five is "3 2", never "2 3"), zoom dropped before anything is
 measured, and the grid re-fitting itself after a close it did not initiate
 through `office.zsh` (the config's `after-kill-pane` hook). Reading the code
 does not tell you whether the layout string it built was actually valid; the

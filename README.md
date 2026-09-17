@@ -351,6 +351,8 @@ tunable. A key that works in every pane and answers instantly wins.
 
 ### Moving a pane: drag its title
 
+Needs tmux 3.7 or newer. Older tmux sends no event for a press on a title.
+
 Press on a pane's title line, drag, and let go over another pane: it moves
 there, and the panes in between shift along to make room. The cost, on purpose,
 is that dragging a *border* no longer resizes it — tmux cannot tell the two
@@ -524,7 +526,8 @@ agent still opens, in the checkout you are in, and the status line says so.
 **Pane numbers are ours, not tmux's.** tmux numbers panes by their position in
 the layout tree, which moving a pane leaves in an order your eye disagrees with
 (you get 4 = FILE EDITOR, 6 = AGENT). `office` numbers them from actual
-geometry, so they always read column by column, left to right.
+geometry, so they always read like a page: the top row left to right, then the
+row below.
 
 **Pane borders stay quiet.** A border shows the pane's number, what it is, the
 key that acts on it, and what it is currently doing, but only when that last one
@@ -544,7 +547,8 @@ keys all cancel the mode first, so there is always a way out.
 
 **The grid rebuilds itself, every time.** Add a pane, park one, bring one back,
 close one, drag one somewhere else — `office` recomputes the whole layout as
-one string (three across at most, two down at most, six in all) and hands it to
+one string (the top row first, three across at most, two down at most, six in
+all) and hands it to
 tmux in a single call, rather than nudging borders. A border you dragged snaps
 back the moment the office next changes shape. `office renumber` (`office
 grid`) runs it by hand, for the rare case nothing else triggered it.

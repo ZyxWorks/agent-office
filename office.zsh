@@ -249,8 +249,12 @@ _office_unzoom() {                     # <session>
 # that is one more cell in a grid: at most three side by side, at most two
 # stacked. Six in all. Past that a pane is a slit and not a place to work.
 #
-#   1 [A]      2 [A|B]      3 [A|B|C]      4 [A|C]      5 [A|C|E]      6 [A|C|E]
-#                                             [B|D]        [B|D| ]        [B|D|F]
+#   1 [A]      2 [A|B]      3 [A|B]      4 [A|B]      5 [A|B|C]      6 [A|B|C]
+#                             [ C ]        [C|D]        [ D | E ]      [D|E|F]
+#
+# It fills the way you read: the top row first, then the row below. The top row
+# holds the extra pane when the count is odd, so a third pane goes underneath
+# rather than squeezing the first two (operator, 2026-09-17).
 #
 # tmux's own `tiled` is not this: it stacks before it goes sideways, so two panes
 # come out one above the other. So the layout is written out whole, as the same
@@ -262,28 +266,28 @@ _office_unzoom() {                     # <session>
 # ponytail: one fixed shape per count. A remembered custom split is the upgrade.
 _OFFICE_MAX_PANES=6
 _office_grid() {                       # <session>
-  local s=$1 W H n cols c k=1 x=0 cw h1 body i ch csum=0
-  local -a ids cells
+  local s=$1 W H n m r c k=1 x y=0 cw rh body i ch csum=0
+  local -a ids cells rows
   ids=(${(f)"$(tmux list-panes -t "=$s" -F '#{pane_id}' 2>/dev/null)"})
   n=$#ids
   read -r W H <<< "$(tmux list-windows -t "=$s" -F '#{window_width} #{window_height}' 2>/dev/null | head -1)"
   if (( n > 1 )) && [[ $W == <-> && $H == <-> ]]; then
-    # up to three panes get a column each; from four on, two rows, filled a
-    # column at a time. An office left from an older version with more than six
-    # still gets two rows, just more columns.
-    (( cols = n <= 3 ? n : (n + 1) / 2 ))
-    for (( c = 0; c < cols; c++ )); do
-      (( cw = c == cols - 1 ? W - x : (W - (cols - 1)) / cols ))
-      if (( c < n - cols )); then          # this column holds two
-        (( h1 = (H - 1) / 2 ))
-        cells+=("${cw}x${H},${x},0[${cw}x${h1},${x},0,${ids[k]#%},${cw}x$(( H - h1 - 1 )),${x},$(( h1 + 1 )),${ids[k+1]#%}]")
-        (( k += 2 ))
-      else
-        cells+=("${cw}x${H},${x},0,${ids[k]#%}"); (( ++k ))
-      fi
-      (( x += cw + 1 ))
+    # two panes share one row; from three on, two rows, the top one holding the
+    # odd pane out. An office left from an older version with more than six
+    # still gets two rows, just wider ones.
+    for m in $(( n <= 2 ? n : (n + 1) / 2 )) $(( n <= 2 ? 0 : n / 2 )); do
+      (( m )) || continue
+      (( rh = n <= 2 ? H : (y ? H - y : (H - 1) / 2) ))
+      cells=(); x=0
+      for (( c = 0; c < m; c++ )); do
+        (( cw = c == m - 1 ? W - x : (W - (m - 1)) / m ))
+        cells+=("${cw}x${rh},${x},${y},${ids[k]#%}"); (( ++k ))
+        (( x += cw + 1 ))
+      done
+      (( m == 1 )) && rows+=("${cells[1]}") || rows+=("${W}x${rh},0,${y}{${(j:,:)cells}}")
+      (( y += rh + 1 ))
     done
-    body="${W}x${H},0,0{${(j:,:)cells}}"
+    (( n <= 2 )) && body="${W}x${H},0,0{${(j:,:)cells}}" || body="${W}x${H},0,0[${(j:,:)rows}]"
     # tmux refuses a layout whose checksum does not match: its own 16-bit
     # rotate-and-add over every character (layout_checksum in layout-custom.c).
     for (( i = 1; i <= $#body; i++ )); do
@@ -444,7 +448,7 @@ _office_pick_file() {                  # [dir]
 # that tree in an order the eye does not agree with: you get 4=EDITOR, 6=SHELL.
 # Swapping cannot fix it (a swap moves the geometry too), and rebuilding the tree
 # means breaking every pane out and back. So the border shows OUR number, taken
-# straight from the geometry: down each column of the grid, left to right.
+# straight from the geometry: along the top row, then along the row below.
 # The key strip, written into a tmux option rather than polled by the status bar
 # with #(). A polled job is always one interval behind the thing it describes.
 # This is pushed, from the one function that already runs after every change.
@@ -477,7 +481,7 @@ _office_bar() {                        # <session>
 _office_number() {                     # <session>
   local r n=0
   for r in ${(f)"$(tmux list-panes -t "=$1" -F '#{pane_left}|#{pane_top}|#{pane_id}' 2>/dev/null \
-        | sort -t'|' -k1,1n -k2,2n)"}; do
+        | sort -t'|' -k2,2n -k1,1n)"}; do
     tmux set -p -t "${${(s:|:)r}[3]}" @office_num $(( ++n )) 2>/dev/null
   done
   _office_bar "$1"                     # the strip is only ever as fresh as this

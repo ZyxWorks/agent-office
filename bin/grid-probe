@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# grid-probe — one pane that asks, then a grid of at most three across and two down.
+# grid-probe — one pane that asks, then a grid that fills the top row first: at most three across, two down.
 #
 # Run it after ANY change to the grid, adding, parking, moving or closing a pane.
 # It builds a throwaway office on its own tmux server and drives the same calls
@@ -52,25 +52,23 @@ panes() { tmux list-panes -t "=$s" -F '#{pane_id}' 2>/dev/null | wc -l | tr -d '
 kinds() { tmux list-panes -t "=$s" -F '#{@office_kind}' 2>/dev/null | tr '\n' ' ' }
 ids()   { tmux list-panes -t "=$s" -F '#{pane_id}' 2>/dev/null | tr '\n' ' ' }
 of()    { tmux list-panes -t "=$s" -F '#{@office_kind} #{pane_id}' | awk -v k="$1" '$1==k {p=$2} END {print p}' }
-# The whole contract, in one place: <what> <panes> <columns> <rows>. Columns and
-# rows are counted from real geometry, and every column must be the same width
-# give or take the one cell an odd split leaves over.
-# The grid fills a column at a time, so the columns that hold two come FIRST:
-# five panes are "2 2 1", never "2 1 2". That per-column count is the fingerprint
-# a close without the re-fit gets wrong while every total above still adds up.
+# The whole contract, in one place: <what> <panes>. Rows are counted from real
+# geometry, and every pane in a row must be the same width give or take the one
+# cell an odd split leaves over.
+# The grid fills the TOP row first, and the top row takes the odd pane: three
+# panes are "2 1", five are "3 2", never "1 2" or "2 3". That per-row count is
+# the fingerprint a close without the re-fit gets wrong while every total adds up.
 shape() {
-  local what=$1 n=$2 c=$3 r=$4 geo cols rows spread fill want
+  local what=$1 n=$2 geo spread fill want
   geo=$(tmux list-panes -t "=$s" -F '#{pane_left} #{pane_top} #{pane_width}' 2>/dev/null)
-  fill=$(print -r -- "$geo" | awk '{n[$1]++} END {for (l in n) print l, n[l]}' | sort -n | awk '{printf "%s ", $2}')
-  want=$(awk -v n=$n -v c=$c 'BEGIN {for (i = 0; i < c; i++) printf "%d ", (i < n - c) ? 2 : 1}')
-  cols=$(print -r -- "$geo" | awk '{print $1}' | sort -u | wc -l | tr -d ' ')
-  rows=$(print -r -- "$geo" | awk '{print $2}' | sort -u | wc -l | tr -d ' ')
-  spread=$(print -r -- "$geo" | awk 'NR==1 {lo=$3; hi=$3} {if ($3<lo) lo=$3; if ($3>hi) hi=$3} END {print hi-lo}')
-  if [[ $(panes) == $n && $cols == $c && $rows == $r && $fill == $want ]] && (( spread <= 1 )) \
+  fill=$(print -r -- "$geo" | awk '{n[$2]++} END {for (t in n) print t, n[t]}' | sort -n | awk '{printf "%s ", $2}')
+  (( n <= 2 )) && want="$n " || want="$(( (n + 1) / 2 )) $(( n / 2 )) "
+  spread=$(print -r -- "$geo" | awk '!($2 in lo) {lo[$2]=$3; hi[$2]=$3} {if ($3<lo[$2]) lo[$2]=$3; if ($3>hi[$2]) hi[$2]=$3} END {m=0; for (t in lo) if (hi[t]-lo[t]>m) m=hi[t]-lo[t]; print m}')
+  if [[ $(panes) == $n && $fill == $want ]] && (( spread <= 1 )) \
      && [[ $(tmux list-windows -t "=$s" -F '#{window_zoomed_flag}' | head -1) == 0 ]]; then
     ok "$what"
   else
-    bad "$what: $(panes) panes, $cols columns, $rows rows, filled '$fill', widths spread $spread (wanted $n, $c, $r, '$want')"
+    bad "$what: $(panes) panes, rows filled '$fill', widths in a row spread $spread (wanted $n, '$want')"
     print -r -- "$geo" | sed 's/^/        /' >&2
   fi
 }
@@ -90,23 +88,23 @@ office new --agent TWO >/dev/null 2>&1; sleep 0.3
 p=$(of CLAUDE)
 want "the second agent is labelled with its worktree" "$(tmux show -p -t "$p" -qv @office_label)" "TWO · desk-2"
 want "...and works in it" "$(tmux display -p -t "$p" '#{pane_start_path}')" "$repo/.claude/worktrees/desk-2"
-shape "2 panes: side by side" 2 2 1
+shape "2 panes: side by side" 2
 
 office new --shell >/dev/null 2>&1; sleep 0.3
-shape "3 panes: three across" 3 3 1
+shape "3 panes: two on top, the third underneath" 3
 office new --edit >/dev/null 2>&1; sleep 0.3
-shape "4 panes: two by two" 4 2 2
+shape "4 panes: two by two" 4
 office new --shell >/dev/null 2>&1; sleep 0.3
-shape "5 panes: three columns, two rows" 5 3 2
+shape "5 panes: three on top, two underneath" 5
 office new --shell >/dev/null 2>&1; sleep 0.3
-shape "6 panes: three by two" 6 3 2
+shape "6 panes: three by two" 6
 office new --shell >/dev/null 2>&1; sleep 0.3
-shape "a 7th is refused: six is the cap" 6 3 2
+shape "a 7th is refused: six is the cap" 6
 
 # --- parking: out of the grid, still running, on the list ---------------------
 ed=$(of EDITOR)
 office hide "$ed" >/dev/null 2>&1; sleep 0.3
-shape "parking one re-fits the grid" 5 3 2
+shape "parking one re-fits the grid" 5
 want "the parked pane is on this office's list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 1
 want "...under its own label" "$(_office_parked "$s" | cut -f2)" "FILE EDITOR"
 [[ $(tmux show -t "$s" -qv @office_bar) == *"(1 parked)"* ]] \
@@ -114,30 +112,30 @@ want "...under its own label" "$(_office_parked "$s" | cut -f2)" "FILE EDITOR"
 [[ -n $(tmux display -p -t "$ed" '#{pane_pid}' 2>/dev/null) ]] \
   && ok "...and it is still running" || bad "...and it is still running"
 office new --back "$(_office_parked "$s" | cut -f1)" >/dev/null 2>&1; sleep 0.3
-shape "bringing it back re-fits the grid" 6 3 2
+shape "bringing it back re-fits the grid" 6
 want "...and it is off the list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 0
 
 # --- moving: the pane goes where it was dropped, the rest shift along ---------
 local -a before; before=(${=$(ids)})
 _office_move "${before[1]}" "${before[4]}" >/dev/null 2>&1; sleep 0.3
 want "dropping pane 1 on pane 4 moves it to 4" "$(ids)" "${before[2]} ${before[3]} ${before[4]} ${before[1]} ${before[5]} ${before[6]} "
-shape "...and the grid holds" 6 3 2
+shape "...and the grid holds" 6
 _office_move "${before[1]}" "${before[2]}" >/dev/null 2>&1; sleep 0.3
 want "dropping it back on pane 1 undoes it" "$(ids)" "${(j: :)before} "
 
 # --- closing: the config's hook re-fits the grid -------------------------------
 tmux kill-pane -t "${before[3]}"; sleep 1.5
-shape "a close re-fits the grid (the after-kill-pane hook)" 5 3 2
+shape "a close re-fits the grid (the after-kill-pane hook)" 5
 
 # ...and so does a pane whose own command ends (pane-exited, not a kill)
 local -a now; now=(${=$(ids)})
 tmux respawn-pane -k -t "${now[1]}" 'exit 0'; sleep 1.5
-shape "a pane that exits on its own re-fits the grid (the pane-exited hook)" 4 2 2
+shape "a pane that exits on its own re-fits the grid (the pane-exited hook)" 4
 
 # --- zoom lies about geometry; an office command drops it first ---------------
 tmux resize-pane -Z -t "${before[1]}"
 office renumber >/dev/null 2>&1; sleep 0.3
-shape "a zoomed office comes back as a grid" 4 2 2
+shape "a zoomed office comes back as a grid" 4
 
 # --- parking the last pane never closes the office ----------------------------
 for p in ${=$(ids)}; do office hide "$p" >/dev/null 2>&1; sleep 0.2; done
