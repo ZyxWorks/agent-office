@@ -17,7 +17,7 @@ something that turns out to be out of scope.
 
 A tmux cockpit for running several coding-agent sessions at once. Around 2,100
 
-lines of zsh and tmux config, seven probes that drive a real tmux server, and one
+lines of zsh and tmux config, nine probes that drive a real tmux server, and one
 iTerm2 profile.
 
 **In scope:** making that faster, clearer or harder to get wrong. Support for
@@ -113,13 +113,19 @@ hidden copy mode it opened. And a double-click cannot be read back for a full
 second: tmux holds it for its own 500ms triple-click window before the binding
 starts, so a check that looks sooner reports a working gesture as broken.
 
-Touched anything that reads `pane_left`, `pane_top` or a window size? Run
-`bin/zoom-probe`. It builds a throwaway office, zooms a pane, and runs every
-command that moves one. **A zoomed pane reports full-window coordinates**, so
-every "which column is this in" question in `office.zsh` is answered about a
-room that is not on screen — and `_office_layout_ok` then calls a perfectly good
-office broken and hands it to `_office_relayout`, which breaks every pane out to
-the stash. Reading the code does not show you this; the probe does.
+Touched the grid — adding, parking, unparking, moving or closing a pane, or
+anything that reads `pane_left`, `pane_top` or a window size? Run
+`bin/grid-probe`. It builds a throwaway office and drives the same calls the
+menu items and key bindings make (`office new --agent N`, `--shell`, `--edit`,
+`--back <window>` — `display-menu` cannot be made to draw headless, so the menu
+itself is out of reach), then checks the geometry after every step: at most
+three columns, at most two rows, the columns holding two panes filling first
+(five panes is always "2 2 1", never "2 1 2"), zoom dropped before anything is
+measured, and the grid re-fitting itself after a close it did not initiate
+through `office.zsh` (the config's `after-kill-pane` hook). Reading the code
+does not tell you whether the layout string it built was actually valid; the
+probe does — tmux silently refuses one whose checksum does not match, so a bug
+here reads as "nothing happened" rather than an error.
 
 Touched `bin/office-attn`, `@office_attn_gate` or a `pane-border-format`? Run
 `bin/attn-probe`. It builds a throwaway office and puts fake agents in the desks
@@ -152,11 +158,18 @@ does not.
 
 Touched `OFFICE_AGENTS`, `_office_new` or the `Ctrl-Space n` menu? Run
 `bin/agent-probe`. It builds a throwaway office and drives `office new`
-directly — no real client, so it also proves the shape display-menu cannot be
-made to draw headless: one agent opens the desk with no menu at all, `--agent
-2` (by number) and `--agent <LABEL>` both split the right command and label
-out of the array, and 2+ agents with none named opens nothing, because the
-picker needs a client this probe deliberately does not attach.
+directly — no real client: a named worktree opens agent 1, `--agent 2` (by
+number) and `--agent <LABEL>` both split the right command and label out of the
+array, and a bare `office new` opens nothing, because the menu needs a client
+this probe deliberately does not attach.
+
+Touched `_office_open`, the first pane's wait, the menu, or parking? Run
+`bin/menu-probe`. It is the one that DOES attach a client, on a pty, and types
+at it: the office opens as one pane whose menu draws by itself, `1` turns that
+pane into the first agent, `Ctrl-Space n` then `s` adds a shell, `Ctrl-Space x`
+parks it, and the next menu brings it back under `a`. Its rc file is a
+throwaway `ZDOTDIR` pointed at this checkout, because every menu item runs
+`zsh -ic`, and your own `~/.zshrc` may source a different copy of office.
 
 **A probe must never reach your office.** `TMUX_TMPDIR` alone does not isolate
 it: inside a desk, tmux talks to the server in `$TMUX` first. A probe run from a

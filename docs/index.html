@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent Office: four coding agents, one window</title>
+<title>Agent Office: several coding agents, one window</title>
 <meta name="description" content="A tmux cockpit for running several coding agents at once. Each session gets its own git worktree, and the border of the one that has stopped tells you so. One command, no daemon, no config file.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120' fill='none'><rect width='120' height='120' rx='18' fill='%230B0C10'/><g stroke='%23F6F5F1' stroke-width='11' stroke-linecap='round'><line x1='60' y1='60' x2='60' y2='30'/><line x1='60' y1='60' x2='30' y2='82'/><line x1='60' y1='60' x2='94' y2='74'/></g></svg>">
-<meta property="og:title" content="Agent Office: four coding agents, one window">
-<meta property="og:description" content="Four agents, one window, each in its own git worktree. The one that has stopped and needs you says so on its border.">
+<meta property="og:title" content="Agent Office: several coding agents, one window">
+<meta property="og:description" content="Several agents, one window, each in its own git worktree. The one that has stopped and needs you says so on its border.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <!-- Not listed anywhere: a visitor gets here by typing the URL or from the index. "noindex" is
@@ -237,7 +237,7 @@
   </nav>
 
   <header id="top">
-    <h1>Four agents.<br>One window.</h1>
+    <h1>Several agents.<br>One window.</h1>
     <p class="lead">Each one in its own git worktree. The one that has stopped and is waiting on you
     says so, on its own border, without being asked.</p>
 
@@ -279,8 +279,8 @@
     is the easy half.</p>
     <div class="stats">
       <div class="stat">
-        <div class="n">4</div>
-        <div class="l">agents in one window, each in its own git worktree</div>
+        <div class="n">6</div>
+        <div class="l">panes in one window, three across at most, each agent in its own git worktree</div>
       </div>
       <div class="stat">
         <div class="n">20<small>s</small></div>
@@ -291,17 +291,17 @@
         <div class="l">daemons, config files, and dashboards to stand up</div>
       </div>
     </div>
-    <p class="punch">Four agents you can keep track of is a different tool from four agents in four
-    windows.</p>
-    <p class="note">Four is the cap because a fifth session in a fifty-row window gets about nine
-    rows, which is a slit and not a desk. Twenty seconds is the default and it is one variable.</p>
+    <p class="punch">Several agents you can keep track of is a different tool from several agents in
+    several windows.</p>
+    <p class="note">Six is the cap, three across and two down, because past that a pane is a slit
+    and not a desk. Twenty seconds is the default and it is one variable.</p>
   </section>
 
 
   <section>
     <h2>How it knows which one stopped</h2>
     <p>It watches the pane, not the agent. There is no marker to grep for and no hook to install,
-    because the left column is pointed at whatever CLI you use — so the only thing it can rely on is
+    because each pane is pointed at whatever CLI you use — so the only thing it can rely on is
     that <strong>an agent that is working redraws</strong>: a spinner, an elapsed timer, output
     arriving. One that has stopped does not.</p>
     <div class="scroll">
@@ -358,7 +358,7 @@
       <li><strong>No native Windows.</strong> tmux does not run there, so this lives in WSL2 and says so instead of half working.</li>
       <li><strong>No telemetry, and one network call you can switch off.</strong> <code>office on</code> runs <code>git fetch</code> against this repo's remote to tell you when you are behind, and never pulls on its own. <code>OFFICE_UPDATE_CHECK=0</code> removes even that. Nothing else here opens a socket.</li>
     </ul>
-    <p class="after">Five probes drive a real tmux server to check all of this, attaching real
+    <p class="after">Nine probes drive a real tmux server to check all of this, attaching real
     clients on a pty and typing raw bytes at them, and CI runs every one of them on macOS and
     Ubuntu — tmux 3.7b and 3.4 — on every push.
     <a href="https://github.com/ZyxWorks/agent-office#readme">The source is public, and so is

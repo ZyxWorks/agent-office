@@ -55,35 +55,43 @@ office on
 ```
 
 ```
-┌─────────────────────────────┬──────────────┐
-│ 1 CLAUDE                    │ 2 SHELL      │
-│                             │              │
-│   your coding agent         ├──────────────┤
-│   claude / codex / any CLI  │ 3 FILE EDITOR│
-│                             │              │
-└─────────────────────────────┴──────────────┘
+  what should this pane be?  any key shows the list again.
+
+    ›  CLAUDE
+       shell
+       file editor
+```
+
+One pane, asking. Press any key and pick from the list: your agent, a plain
+shell, or the file editor. Pick your agent first, then press **Ctrl+Space,
+then `n`** twice more and pick shell, then file editor:
+
+```
+┌──────────────┬──────────────┬──────────────┐
+│ 1 CLAUDE     │ 2 SHELL      │ 3 FILE EDITOR│
+│              │              │              │
+│              │              │              │
+└──────────────┴──────────────┴──────────────┘
 ```
 
 Three panes. That is the whole tool.
 
-**1. The agent (left, big).** Your agent, running in your project. Type here the
-same way you type in the desktop app. Paste an image, drag a file in, ask it to
-change something. This is where you spend your time, which is why it gets the
-space.
+**1. The agent.** Your agent, running in your project. Type here the same way
+you type in the desktop app. Paste an image, drag a file in, ask it to change
+something. This is where you spend your time, which is why it gets equal space
+with everything else.
 
-**2. The shell (top right).** An ordinary command line, already in your project.
-For `git status`, `npm test`, `ls`. You use it to *check* the agent's work: it
-says it fixed the tests, so you run them.
+**2. The shell.** An ordinary command line, already in your project. For
+`git status`, `npm test`, `ls`. You use it to *check* the agent's work: it says
+it fixed the tests, so you run them.
 
-**3. The file editor (bottom right).** A file browser that follows the shell pane, so
-the two work together: `cd` in the shell to aim, browse and open in the editor.
-For reading what the agent did, or a quick manual fix.
+**3. The file editor.** A file browser that follows the shell pane, so the two
+work together: `cd` in the shell to aim, browse and open in the editor. For
+reading what the agent did, or a quick manual fix.
 
-There is a fourth, **AGENT CHAT**, closed until you have something to put in it.
-That one is not for a coding agent: it is for an agent *you* build. Once you
-have one, this is where you talk to it and give it work, without ever standing
-up a dashboard or wiring up Slack. Ignore it on day one, and see
-[the README](README.md#bringing-your-own-agent) when you get there.
+Running an agent of your own and want to talk to it the same way? See
+[the README](README.md#bringing-your-own-agent) when you get there — it is just
+one more line, not a different kind of pane.
 
 ---
 
@@ -125,9 +133,9 @@ operating system with nothing to set up.
 This is the part that catches everyone, including people who have used
 terminals for years.
 
-Press **Ctrl+Space, then `e`** to open the editor pane. You get a list of files with a
-search box. Type a few letters to filter, arrow up and down, **Enter** to open
-one.
+Press **Ctrl+Space, then `n`**, and pick **file editor** from the list. You get
+a list of files with a search box. Type a few letters to filter, arrow up and
+down, **Enter** to open one.
 
 **It follows the shell pane.** Whatever directory the shell is standing in is
 what the editor shows, listed the way a file tree reads. `cd src` in the shell,
@@ -144,18 +152,18 @@ Now you are inside a file, and here is the bit nobody remembers:
 | **Ctrl+Q** | close the file, back to the file list |
 | **Ctrl+Z** | undo |
 | **Ctrl+F** | find |
-| **Esc** (at the file list) | leave the file list. The pane becomes an ordinary shell, and `Ctrl+Space e` brings the list back |
+| **Esc** (at the file list) | leave the file list. The pane becomes an ordinary shell, and says so |
 
 **The editor shows these keys along its bottom edge while a file is open**, so
 you do not have to remember them. Look down.
 
 The path out is always the same: `Ctrl+Q` gets you back to the list, `Esc`
-leaves the list, `Ctrl+Space e` hides the pane.
+leaves the list. To bring the editor back, **Ctrl+Space, then `n`**, and pick
+**file editor** again — it is only offered while none is open, so it is always
+right there in the menu when you need it.
 
 **Nothing you do in here can lose the pane.** Leave the list and it says so, in
-the pane, with the key that brings it back. That key works on every pane in the
-strip: if what a pane was running has stopped, its own key starts it again
-instead of hiding it.
+the pane, and the same `Ctrl+Space n` that opens every pane brings it back.
 
 > **If your editor looks nothing like this** and shows no help at the bottom,
 > your `$EDITOR` points somewhere else: vim, or macOS's `nano`, which is really
@@ -167,9 +175,10 @@ instead of hiding it.
 
 ## 6. Running more than one agent
 
-**Ctrl+Space, then `n`** adds a second agent, below the first. Up to four. They share
-the left column evenly, and each one is a separate conversation working on a
-separate thing.
+**Ctrl+Space, then `n`** asks the same question again: pick your agent (or
+another one, if you have more than one set up) and it takes the next cell in
+the grid — up to six panes total, three across at most — and each one is a
+separate conversation working on a separate thing.
 
 Each one also gets **its own checkout** — a git worktree under
 `.claude/worktrees/`, made for it if there is not a free one already. Without
@@ -221,27 +230,26 @@ And `Ctrl+Space`, then:
 
 | | |
 |---|---|
-| `n` | new agent session |
-| `s` `e` `c` | show or hide shell / editor / chat |
-| `a` | hide every agent, bring them all back, or open one if you have none |
+| `n` | one more pane: pick from the menu — parked panes, every agent, shell, file editor |
+| `x` | park this pane: hidden, still running. `n`'s menu brings it back |
 | `q` | close this pane for good. A menu opens: click **close it**, or press `c`. Enter, Escape or `k` keeps it |
-| `x` | park this pane: hidden, still running |
 | `z` | zoom this pane full screen, and back |
 
 And the mouse, with no key at all:
 
 | | |
 |---|---|
+| drag a pane's title onto another pane | it moves there, the rest shift along |
 | drag across text | it is on the clipboard when you let go, nothing to press |
 | double-click a word | the same, for one word |
 | click in a pane that scrolled | back at the live prompt, typing again (Escape does it too) |
 
 Each pane's top border shows its number and what it is, and the bar along the
-bottom carries the keys. **Whatever is bright on that bar is closed.**
+bottom carries the keys, including how many panes are parked right now.
 
-And the thing you actually wanted from four agents at once: a desk that has
+And the thing you actually wanted from several agents at once: a desk that has
 stopped and is waiting on you says **your turn** on its own border, with how long
-it has been waiting. You never have to read all four panes to find the one that
+it has been waiting. You never have to read every pane to find the one that
 finished. Nothing to press, and nothing to set up.
 
 That number keeps counting all night, so a desk you left at midnight says
@@ -261,8 +269,8 @@ Nothing here ever needs a restart of anything.
 |---|---|
 | a pane is frozen and its keys do nothing | it is in scroll mode. Press `q` |
 | git says a branch is "already used by worktree" | `office cd <branch>` — go to it instead of checking it out |
-| the panes are in silly positions | `office layout` |
-| you closed something and cannot get it back | its key again, or `office show` |
+| the panes are in silly positions | they re-fit on the next pane you add, park, unpark or close |
+| you closed something and cannot get it back | `Ctrl+Space n`, or `office show` |
 | you have no idea what is running | `office doctor` |
 | genuinely wedged | `office off`, then `office on`. Resets everything |
 
@@ -277,8 +285,8 @@ which is the real reason to close ones you have finished with.
 1. `office on`
 2. Ask the agent in pane 1 something small about your project. "What does this
    repo do?" is a fine start.
-3. When it changes a file, look at it: `Ctrl+Space e`, find the file, read it,
-   `Ctrl+Q`, `Esc`.
+3. When it changes a file, look at it: `Ctrl+Space n`, pick **file editor**,
+   find the file, read it, `Ctrl+Q`, `Esc`.
 4. Run your tests in the shell pane.
 5. `Ctrl+Space n`, and give the second agent something unrelated.
 
