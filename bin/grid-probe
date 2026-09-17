@@ -133,7 +133,10 @@ tmux respawn-pane -k -t "${now[1]}" 'exit 0'; sleep 1.5
 shape "a pane that exits on its own re-fits the grid (the pane-exited hook)" 4
 
 # --- zoom lies about geometry; an office command drops it first ---------------
-tmux resize-pane -Z -t "${before[1]}"
+# a pane that is still here: before[1] was the one the exit above just ended
+now=(${=$(ids)}); tmux resize-pane -Z -t "${now[1]}"
+want "...zoomed first, or the next check proves nothing" \
+  "$(tmux list-windows -t "=$s" -F '#{window_zoomed_flag}' | head -1)" 1
 office renumber >/dev/null 2>&1; sleep 0.3
 shape "a zoomed office comes back as a grid" 4
 
