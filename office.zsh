@@ -468,7 +468,7 @@ _office_bar() {                        # <session>
   # Zoom is a FORMAT and not a pushed tone: ^Space z is plain tmux and fires
   # without office, so only tmux can answer it on every redraw. It needs the
   # theme's `#{E:` — through `#{@office_bar}` it comes out LITERAL (tmux 3.7b).
-  out+="${_OFFICE_BAR_SEP} │ #[default]${_OFFICE_BAR_OPEN}⇧ ← ↑ ↓ →  move · drag a title to reorder#[default]"
+  out+="${_OFFICE_BAR_SEP} │ #[default]${_OFFICE_BAR_OPEN}⇧ ← ↑ ↓ →  move#{?#{>=:#{version},3.7}, · drag a title to reorder,}#[default]"
   # NB: no "=" prefix here. set-option takes a plain session name and rejects
   # the exact-match form that every other tmux command accepts.
   tmux set -t "$1" @office_bar "$out" 2>/dev/null

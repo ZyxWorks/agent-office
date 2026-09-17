@@ -20,7 +20,7 @@ like a terminal that had died.
 it writes to the pane's tty and never consults a key table. Only real mouse
 bytes at a real client test what a hand does.
 """
-import os, pathlib, pty, subprocess, sys, tempfile, time
+import os, pathlib, pty, re, subprocess, sys, tempfile, time
 
 SOCK = "office-mouse-probe"
 CONF = pathlib.Path(__file__).resolve().parent.parent / "office.tmux.conf"
@@ -135,6 +135,14 @@ def main():
 
     # Drag a pane's TITLE onto another pane and it moves there. The drop runs
     # office.zsh's _office_move, so the server has to know where the package is.
+    # tmux before 3.7 has no event for it: measured on 3.4, 3.5a and 3.6b, a
+    # press on a title sends nothing and the drag arrives as a plain
+    # MouseDrag1Pane with no coordinates, which a fast drag out of a pane body
+    # also sends. So there it stays a copy, and this block says it skipped.
+    ver = subprocess.run(["tmux", "-V"], capture_output=True, text=True).stdout.split()[-1]
+    if tuple(int(x) for x in re.findall(r"\d+", ver)[:2]) < (3, 7):
+        print(f"a title dragged onto another pane moves it there\n  SKIP tmux {ver}: needs 3.7")
+        return finish(fails)
     print("a title dragged onto another pane moves it there")
     tmux("set", "-g", "@office_home", str(CONF.parent))
     tmux("new-window", "-n", "grid", "sleep 60")
@@ -184,6 +192,10 @@ def main():
     press(b"\x1b")
     moved("a drag across pane bodies moves nothing", [p[0] for p in first])
 
+    finish(fails)
+
+
+def finish(fails):
     tmux("kill-server")
     if fails:
         print("\n" + "\n".join(fails))
