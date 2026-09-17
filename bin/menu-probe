@@ -35,6 +35,12 @@ subprocess.run(["git", "-C", str(repo), "-c", "user.email=p@p", "-c", "user.name
     'OFFICE_AGENTS=("ONE sleep 61" "TWO sleep 62")\n'
     "OFFICE_UPDATE_CHECK=0\n"
     f'source "{HOME}/office.zsh"\n')
+# Debian and Ubuntu run compinit from /etc/zsh/zshrc, and on the GitHub Ubuntu
+# runner it stops at "insecure directories ... [y] or abort compinit [n]?". The
+# pane waited on that question, the probe's "1" answered it, and the menu came
+# up a step late for every check after (measured 2026-09-17). .zshenv is read
+# before /etc/zsh/zshrc, and this is the switch that file itself documents.
+(tmp / "zd" / ".zshenv").write_text("skip_global_compinit=1\n")
 env = {k: v for k, v in os.environ.items() if k not in ("TMUX", "TMUX_PANE")}
 env.update(TMUX_TMPDIR=str(tmp / "sock"), ZDOTDIR=str(tmp / "zd"),
            TERM="xterm-256color", OFFICE_SOLO="1")
