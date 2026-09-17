@@ -129,15 +129,23 @@ want "dropping it back on pane 1 undoes it" "$(ids)" "${(j: :)before} "
 tmux kill-pane -t "${before[3]}"; sleep 1.5
 shape "a close re-fits the grid (the after-kill-pane hook)" 5 3 2
 
+# ...and so does a pane whose own command ends (pane-exited, not a kill)
+local -a now; now=(${=$(ids)})
+tmux respawn-pane -k -t "${now[1]}" 'exit 0'; sleep 1.5
+shape "a pane that exits on its own re-fits the grid (the pane-exited hook)" 4 2 2
+
 # --- zoom lies about geometry; an office command drops it first ---------------
 tmux resize-pane -Z -t "${before[1]}"
 office renumber >/dev/null 2>&1; sleep 0.3
-shape "a zoomed office comes back as a grid" 5 3 2
+shape "a zoomed office comes back as a grid" 4 2 2
 
 # --- parking the last pane never closes the office ----------------------------
 for p in ${=$(ids)}; do office hide "$p" >/dev/null 2>&1; sleep 0.2; done
 want "parking everything leaves the question, not an empty office" "$(kinds)" "NEW "
-want "...and everything parked is on the list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 5
+want "...and everything parked is on the list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 4
+office hide "$(of NEW)" >/dev/null 2>&1; sleep 0.2
+want "the question pane itself is never parked" "$(kinds)" "NEW "
+want "...so it never lands on the list" "$(_office_parked "$s" | wc -l | tr -d ' ')" 4
 office new --back "$(_office_parked "$s" | head -1 | cut -f1)" >/dev/null 2>&1; sleep 0.3
 want "bringing one back takes the question's cell" "$(panes)" 1
 

@@ -710,6 +710,9 @@ _office_hide() {                       # <pane-id>
   kind=$(tmux display -p -t "$1" '#{@office_kind}' 2>/dev/null)
   sess=$(tmux display -p -t "$1" '#{session_name}' 2>/dev/null)
   [[ -n $kind && -n $sess ]] || return 1
+  # the question pane has nothing running to keep: parking it would only put a
+  # "back: NEW" on the list
+  [[ $kind == NEW ]] && { _office_say "nothing to park here — pick what this pane is first"; return 0 }
   # again here, and not only in office(): the Ctrl-Space x binding hands a pane
   # id and no path, so _office_here can name a different office (or none). The
   # pane knows its own session; use that.
@@ -1199,11 +1202,9 @@ _office_help() {
   print -P "                 ${d}Use when you want the panes without the rest.${r}\n"
 
   print -P "${g}EDITING FILES${r} ${d}— no vim knowledge required${r}"
-  print -P "  ${g}edit${r} / ${g}e${r}       Fuzzy-pick a file and edit it. Files you have changed"
-  print -P "                 ${d}are listed first. Ctrl-S save · Ctrl-Q quit · Ctrl-Z undo${r}"
-  print -P "                 ${d}Ctrl-F find · mouse and normal copy-paste all work.${r}"
-  print -P "  ${g}edit <file>${r}    Open (or create) that file directly."
-  print -P "  ${g}file editor${r}    A FILE EDITOR pane: ^Space n, then e. It follows the shell pane.\n"
+  print -P "  ${g}file editor${r}    ^Space n, then e. Fuzzy-pick a file and edit it in place;"
+  print -P "                 ${d}the list follows the shell pane. Ctrl-S save · Ctrl-Q back to${r}"
+  print -P "                 ${d}the list · Ctrl-Z undo · Ctrl-F find · the mouse works.\n${r}"
 
   print -P "${g}IF YOU FORGET ONE THING, REMEMBER THIS${r}"
   print -P "  Closing the window never kills anything. ${g}office on${r} always brings"
@@ -1465,6 +1466,10 @@ office() {
       done
       print -P "closed ${#sel} pane(s), %F{green}~${freed}MB%f reclaimed."
       tmux list-sessions >/dev/null 2>&1 || print "  (that was the last one — no offices left)" ;;
+    chat|talk|shell|sh|term|edit|editor|files|sessions|desks|layout|fix|repair)
+      # retired verbs, answered rather than fuzzy-matched as a repo name
+      print -u2 "office: '$cmd' is gone — Ctrl-Space n picks what any pane is (or: office new --shell / --edit)"
+      return 1 ;;
     help|-h|--help)
       _office_help ;;
     *)

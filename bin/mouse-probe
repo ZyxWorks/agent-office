@@ -172,6 +172,11 @@ def main():
     bx, by = body(c)
     press(sgr(0, tx, ty) + sgr(32, tx + 2, ty + 1) + sgr(32, bx, by) + sgr(0, bx, by, press=False))
     moved("title of pane 1 dropped on pane 3: it is last now", [b[0], c[0], a[0]])
+    in_mode = [tmux("display", "-p", "-t", p, "#{pane_in_mode}").stdout.strip() for p in (a[0], b[0], c[0])]
+    ok = in_mode == ["0", "0", "0"]
+    print(f"  {'ok  ' if ok else 'FAIL'} ...and no pane was left in copy mode by the drag")
+    if not ok:
+        fails.append(f"a title drag left copy mode on: {in_mode}")
     # a drag that started in a pane body is a copy, never a move
     first = panes()
     press(sgr(0, *body(first[0])) + sgr(32, body(first[2])[0], body(first[2])[1])
