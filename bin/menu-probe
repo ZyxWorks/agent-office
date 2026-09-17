@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Walk into an office with a real client attached. Does the first pane ask on
+its own, and do the menu's keys do what they say?
+
+Run it after ANY change to _office_open, _office_wait, _office_menu, parking,
+or the n / x bindings. It opens a throwaway office on its own tmux server, from
+a pty that attaches a real client, and types at it the way a hand does:
+
+  - the office opens as ONE pane, and its menu draws by itself
+  - 1 turns that pane into the first OFFICE_AGENTS entry (it does not add one)
+  - Ctrl-Space n, then s, adds a shell beside it
+  - Ctrl-Space x parks the shell, and the next menu lists it under a letter
+    that brings it back
+
+    env -u TMUX bin/menu-probe
+
+grid-probe drives the same code headless, but it cannot draw a menu: that needs
+a client, which is the one thing only this probe has.
+"""
+import fcntl, os, pathlib, pty, select, shutil, struct, subprocess, sys, tempfile, termios, time
+
+HOME = pathlib.Path(__file__).resolve().parent.parent
+tmp = pathlib.Path(tempfile.mkdtemp())
+(tmp / "sock").mkdir()
+(tmp / "zd").mkdir()
+repo = tmp / "repo"
+repo.mkdir()
+subprocess.run(["git", "init", "-q", str(repo)], check=True)
+subprocess.run(["git", "-C", str(repo), "-c", "user.email=p@p", "-c", "user.name=p",
+                "commit", "-q", "--allow-empty", "-m", "init"], check=True)
+# Every menu item runs `zsh -ic 'office new ...'`, so the package has to come from
+# an rc file. A throwaway ZDOTDIR is that rc, pointed at THIS checkout — never
+# the machine's own ~/.zshrc, which may source a different copy of office.
+(tmp / "zd" / ".zshrc").write_text(
+    'OFFICE_AGENTS=("ONE sleep 61" "TWO sleep 62")\n'
+    "OFFICE_UPDATE_CHECK=0\n"
+    f'source "{HOME}/office.zsh"\n')
+env = {k: v for k, v in os.environ.items() if k not in ("TMUX", "TMUX_PANE")}
+env.update(TMUX_TMPDIR=str(tmp / "sock"), ZDOTDIR=str(tmp / "zd"),
+           TERM="xterm-256color", OFFICE_SOLO="1")
+
+
+def tmux(*a):
+    return subprocess.run(["tmux", *a], capture_output=True, text=True, env=env).stdout.strip()
+
+
+pid, fd = pty.fork()
+if pid == 0:
+    fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 160, 0, 0))
+    os.environ.clear()
+    os.environ.update(env)
+    # _office_open with only the config reload pointed at this checkout: the
+    # attach at its end is the real one, onto this pty.
+    os.execvp("zsh", ["zsh", "-fc",
+                      f'source "{HOME}/office.zsh"; '
+                      f'_office_reload_conf(){{ tmux source-file "{HOME}/office.tmux.conf" }}; '
+                      f'_office_open "{repo}"'])
+
+
+def drain(seconds):
+    """Keep the client's output flowing, or tmux blocks writing to it."""
+    end = time.time() + seconds
+    while time.time() < end:
+        if select.select([fd], [], [], 0.1)[0]:
+            try:
+                os.read(fd, 65536)
+            except OSError:
+                return
+
+
+def office():
+    """<kind> <start command> for every pane on screen in the office."""
+    out = tmux("list-panes", "-t", "=repo", "-F", "#{@office_kind} #{pane_start_command}")
+    return [line for line in out.splitlines() if line]
+
+
+def stash():
+    return tmux("list-panes", "-s", "-t", "=_stash", "-F", "#{@office_kind}")
+
+
+fails = []
+
+
+def check(name, ok, got):
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+    if not ok:
+        fails.append(f"{name}: {got}")
+
+
+try:
+    # a zsh -ic per pane, and each one reads an rc: a cold runner needs the time
+    drain(8)
+    panes = office()
+    check("the office opens as one pane, and it is the question",
+          len(panes) == 1 and panes[0].startswith("NEW "), panes)
+
+    os.write(fd, b"1")
+    drain(6)
+    panes = office()
+    check("the menu drew by itself, and 1 made that pane agent ONE",
+          len(panes) == 1 and panes[0].startswith('CLAUDE "sleep 61'), panes)
+
+    os.write(fd, b"\x00n")  # Ctrl-Space is NUL
+    drain(3)
+    os.write(fd, b"s")
+    drain(6)
+    panes = office()
+    check("Ctrl-Space n, s adds a shell beside it",
+          len(panes) == 2 and any(p.startswith("SHELL ") for p in panes), panes)
+
+    os.write(fd, b"\x00x")  # the shell was focused when it opened
+    drain(6)
+    panes = office()
+    check("Ctrl-Space x parks it, still running",
+          len(panes) == 1 and "SHELL" in stash(), (panes, stash()))
+
+    os.write(fd, b"\x00n")
+    drain(3)
+    os.write(fd, b"a")      # the first parked pane's key
+    drain(6)
+    panes = office()
+    check("the next menu lists it under a, and a brings it back",
+          len(panes) == 2 and "SHELL" not in stash(), (panes, stash()))
+finally:
+    tmux("kill-server")
+    shutil.rmtree(tmp, ignore_errors=True)
+
+if fails:
+    print("\n" + "\n".join(fails))
+    sys.exit(1)
+print("\nmenu-probe passed")

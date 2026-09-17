@@ -8,7 +8,7 @@
 #
 # What this deliberately does NOT do is know anything about the agent. No marker
 # to grep for, no hook to install, no per-CLI special case: office points the
-# left column at claude, codex or your own thing through one variable, and this
+# desks at claude, codex or your own thing through one variable, and this
 # has to keep being true for all of them. The one behaviour every agent CLI
 # shares is that it MOVES while it works — a spinner, an elapsed timer, tokens
 # arriving. A screen that stopped moving is an agent that stopped, and an agent
