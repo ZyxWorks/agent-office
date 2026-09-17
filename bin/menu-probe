@@ -57,6 +57,9 @@ if pid == 0:
                       f'_office_open "{repo}"'])
 
 
+LAST = [b""]
+
+
 def drain(seconds, want=None):
     """Keep the client's output flowing, or tmux blocks writing to it. With
     `want`, return True as soon as those bytes have been drawn."""
@@ -70,6 +73,7 @@ def drain(seconds, want=None):
                 return False
             if want and want in seen:
                 return True
+    LAST[0] = seen
     return False
 
 
@@ -78,8 +82,9 @@ def drain(seconds, want=None):
 # start (measured 2026-09-17), so a fixed 8s wait typed "1" at a pane whose menu
 # had not drawn yet, and every step after it was off by one.
 def menu():
-    """Wait for a menu to be on screen: its title is the word open."""
-    return drain(60, b" open ")
+    """Wait for a menu to be on screen: its title is the word open. Not " open "
+    with its spaces: tmux may skip drawing a space over a cell that is blank."""
+    return drain(60, b"open")
 
 
 def until(test, seconds=60):
@@ -116,7 +121,7 @@ try:
     check("the office opens as one pane, and it is the question",
           len(panes) == 1 and panes[0].startswith("NEW "), panes)
 
-    check("the menu drew by itself", drew, "no menu on screen after 60s")
+    check("the menu drew by itself", drew, f"no menu on screen after 60s; last bytes {LAST[0][-600:]!r}")
     os.write(fd, b"1")
     until(lambda: any(p.startswith("CLAUDE ") for p in office()))
     panes = office()
