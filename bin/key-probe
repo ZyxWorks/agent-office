@@ -167,6 +167,32 @@ def main():
     tmux("swap-pane", "-d", "-s", after[0], "-t", after[1])   # recorder back to pane 1
     tmux("select-pane", "-t", "1")
 
+    # ...and at an edge WITH another row, it wraps, exactly as moving between
+    # panes does. Pinned here because tmux is what decides it: this ships against
+    # 3.4 as well as 3.7b, the README states the wrap, and if a tmux ever stopped
+    # wrapping the key would answer "can't find pane" across the status bar --
+    # the one failure the guard above exists to prevent. Its own window, so the
+    # two panes the byte checks need are left exactly as they were.
+    tmux("new-window", "-d", "-n", "wrap", "cat")
+    tmux("split-window", "-v", "-t", "wrap", "cat")
+    tmux("select-window", "-t", "wrap")
+    tmux("select-pane", "-t", "wrap.1")            # the TOP pane: nothing above it
+    top = tmux("display", "-p", "#{pane_id}").stdout.strip()
+    stacked = tmux("list-panes", "-t", "wrap", "-F", "#{pane_id}").stdout.split()
+    os.write(fd, b"\x00")
+    time.sleep(0.25)
+    os.write(fd, raw(rb"\x1b[1;2A"))
+    time.sleep(0.6)
+    wrapped = tmux("list-panes", "-t", "wrap", "-F", "#{pane_id}").stdout.split()
+    msgs = tmux("show-messages").stdout
+    if wrapped == stacked[::-1] and "can't find pane" not in msgs:
+        print(f"  ok   {'...and wraps':22} top pane sent up is the bottom one now")
+    else:
+        print(f"  FAIL {'...and wraps':22} {stacked} -> {wrapped}, top was {top}")
+        bad += 1
+    tmux("kill-window", "-t", "wrap")
+    tmux("select-pane", "-t", "1")
+
     time.sleep(WINDOW)
     got = out.read_bytes() if out.exists() else b""
     tmux("kill-server")

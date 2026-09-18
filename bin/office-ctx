@@ -122,7 +122,12 @@ fi
 wrote=$(stat -f %m "$tx" 2>/dev/null)
 case $wrote in *[!0-9]*|"") wrote=$(stat -c %Y "$tx" 2>/dev/null) ;; esac
 case $wrote in *[!0-9]*|"") wrote="" ;; esac
-[ -n "$wrote" ] && tmux set -p -t "$id" @office_wrote "$wrote" 2>/dev/null
+# An empty answer CLEARS it, the same as finding no transcript at all. The file
+# can go between the read above and this line, and leaving the old number there
+# would have office-attn counting from a moment that no longer means anything.
+if [ -n "$wrote" ]; then tmux set -p -t "$id" @office_wrote "$wrote" 2>/dev/null
+elif [ -n "$had" ]; then tmux set -up -t "$id" @office_wrote 2>/dev/null
+fi
 
 # The last usage record. `tail -c` bounds the read to the end of what can be a
 # very large file, and the `^{` test throws away the partial line that bound

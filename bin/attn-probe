@@ -257,6 +257,10 @@ want "waiting past an hour: it counts in hours"      "$(watch $quiet)" "  your t
 # mtime of the file the agent and you both append to, which is the second either
 # of you last wrote and nothing on screen can move. Here the screen says the pane
 # changed a moment ago and the file says an hour and twenty minutes. The file wins.
+# The clock is re-read here, not carried down from the block above: these are
+# exact-minute assertions, and every check between there and here has spent real
+# seconds off the margin they have before 8m reads as 9m.
+now=$(tmux display -p '%s')
 tmux set -p -t "$quiet" @office_still "$now"
 tmux set -p -t "$quiet" @office_wrote $(( now - 4800 ))
 want "a Claude desk counts from the last WRITE, not the last redraw" \
