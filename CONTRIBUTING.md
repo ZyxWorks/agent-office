@@ -147,16 +147,36 @@ count as waiting; another animates one line at 10Hz and must never. It also
 checks the gate by expanding the expression that ships rather than a copy of it.
 
 The clock it prints is **not** the screen's, though, wherever there is a better
-one. `bin/office-ctx` leaves `@office_wrote` on a Claude Code desk — the mtime
-of the transcript both the agent and you append to — and the watcher counts from
-that instead. The screen can only ever say "nothing has moved since I last
-looked", and a scroll, a resize, or a zoom that stopped anyone from looking at
-that pane all reset it to zero, on the desk whose age is the thing you came back
-to read. The probe pins both halves: the file's clock wins when there is one, and
-a desk with no transcript keeps the screen's. If you change either script, keep
-them in step — `@office_wrote` is dropped on every way out of `office-ctx` that
-finds no transcript, or a desk whose agent has ended goes on counting for a
-session that is over.
+one. `bin/office-ctx` leaves `@office_wrote` on the pane — the mtime of the
+transcript both the agent and you append to — and the watcher counts from that
+instead. The screen can only ever say "nothing has moved since I last looked",
+which is a proxy for the question and not an answer to it. The probe pins both
+halves: the file's clock wins when there is one, and a desk with no reader keeps
+the screen's. If you change either script, keep them in step — `@office_wrote` is
+dropped on every way out of `office-ctx` that finds no transcript, or a desk
+whose agent has ended goes on counting for a session that is over.
+
+One reset is fixed for every desk, reader or not, and it is the one that fired
+constantly: **a look that spans a resize is skipped rather than judged.** Every
+line reflows, so the compare counted the whole screen as changed — and the grid
+is rebuilt on every add, park, close and unpark, which resizes every *other* pane
+in the office. Opening one desk wiped the wait on all the rest. Measured at 80
+then 40 columns: 9 of 12 lines "changed" in a pane running nothing at all. A
+scroll was never one of these; `capture-pane` reads the live screen and not the
+copy-mode view, also measured.
+
+Touched a reader in `bin/office-ctx`? They are `tx_<cli>` functions, each
+answering one question — which file is THIS pane writing to — and each printing
+`<liveness-file>|<transcript>`. The liveness half is optional and is what keeps
+the resolution cache honest: a file whose disappearance means that session is
+over. Claude Code's `~/.claude/sessions/<pid>.json` is one, because an agent that
+ends leaves its pane and its pid behind, so nothing else about the pane says the
+session it was reporting on is finished. Resolving is the expensive half (a `ps`
+over every process, or a walk of Codex's session tree), so it happens once and
+the answer is cached on the pane; every tick after that is one `stat`. Codex is
+keyed on the directory it recorded at startup, which is exact in an office
+because every agent after the first gets its own worktree. Anything else is
+`@office_tx_cmd`, a command of the user's that prints a path, tried first.
 
 Touched `bin/office-ctx`? Run `bin/ctx-probe`. No Claude Code and no API call
 needed: that script reads exactly three things — the pane's process group,

@@ -69,8 +69,8 @@ id=${1:?usage: office-attn <pane-id>}
 # ONE tmux call for all of it, the clock included: `%s` is strftime, which
 # display-message expands alongside the #{} formats, so there is no `date` fork
 # in a job that runs every few seconds for every desk on screen.
-IFS='|' read -r now since secs sock wasquiet wrote <<EOF
-$(tmux display -p -t "$id" '%s|#{@office_still}|#{@office_attn_secs}|#{socket_path}|#{@office_quiet}|#{@office_wrote}' 2>/dev/null)
+IFS='|' read -r now since secs sock wasquiet wrote size wassize <<EOF
+$(tmux display -p -t "$id" '%s|#{@office_still}|#{@office_attn_secs}|#{socket_path}|#{@office_quiet}|#{@office_wrote}|#{pane_width}x#{pane_height}|#{@office_size}' 2>/dev/null)
 EOF
 [ -n "$now" ] || exit 0                # no such pane any more: say nothing
 [ -n "$secs" ] || secs=20
@@ -103,6 +103,23 @@ set -- $(tmux capture-pane -p -t "$id" 2>/dev/null | awk -v tick="$snap" -v look
   END { print (n ? c + 0 + (FNR > n ? FNR - n : n - FNR) : -1),
               (m ? d + 0 + (FNR > m ? FNR - m : m - FNR) : -1) }')
 slow=${1:--1} fast=${2:--1}
+
+# A PANE THAT CHANGED SHAPE TELLS YOU NOTHING THIS TICK. Every line reflows, so
+# the compare above counts the whole screen as changed and the wait starts again
+# from zero — on a desk nobody has spoken to. And it is not a rare event: the
+# grid is rebuilt whenever a pane is added, parked, closed or brought back, which
+# resizes every OTHER pane in the office. Opening one desk therefore wiped the
+# wait on all the rest, which is the one number they existed to show.
+#
+# So a look that spans a resize is skipped, not judged: the snapshot above has
+# already been rewritten at the new width, so the NEXT look compares like with
+# like. It costs one tick of readout and keeps the clock, which is the trade this
+# whole file makes everywhere else. Measured at 80 then 40 columns: 9 of 12 lines
+# "changed" with nothing running in the pane at all.
+if [ "$size" != "$wassize" ]; then
+  tmux set -p -t "$id" @office_size "$size" 2>/dev/null
+  [ -n "$wassize" ] && exit 0          # first sight of a pane still starts its clock below
+fi
 
 # THE TWO SIGNALS ANSWER DIFFERENT QUESTIONS, and folding them into one `if` is
 # what made the readout unusable overnight. Both used to restart the clock, so
@@ -148,19 +165,25 @@ fi
 
 # Still. Since when, though — a pane that has never moved has no answer yet.
 #
-# THE SCREEN'S CLOCK IS A GUESS; THE TRANSCRIPT'S IS THE FACT. For a Claude Code
-# desk office-ctx has already found the file the agent and you both append to,
-# and left its mtime in @office_wrote: the exact second either of you last wrote.
-# Prefer it. It cannot be thrown away by a scroll back through the output, by a
-# resize, or by a zoom that simply stopped anyone from looking at this pane —
-# and every one of those reset the screen clock to zero, on the desk whose age
-# was the thing you came back to the machine to read. It is also the number the
-# hour-long prompt cache actually runs on, which is what the readout is for.
+# THE SCREEN'S CLOCK IS A GUESS; THE FILE'S IS THE FACT. office-ctx has already
+# found the transcript this desk appends to — Claude Code's, Codex's, or whatever
+# @office_tx_cmd names — and left its mtime in @office_wrote: the exact second the
+# agent or you last wrote. Prefer it.
 #
-# Any other agent has no transcript here and no @office_wrote, so it keeps the
-# screen clock unchanged. The gate above is the same either way: nothing is said
-# until the SCREEN has been still for two looks, so a file that is written while
-# the desk is plainly working never puts "your turn" on a busy border.
+# The screen can only ever say "nothing has moved since I last looked", which
+# makes it a proxy for the question and not an answer to it. It is right to about
+# one tick while a desk sits still, and wrong whenever the pixels move for a
+# reason that is not a turn: the resize above, or a redraw wider than SLOW_OK.
+# (A scroll back through the output is NOT one of them — `capture-pane` reads the
+# live screen and not the copy-mode view, measured.) The file does not move when
+# the screen does, and it is the clock the hour-long prompt cache actually runs
+# on, which is what this readout is for.
+#
+# An agent office has no reader for has no @office_wrote and keeps the screen
+# clock, which is what it always had. The gate above is the same either way:
+# nothing is said until the SCREEN has been still for two looks, so a file
+# written while the desk is plainly working never puts "your turn" on a busy
+# border.
 [ -n "$wrote" ] && since=$wrote
 [ -n "$since" ] || { tmux set -p -t "$id" @office_still "$now" 2>/dev/null; exit 0; }
 idle=$((now - since))

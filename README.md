@@ -269,16 +269,28 @@ desk is charged as if the conversation were new. `1h20m` says that at a glance
 and `80m` does not. The office does not know anybody's billing rules and does not
 pretend to: it states the age, and you know what an hour costs you.
 
-**And that number is read off the file, not off the screen.** A Claude Code desk
-writes every turn — the agent's and yours — into its own transcript, so the
-moment either of you last wrote is on disk, exact, and office reads it there.
-Screen-watching is what tells you the desk has *stopped*; it cannot tell you
-when, because it only ever knows "nothing has moved since I last looked". Scroll
-back through a waiting desk's output, resize the window, or zoom another pane so
-nothing looks at this one for ten minutes, and that clock starts again from zero
-— on exactly the desk whose age you came back to the machine to read. The file
-does not move when the screen does. Any other agent has no transcript to read
-and keeps the screen's clock, which is what it always had.
+**And that number is read off the file, not off the screen.** An agent writes
+every turn — its own and yours — into a transcript, so the moment either of you
+last wrote is on disk, exact, and office reads it there. Screen-watching is what
+tells you the desk has *stopped*; it is a poor answer to *when*, because it only
+ever knows "nothing has moved since I last looked". The file does not move when
+the screen does.
+
+Office ships readers for **Claude Code** and **Codex**, and `@office_tx_cmd` is
+the same question asked of a command of your own — it is handed a pane id and
+prints the path that desk is writing to, which is one line for any of the twenty
+other CLIs. An agent office has no reader for keeps the screen's clock, which is
+what it always had, and that clock is right to about one tick while a desk sits
+still.
+
+The screen clock's own worst reset is fixed for everybody, reader or not: **a
+pane that changed shape is skipped rather than judged.** Every line reflows when
+a pane is resized, so the compare counted the whole screen as changed and the
+wait started again from zero — and the grid is rebuilt whenever a pane is added,
+parked, closed or brought back, which resizes every *other* pane in the office.
+Opening one desk wiped the number on all the rest. (Scrolling back through the
+output was never one of these: `capture-pane` reads the live screen, not the
+copy-mode view.)
 
 ### How full each desk's context window is
 
@@ -468,6 +480,14 @@ Environment variables, set before sourcing `office.zsh`. All optional.
 | `OFFICE_CTX_WARN` | `400000` | context tokens at which a desk's number takes the accent colour |
 | `OFFICE_CTX_ALARM` | `600000` | ...and the alarm colour. Use `120000` / `170000` for a 200k window |
 | `OFFICE_UPDATE_CHECK` | `1` | `0` stops the background `git fetch` on `office on`. The only network call there is |
+
+One tmux option rather than an environment variable, because it is asked per
+pane: `@office_tx_cmd`. Set it (globally with `tmux set -g`, or on one pane with
+`tmux set -p`) to a command that is handed a pane id and prints the file that
+desk writes its conversation to. It is tried before the built-in Claude Code and
+Codex readers, so it also overrides them. Its mtime becomes the **your turn**
+clock; the context number stays Claude Code only, because that one means reading
+a usage record and every CLI writes a different one.
 | `OFFICE_ON_CMD` | *(empty)* | your own command, run when you walk in |
 | `OFFICE_OFF_CMD` | *(empty)* | your own command, run when you go home |
 | `OFFICE_RUNNING_CHECK` | `false` | exits 0 when it is already up |

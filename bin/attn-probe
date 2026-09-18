@@ -81,6 +81,10 @@ STREAM='i=0; while :; do i=$((i+1)); echo "line $i"; sleep 0.2; done'
 THINK='i=0; while :; do i=$((i+1)); printf "\033[4;1Hthinking %s   " "$i"; sleep 0.1; done'
 ROTATE='i=0; while :; do i=$((i+1)); printf "\033[4;1Hhint %s        " "$i"; sleep 8; done'
 STILL='exec sleep 86400'
+# A screen with something ON it, and lines long enough to wrap. STILL is a blank
+# pane, and a blank pane reflows to another blank pane -- it cannot show what a
+# resize does to the compare, which is the whole point of the check that uses it.
+WRAPPED='i=0; while [ $i -lt 14 ]; do i=$((i+1)); echo "line $i, long enough that it has to wrap again once this pane is made narrower"; done; exec sleep 86400'
 
 ok()   { print "  ok   $1" }
 bad()  { print -u2 "  FAIL $1"; fail=1 }
@@ -270,6 +274,29 @@ want "a Claude desk counts from the last WRITE, not the last redraw" \
 tmux set -up -t "$quiet" @office_wrote
 tmux set -p -t "$quiet" @office_still $(( now - 500 ))
 want "any other agent keeps the screen clock"        "$(watch $quiet)" "  your turn 8m"
+
+# --- a pane that changed shape -------------------------------------------------
+# The reset nobody could see coming, and it fires constantly: the grid is rebuilt
+# whenever a pane is added, parked, closed or brought back, which RESIZES every
+# other pane in the office. Every line reflows, the compare counts the whole
+# screen as changed, and the wait starts again from zero on desks nobody has
+# spoken to. Opening one desk wiped the number on all the rest.
+#
+# A look that spans a resize is skipped rather than judged. The screen is still
+# written down, so the look after it compares like with like and the clock is
+# where it was. Measured at 80 then 40 columns: 9 of 12 lines "changed" with
+# nothing running in the pane at all.
+run "$quiet" "$WRAPPED"
+sleep 1
+watch "$quiet" >/dev/null
+watch "$quiet" >/dev/null
+now=$(tmux display -p '%s')
+tmux set -p -t "$quiet" @office_still $(( now - 500 ))
+tmux resize-window -t "=$s" -x 50 -y 20 2>/dev/null
+want "the resize look itself says nothing"           "$(watch $quiet)" ""
+want "...and does not restart the wait"              \
+  "$(tmux display -p -t "$quiet" '#{@office_still}')" "$(( now - 500 ))"
+want "...and the next look counts from where it was" "$(watch $quiet)" "  your turn 8m"
 
 # --- a blip does not cost the wait -------------------------------------------
 # The bug this section exists for, reported after an overnight run: the border

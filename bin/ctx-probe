@@ -140,6 +140,49 @@ want "the agent ended: the clock is dropped" \
   "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
 mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
 
+# --- a Codex desk ---------------------------------------------------------------
+# Codex keys nothing by pid, so the trick above has nothing to grab. What it does
+# record is the directory it started in, on its first line, and in an office that
+# is exact: every agent after the first gets its own worktree, so two Codex desks
+# never share a cwd. The clock is the file's mtime, which needs no format at all --
+# and there is deliberately NO number, because a usage record is Claude Code's
+# shape and a plausible wrong number on a border is worse than an empty one.
+pcwd=$(tmux -L ctxprobe display -p -t "$pane" '#{pane_current_path}')
+mkdir -p "$fake/.codex/sessions/2026/09/18"
+roll="$fake/.codex/sessions/2026/09/18/rollout-2026-09-18T09-36-34-01a0b372-19b1-76f2-98ba-b97e293779c5.jsonl"
+print -r -- "{\"timestamp\":\"2026-09-18T07:36:34.492Z\",\"type\":\"session_meta\",\"payload\":{\"session_id\":\"01a0b372\",\"cwd\":\"$pcwd\",\"originator\":\"Codex CLI\"}}" > "$roll"
+print -r -- '{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":0,"total_tokens":108060}}}}' >> "$roll"
+touch -t 202002020000 "$roll"
+# the Claude reader has to come up empty, or it answers first and this proves nothing
+mv "$fake/.claude/sessions/$pid.json" "$fake/.claude/sessions/$pid.gone"
+want "a Codex desk: no number on the border"  "$(ctx)" ""
+want "a Codex desk: but its clock is read"    \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$roll")"
+# ...and a rollout from a DIFFERENT directory is not this desk's
+mv "$roll" "$roll.other"
+print -r -- "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/somewhere/else\"}}" > "$roll.other"
+ctx >/dev/null
+want "a Codex rollout from another directory is ignored" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+rm -f "$roll.other"
+
+# --- any other CLI: @office_tx_cmd ----------------------------------------------
+# Twenty-odd agent CLIs exist and office ships readers for two. The third question
+# this asks is yours: a command handed the pane id that prints a path. It is tried
+# FIRST, so it also overrides a reader that would otherwise answer.
+mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
+mine="$shim/my-transcript.jsonl"
+print -r -- '{"mine":1}' > "$mine"
+touch -t 202003030000 "$mine"
+printf '#!/bin/sh\nprintf %%s %s\n' "$mine" > "$shim/mytx"; chmod +x "$shim/mytx"
+tmux -L ctxprobe set -p -t "$pane" @office_tx_cmd "$shim/mytx"
+ctx >/dev/null
+want "@office_tx_cmd answers, and beats the built-in readers" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$mine")"
+tmux -L ctxprobe set -up -t "$pane" @office_tx_cmd
+rm -rf "$fake/.codex"
+ctx >/dev/null
+
 # --- rubbish in ----------------------------------------------------------------
 # A border is not a place to print a parse error, and half a line is what `tail -c`
 # leaves behind on any file bigger than its bound.
