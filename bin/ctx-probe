@@ -187,6 +187,24 @@ want "a Codex desk: no number on the border"  "$(ctx)" ""
 want "a Codex desk: but its clock is read"    \
   "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$roll")"
 
+# ...and a directory that only matches as a REGEX is a different directory. The
+# probe's own pane sits in a path with a dot in it (tmp.XXXXXXXX), and an
+# unanchored `grep` would read that dot as "any character" — so a rollout
+# recorded one character away would be handed over as this desk's. Paths here are
+# full of dots: .zyx, .config, .claude.
+# The near-miss has to BE a rollout -- same directory, a name the reader's own
+# `-name 'rollout-*.jsonl'` accepts. Parked next to it under any other name it is
+# invisible, and the check passes against code that is still wrong.
+near=${pcwd/./X}
+nearroll="${roll:h}/rollout-2026-09-18T09-40-00-0000near-0000-0000-0000-000000000000.jsonl"
+print -r -- "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"$near\"}}" > "$nearroll"
+mv "$roll" "$roll.keep"
+tmux -L ctxprobe set -up -t "$pane" @office_wrote
+ctx >/dev/null
+want "a path that only matches as a regex is a different path" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+rm -f "$nearroll"; mv "$roll.keep" "$roll"
+
 # ...and a rollout from a DIFFERENT directory is still not this desk's
 mv "$roll" "$roll.other"
 print -r -- "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/somewhere/else\"}}" > "$roll.other"

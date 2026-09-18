@@ -178,7 +178,15 @@ tx_codex() {
   printf '%s\n' "$group" | grep -q ' codex$' || return 0
   for f in $(find "$HOME/.codex/sessions" -type f -name 'rollout-*.jsonl' 2>/dev/null \
              | sort -r | head -40); do
-    head -n 1 "$f" 2>/dev/null | grep -q "\"cwd\":\"$cwd\"" && { printf '%s' "$f"; return 0; }
+    # -F, and it is not decoration: without it the path is a REGULAR EXPRESSION,
+    # where `.` matches any character — and these are paths full of dots
+    # (.zyx, .config, tmp.XXXX). /work/repo.v1 would take /work/repoXv1's
+    # rollout, which is the same class of wrong file this whole reader was just
+    # rewritten to stop handing out. The closing quote is inside the pattern, so
+    # a path that is a PREFIX of another cannot match it either.
+    # ponytail: a path holding a " or a \ is JSON-escaped in the file and would
+    # not match. Neither belongs in a checkout path; a jq would be the upgrade.
+    head -n 1 "$f" 2>/dev/null | grep -qF "\"cwd\":\"$cwd\"" && { printf '%s' "$f"; return 0; }
   done
 }
 
