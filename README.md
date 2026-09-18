@@ -481,17 +481,20 @@ Environment variables, set before sourcing `office.zsh`. All optional.
 | `OFFICE_CTX_ALARM` | `600000` | ...and the alarm colour. Use `120000` / `170000` for a 200k window |
 | `OFFICE_UPDATE_CHECK` | `1` | `0` stops the background `git fetch` on `office on`. The only network call there is |
 
-One tmux option rather than an environment variable, because it is asked per
-pane: `@office_tx_cmd`. Set it (globally with `tmux set -g`, or on one pane with
-`tmux set -p`) to a command that is handed a pane id and prints the file that
-desk writes its conversation to. It is tried before the built-in Claude Code and
-Codex readers, so it also overrides them. Its mtime becomes the **your turn**
-clock; the context number stays Claude Code only, because that one means reading
-a usage record and every CLI writes a different one.
 | `OFFICE_ON_CMD` | *(empty)* | your own command, run when you walk in |
 | `OFFICE_OFF_CMD` | *(empty)* | your own command, run when you go home |
 | `OFFICE_RUNNING_CHECK` | `false` | exits 0 when it is already up |
 | `OFFICE_ON_ALWAYS` | `0` | `1` runs `OFFICE_ON_CMD` every walk-in, even when the check says up |
+
+### Reading another agent's transcript
+
+`@office_tx_cmd` is a tmux option rather than an environment variable, because it
+is asked per pane. Set it — globally with `tmux set -g`, or on one pane with
+`tmux set -p` — to a command that is handed a pane id and prints the file that
+desk writes its conversation to. It is tried before the built-in Claude Code and
+Codex readers, so it also overrides them. Its mtime becomes the **your turn**
+clock; the context number stays Claude Code only, because that one means reading
+a usage record and every CLI writes a different one.
 
 The always-on trio is for anything that should come up when you sit down and go
 down when you leave, a local server, a tunnel, a sync daemon:

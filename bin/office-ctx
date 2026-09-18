@@ -163,12 +163,16 @@ tx_codex() {
 # against a pid key and then against a pid-and-command key. Only the agent's own
 # file knows, so `live` is checked every tick: no fork, and exact.
 #
-# The pid and the foreground command are cheap extras on top, not the guarantee.
-# A respawned pane is a new agent; a command that changes from `claude` to `zsh`
-# is one too. The command also changes for a moment when an agent runs something
-# in the foreground, which costs one re-resolve and no wrong answer — and a
-# re-resolve every tick is only what this script did before the cache existed.
-if [ -z "$tx" ] || [ ! -r "$tx" ] || [ "$txkey" != "$pid $cmd" ] \
+# The pid, the foreground command and the hook are cheap extras on top, not the
+# guarantee. A respawned pane is a new agent; a command that changes from
+# `claude` to `zsh` is one too; and @office_tx_cmd is in the key because setting
+# one has to take effect NOW — a hook added, changed or removed over a readable
+# cached path would otherwise do nothing until something else happened to
+# invalidate it, which for a hook you just set reads as a hook that is ignored.
+# The command also changes for a moment when an agent runs something in the
+# foreground, which costs one re-resolve and no wrong answer — and a re-resolve
+# every tick is only what this script did before the cache existed.
+if [ -z "$tx" ] || [ ! -r "$tx" ] || [ "$txkey" != "$pid $cmd $hook" ] \
    || { [ -n "$live" ] && [ ! -e "$live" ]; }; then
   # Each reader answers "<liveness-file>|<transcript>", and the liveness half is
   # optional: a file whose disappearance means that session is over. It comes back
@@ -182,7 +186,7 @@ if [ -z "$tx" ] || [ ! -r "$tx" ] || [ "$txkey" != "$pid $cmd" ] \
   live=${got%%|*}; tx=${got#*|}
   [ -r "$tx" ] || { tx=""; live=""; }
   tmux set -p -t "$id" @office_tx "$tx" 2>/dev/null
-  tmux set -p -t "$id" @office_tx_key "$pid $cmd" 2>/dev/null
+  tmux set -p -t "$id" @office_tx_key "$pid $cmd $hook" 2>/dev/null
   tmux set -p -t "$id" @office_tx_live "$live" 2>/dev/null
 fi
 [ -n "$tx" ] || forget

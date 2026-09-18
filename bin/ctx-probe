@@ -175,11 +175,24 @@ mine="$shim/my-transcript.jsonl"
 print -r -- '{"mine":1}' > "$mine"
 touch -t 202003030000 "$mine"
 printf '#!/bin/sh\nprintf %%s %s\n' "$mine" > "$shim/mytx"; chmod +x "$shim/mytx"
+# Set over a LIVE cache, which is the case that matters: this call caches the
+# Claude transcript, readable and with its session file present, so nothing about
+# the pane is about to change. A hook you have just set has to take effect on the
+# next tick anyway — @office_tx_cmd is part of the cache key for exactly this.
+ctx >/dev/null
+want "cached first: the Claude transcript" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_tx)" \
+  "$fake/.claude/projects/some-other-slug/$sid.jsonl"
 tmux -L ctxprobe set -p -t "$pane" @office_tx_cmd "$shim/mytx"
 ctx >/dev/null
 want "@office_tx_cmd answers, and beats the built-in readers" \
   "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$mine")"
+# ...and taking it away hands the desk straight back to the built-in reader.
 tmux -L ctxprobe set -up -t "$pane" @office_tx_cmd
+ctx >/dev/null
+want "...and removing it hands the desk back" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_tx)" \
+  "$fake/.claude/projects/some-other-slug/$sid.jsonl"
 rm -rf "$fake/.codex"
 ctx >/dev/null
 
