@@ -176,10 +176,40 @@ def main():
     a, b, c = panes()
     press(sgr(0, *title(b)) + sgr(0, *title(b), press=False))
     moved("a click on a title moves nothing", [a[0], b[0], c[0]])
+
+    # A BARE title drag must move NOTHING now. tmux hands a press on a column
+    # divider and a press on a title the same event with no coordinates, so the
+    # move used to eat the border drag that resizes a pane -- which is the half
+    # a hand actually reaches for. The gesture lives behind the prefix instead.
     tx, ty = title(a)
     bx, by = body(c)
-    press(sgr(0, tx, ty) + sgr(32, tx + 2, ty + 1) + sgr(32, bx, by) + sgr(0, bx, by, press=False))
-    moved("title of pane 1 dropped on pane 3: it is last now", [b[0], c[0], a[0]])
+    drag = sgr(0, tx, ty) + sgr(32, tx + 2, ty + 1) + sgr(32, bx, by) + sgr(0, bx, by, press=False)
+    press(drag)
+    moved("a title drag with no prefix moves nothing", [a[0], b[0], c[0]])
+
+    # ...and that bare drag RESIZED, which is the point of it — so the layout and
+    # every coordinate taken from it are stale now. Put it back and read again,
+    # or the presses below land on whatever moved into their place.
+    tmux("select-layout", "-t", "grid", "even-horizontal")
+    time.sleep(0.5)
+    a, b, c = panes()
+    tx, ty = title(a)
+    bx, by = body(c)
+    drag = sgr(0, tx, ty) + sgr(32, tx + 2, ty + 1) + sgr(32, bx, by) + sgr(0, bx, by, press=False)
+
+    # The same gesture after Ctrl-Space does move it. Three mouse events and a
+    # prefix table that lasts for one, so the press switches the client into a
+    # table of its own; this is what proves that hand-off works.
+    press(b"\x00")
+    time.sleep(0.3)
+    press(drag)
+    moved("^Space, then pane 1's title dropped on pane 3: it is last now",
+          [b[0], c[0], a[0]])
+    armed = tmux("show", "-gqv", "@office_drag").stdout.strip()
+    ok = armed == ""
+    print(f"  {'ok  ' if ok else 'FAIL'} ...and the drag disarmed itself")
+    if not ok:
+        fails.append(f"@office_drag still armed after the drop: {armed!r}")
     in_mode = [tmux("display", "-p", "-t", p, "#{pane_in_mode}").stdout.strip() for p in (a[0], b[0], c[0])]
     ok = in_mode == ["0", "0", "0"]
     print(f"  {'ok  ' if ok else 'FAIL'} ...and no pane was left in copy mode by the drag")
@@ -191,6 +221,23 @@ def main():
           + sgr(0, *body(first[2]), press=False))
     press(b"\x1b")
     moved("a drag across pane bodies moves nothing", [p[0] for p in first])
+
+    # THE HALF THAT CAME BACK. A bare drag on the divider between two panes
+    # resizes, the way tmux has always done it. It was gone for as long as the
+    # title drag sat in the root table, because tmux cannot tell the two presses
+    # apart -- and "I can't resize the windows so nicely anymore" is what that
+    # cost, reported by the operator on 2026-09-18.
+    tmux("select-layout", "-t", "grid", "even-horizontal")
+    time.sleep(0.5)
+    before = [int(x[1]) for x in panes()]
+    div = before[1] - 1                     # the divider column, 0-based
+    press(sgr(0, div + 1, 3) + sgr(32, div - 9, 3) + sgr(0, div - 9, 3, press=False))
+    time.sleep(0.8)
+    after = [int(x[1]) for x in panes()]
+    ok = after != before
+    print(f"  {'ok  ' if ok else 'FAIL'} a bare border drag resizes again")
+    if not ok:
+        fails.append(f"border drag did not resize: lefts {before} -> {after}")
 
     finish(fails)
 

@@ -110,6 +110,21 @@ back. The third check is the quiet one — with no row to move into, the key mus
 do nothing **and say nothing**. Without the `pane_at_*` guard tmux writes
 "can't find pane: {up-of}" across the status bar, which reads as a broken key.
 
+Moving a pane with the mouse lives behind the PREFIX, and that is a fix, not a
+flourish. tmux reports a press on a column divider and a press on a pane title as
+the same `MouseDown1Border` with no coordinates to tell them apart (measured on
+3.7b: `#{mouse_x}` and `#{mouse_y}` are empty there). While the move sat in the
+root table it ate the border drag, so resizing a pane with the mouse stopped
+working at all. `Ctrl-Space` first and both fit.
+
+The arm is a global flag, `@office_drag`, and NOT a key table — that was the
+first attempt and it is worth not repeating. A drag is three or four events, the
+prefix table lasts for one, and tmux does not send the same events for every
+drag: traced on 3.7b, a press, one `MouseDrag1Border`, then an event the custom
+table had no binding for, which fell through to `Any` and disarmed the gesture
+two events before the drop. A flag has no such edge. The only thing it has to do
+is stop `resize-pane -M` firing while a move is in flight.
+
 Touched the mouse or copy mode? Run `bin/mouse-probe`. Same throwaway office and
 same real client, but it writes raw SGR mouse bytes: a drag has to land on the
 clipboard in every pane kind, and Escape and a click have to get you out of copy
@@ -167,16 +182,23 @@ copy-mode view, also measured.
 
 Touched a reader in `bin/office-ctx`? They are `tx_<cli>` functions, each
 answering one question — which file is THIS pane writing to — and each printing
-`<liveness-file>|<transcript>`. The liveness half is optional and is what keeps
-the resolution cache honest: a file whose disappearance means that session is
-over. Claude Code's `~/.claude/sessions/<pid>.json` is one, because an agent that
-ends leaves its pane and its pid behind, so nothing else about the pane says the
-session it was reporting on is finished. Resolving is the expensive half (a `ps`
-over every process, or a walk of Codex's session tree), so it happens once and
-the answer is cached on the pane; every tick after that is one `stat`. Codex is
-keyed on the directory it recorded at startup, which is exact in an office
-because every agent after the first gets its own worktree. Anything else is
-`@office_tx_cmd`, a command of the user's that prints a path, tried first.
+a path or nothing. **A reader must prove the CLI is running in this pane, from
+the pane's own process group, before it looks at anything else.** That is not
+style, it is the bug this file shipped: the Codex reader matched on the recorded
+directory alone, so a Claude desk was handed a rollout the ChatGPT app had
+written in that directory four hours earlier. The border read `your turn 4h18m`
+at a desk that was working and lost its context number with it. A directory is
+not an identity; it is only ever the second question, for choosing between that
+pane's own sessions.
+
+There is no cache, and the reason is the same incident. There was one, keyed on
+the pane, and nothing about a pane changes when the session inside it does — so
+the wrong file stayed cached all day and the readout could never recover.
+Resolving costs 25ms (`ps -ax -o pid=,pgid=` five times in 126ms), which is what
+this script did every tick for months before the cache existed. A readout that is
+right is worth 25ms; one that cannot recover from being wrong is worth nothing.
+Anything office ships no reader for is `@office_tx_cmd`, a command of the user's
+that prints a path, tried first.
 
 Touched `bin/office-ctx`? Run `bin/ctx-probe`. No Claude Code and no API call
 needed: that script reads exactly three things — the pane's process group,

@@ -147,18 +147,83 @@ mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
 # never share a cwd. The clock is the file's mtime, which needs no format at all --
 # and there is deliberately NO number, because a usage record is Claude Code's
 # shape and a plausible wrong number on a border is worse than an empty one.
+# A pane running NEITHER agent, with a Codex rollout sitting in its directory.
+# This is the bug that shipped: the reader matched on the directory alone, so a
+# rollout the ChatGPT app had written there hours earlier was handed to a desk it
+# had nothing to do with — "your turn 4h18m" at a working desk, context number
+# gone, and cached so it could never recover. A directory is not an identity.
+#
+# The desk is stood in a directory the probe OWNS, and one with a dot in its
+# name. Not the checkout's own path: this ran green on the author's machine and
+# red on both CI runners for one reason — /Users/.../.zyx/... has a dot in it and
+# /home/runner/work/agent-office/agent-office does not, so the regex check below
+# was comparing a path against itself and passing on nothing. A probe that only
+# works from one directory is not a probe.
+pcwd="$fake/work/.zyx/repo"
+mkdir -p "$pcwd"
+tmux -L ctxprobe respawn-pane -k -t "$pane" -c "$pcwd" 'exec cat'
+sleep 0.5
+pid=$(tmux -L ctxprobe display -p -t "$pane" '#{pane_pid}')
+# ...and the path is taken back OUT of tmux, never assumed. On macOS /var is a
+# symlink to /private/var, so the directory handed to respawn-pane and the one
+# #{pane_current_path} reports back are two different strings for one place --
+# and the reader compares the string.
 pcwd=$(tmux -L ctxprobe display -p -t "$pane" '#{pane_current_path}')
 mkdir -p "$fake/.codex/sessions/2026/09/18"
 roll="$fake/.codex/sessions/2026/09/18/rollout-2026-09-18T09-36-34-01a0b372-19b1-76f2-98ba-b97e293779c5.jsonl"
 print -r -- "{\"timestamp\":\"2026-09-18T07:36:34.492Z\",\"type\":\"session_meta\",\"payload\":{\"session_id\":\"01a0b372\",\"cwd\":\"$pcwd\",\"originator\":\"Codex CLI\"}}" > "$roll"
 print -r -- '{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":0,"total_tokens":108060}}}}' >> "$roll"
 touch -t 202002020000 "$roll"
-# the Claude reader has to come up empty, or it answers first and this proves nothing
-mv "$fake/.claude/sessions/$pid.json" "$fake/.claude/sessions/$pid.gone"
+# the Claude reader has to come up empty, or it answers first and this proves
+# nothing. The respawn already gave the pane a pid no session file names.
+tmux -L ctxprobe set -up -t "$pane" @office_wrote
+ctx >/dev/null
+want "a rollout in this directory is NOT enough to claim the desk" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+
+# ...and now the pane really IS running codex: a process whose NAME is codex, in
+# this pane's own process group, which is the only thing that lets the reader in.
+#
+# A SYMLINK, never a copy. macOS refuses to run a copy of a system binary at all:
+# the signature does not survive it and the process dies the instant it starts.
+# What that looked like here was the whole tmux server going away mid-probe. The
+# symlink leaves the real binary alone, and `ps` still reports the name it was
+# reached by, which is the whole point of the check under test.
+say_pid() {                            # the session file, for the pane's CURRENT pid
+  pid=$(tmux -L ctxprobe display -p -t "$pane" '#{pane_pid}')
+  rm -f "$fake/.claude/sessions"/*.json(N)
+  [[ -n $1 ]] && print -r -- "{\"pid\":$pid,\"sessionId\":\"$sid\",\"cwd\":\"/tmp/demo/repo\"}" \
+    > "$fake/.claude/sessions/$pid.json"
+  return 0
+}
+ln -sf "$(command -v sleep)" "$shim/codex"
+tmux -L ctxprobe respawn-pane -k -t "$pane" -c "$pcwd" "exec $shim/codex 300"
+sleep 0.5
+say_pid                                # no Claude session: the Codex reader is all that is left
 want "a Codex desk: no number on the border"  "$(ctx)" ""
 want "a Codex desk: but its clock is read"    \
   "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$roll")"
-# ...and a rollout from a DIFFERENT directory is not this desk's
+
+# ...and a directory that only matches as a REGEX is a different directory. The
+# desk stands in .../.zyx/repo, and an unanchored `grep` reads that dot as "any
+# character" — so a rollout recorded one character away is handed over as this
+# desk's. Real paths are full of dots: .zyx, .config, .claude, tmp.XXXXXXXX.
+#
+# The near-miss has to BE a rollout: same directory, and a name the reader's own
+# `-name 'rollout-*.jsonl'` accepts. The first version of this check parked it
+# under another name, so the file was invisible and the check passed against code
+# that was still wrong.
+near=${pcwd/\/.zyx\//\/Xzyx\/}
+nearroll="${roll:h}/rollout-2026-09-18T09-40-00-0000near-0000-0000-0000-000000000000.jsonl"
+print -r -- "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"$near\"}}" > "$nearroll"
+mv "$roll" "$roll.keep"
+tmux -L ctxprobe set -up -t "$pane" @office_wrote
+ctx >/dev/null
+want "a path that only matches as a regex is a different path" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+rm -f "$nearroll"; mv "$roll.keep" "$roll"
+
+# ...and a rollout from a DIFFERENT directory is still not this desk's
 mv "$roll" "$roll.other"
 print -r -- "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/somewhere/else\"}}" > "$roll.other"
 ctx >/dev/null
@@ -170,29 +235,24 @@ rm -f "$roll.other"
 # Twenty-odd agent CLIs exist and office ships readers for two. The third question
 # this asks is yours: a command handed the pane id that prints a path. It is tried
 # FIRST, so it also overrides a reader that would otherwise answer.
-mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
+#
+# Back to a Claude desk first, and its own number has to come back with it.
+tmux -L ctxprobe respawn-pane -k -t "$pane" -c "$pcwd" 'exec cat'
+sleep 0.5
+say_pid yes
+want "a Claude desk reads its own transcript again"  "$(ctx)" "  250k#[default]"
+
 mine="$shim/my-transcript.jsonl"
 print -r -- '{"mine":1}' > "$mine"
 touch -t 202003030000 "$mine"
 printf '#!/bin/sh\nprintf %%s %s\n' "$mine" > "$shim/mytx"; chmod +x "$shim/mytx"
-# Set over a LIVE cache, which is the case that matters: this call caches the
-# Claude transcript, readable and with its session file present, so nothing about
-# the pane is about to change. A hook you have just set has to take effect on the
-# next tick anyway — @office_tx_cmd is part of the cache key for exactly this.
-ctx >/dev/null
-want "cached first: the Claude transcript" \
-  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_tx)" \
-  "$fake/.claude/projects/some-other-slug/$sid.jsonl"
 tmux -L ctxprobe set -p -t "$pane" @office_tx_cmd "$shim/mytx"
 ctx >/dev/null
 want "@office_tx_cmd answers, and beats the built-in readers" \
   "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$mine")"
 # ...and taking it away hands the desk straight back to the built-in reader.
 tmux -L ctxprobe set -up -t "$pane" @office_tx_cmd
-ctx >/dev/null
-want "...and removing it hands the desk back" \
-  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_tx)" \
-  "$fake/.claude/projects/some-other-slug/$sid.jsonl"
+want "...and removing it hands the desk back"        "$(ctx)" "  250k#[default]"
 rm -rf "$fake/.codex"
 ctx >/dev/null
 
