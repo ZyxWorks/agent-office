@@ -35,30 +35,70 @@
 # obvious reading of "input_tokens") reports a few hundred tokens for a session
 # holding two hundred thousand.
 #
-# ponytail: this is the ONE Claude Code special case in the package, and it is
-# shaped so that it costs nothing to anyone else — no ~/.claude/sessions
-# directory and it exits silently on the second line, so a codex or aider desk
-# simply has no number on its border. It is also one screen of sh with the file
-# layout written down above, which is the point: when Claude Code moves the
-# files, this is a ten-minute fix and not an archaeology project. Five forks per
-# desk per tick, and no caching by transcript mtime, because the tail is bounded
-# and a border that lags a tick behind the truth is not worth the state.
+# TWO READOUTS, ONE FILE, AND THEY ARE NOT THE SAME QUESTION.
+#
+#   the NUMBER is Claude Code only, because it means reading a usage record and
+#   every CLI writes a different one. A guessed number on a border is worse than
+#   no number, so a desk office cannot read simply has none.
+#
+#   @office_wrote is every CLI that has a transcript at all, because it is only
+#   the file's mtime — the second the agent's last line, or your last prompt,
+#   hit the disk. Nothing has to be parsed to know that. office-attn reads it for
+#   the "your turn" clock, which is really the CACHE clock: an hour with nothing
+#   written and the provider has dropped whatever it was holding, so the next
+#   thing you say is charged as a brand new conversation.
+#
+# So the shape is a table of readers, `tx_<cli>`, each answering one question:
+# which file is THIS pane writing to? The first that answers wins, and adding a
+# CLI is one function. @office_tx_cmd is the same question asked of a command of
+# your own, for the twenty CLIs that are not in here — it is handed the pane id
+# and prints a path, and it is tried FIRST so it can override anything below.
+#
+# ponytail: resolving is the expensive half (a `ps` over every process, or a walk
+# of Codex's session tree), so it happens once and the answer is cached on the
+# pane. Every tick after that is one `stat`, which is CHEAPER than what this did
+# before. What keeps that cache honest is the second thing a reader may return:
+# a file whose disappearance means that session is over. See the cache below —
+# it is the part of this that is easy to get wrong and hard to notice.
 id=${1:?usage: office-ctx <pane-id>}
 
-[ -d "$HOME/.claude/sessions" ] || exit 0     # not Claude Code: nothing to read
-
-IFS='|' read -r pid warn alarm swarn salarm <<EOF
-$(tmux display -p -t "$id" '#{pane_pid}|#{@office_ctx_warn}|#{@office_ctx_alarm}|#{@office_ctx_style_warn}|#{@office_ctx_style_alarm}' 2>/dev/null)
+IFS='|' read -r pid cmd warn alarm swarn salarm had tx txkey live cwd hook <<EOF
+$(tmux display -p -t "$id" '#{pane_pid}|#{pane_current_command}|#{@office_ctx_warn}|#{@office_ctx_alarm}|#{@office_ctx_style_warn}|#{@office_ctx_style_alarm}|#{@office_wrote}|#{@office_tx}|#{@office_tx_key}|#{@office_tx_live}|#{pane_current_path}|#{@office_tx_cmd}' 2>/dev/null)
 EOF
 [ -n "$pid" ] || exit 0
 [ -n "$warn" ]  || warn=400000
 [ -n "$alarm" ] || alarm=600000
 
-# Which session is running in this pane. Splitting the JSON on quotes rather than
-# matching a pattern per key: `"sessionId":"VALUE"` splits so that the key and the
-# value are two fields apart, which needs no regex and cannot be fooled by the
-# order of the keys.
-IFS='|' read -r sid cwd <<EOF
+# An agent that ENDED leaves the pane as a shell (office.zsh appends that line to
+# every desk command), and the pane keeps its CLAUDE kind — so this script keeps
+# being called and finds nothing. Whatever is left in @office_wrote is then a
+# dead session's clock, and office-attn would go on counting the hours since it
+# as though the desk were merely quiet. Drop it on every way out that found no
+# transcript, and only when there IS one to drop, so the usual case costs no fork.
+forget() { [ -n "$had" ] && tmux set -up -t "$id" @office_wrote 2>/dev/null; exit 0; }
+
+# --- which file is this pane writing to? --------------------------------------
+# CLAUDE CODE. There is no environment variable to read and nothing on the screen
+# to scrape, but Claude Code writes ~/.claude/sessions/<pid>.json for every
+# session it runs, and that file names the session id. So: take the process GROUP
+# of the pane (the agent is a child of the pane's shell, never the pane process
+# itself, because office appends a line to the command), ask which member of that
+# group has such a file, and read the id out of it. Exact, and no guessing from
+# directory names — two desks in one checkout would be indistinguishable that way.
+#
+# The transcript is then ~/.claude/projects/<slug>/<id>.jsonl, where the slug is
+# the LAUNCH directory with / and . beaten into -. It is the launch directory and
+# not the pane's current one: a session that cd'd somewhere else still writes to
+# the folder it started in. The id is also globbed for as a fallback, because the
+# slug rule is Claude Code's and could change under us; the id is in the filename
+# either way.
+#
+# Splitting the JSON on quotes rather than matching a pattern per key:
+# `"sessionId":"VALUE"` splits so that the key and the value are two fields apart,
+# which needs no regex and cannot be fooled by the order of the keys.
+tx_claude() {
+  [ -d "$HOME/.claude/sessions" ] || return 0
+  IFS='|' read -r apid sid scwd <<EOF
 $(ps -ax -o pid=,pgid= 2>/dev/null | awk -v want="$pid" -v home="$HOME" '
   { pg[$1] = $2 }
   END {
@@ -75,22 +115,119 @@ $(ps -ax -o pid=,pgid= 2>/dev/null | awk -v want="$pid" -v home="$HOME" '
         if (q[i] == "cwd"       && cwd == "") cwd = q[i + 2]
       }
       if (sid == "") continue
-      print sid "|" cwd
+      print p "|" sid "|" cwd
       exit
     }
   }')
 EOF
-[ -n "$sid" ] || exit 0
-
-slug=$(printf '%s' "$cwd" | tr '/.' '--')
-tx="$HOME/.claude/projects/$slug/$sid.jsonl"
-if [ ! -r "$tx" ]; then
-  tx=""
+  [ -n "$sid" ] || return 0
+  # The file that says this session is still RUNNING. Claude Code removes it on
+  # the way out, so its absence is the exact "the agent has ended" signal, and
+  # testing it is one [ -e ] per tick with no fork. The cache below needs that:
+  # an agent ending leaves the pane and its pid behind, so nothing else about the
+  # pane changes when the session it was reporting on is over.
+  live="$HOME/.claude/sessions/$apid.json"
+  f="$HOME/.claude/projects/$(printf '%s' "$scwd" | tr '/.' '--')/$sid.jsonl"
+  [ -r "$f" ] && { printf '%s|%s' "$live" "$f"; return 0; }
   for f in "$HOME"/.claude/projects/*/"$sid.jsonl"; do
-    [ -r "$f" ] && { tx=$f; break; }
+    [ -r "$f" ] && { printf '%s|%s' "$live" "$f"; return 0; }
   done
+}
+
+# CODEX writes ~/.codex/sessions/<Y>/<M>/<D>/rollout-<when>-<uuid>.jsonl and keys
+# nothing by pid, so the pid trick above has nothing to grab. What it DOES record
+# is the directory it was started in, on the first line, as session_meta.cwd —
+# and in an office that is enough to be exact, because every agent after the
+# first gets its OWN worktree. Two Codex desks therefore never share a cwd. Two
+# started by hand in one directory would, and the newer one wins; that is the
+# known ceiling, and the fix would be a pid file only Codex can write.
+#
+# A rollout name begins with its own timestamp and sits under <Y>/<M>/<D>, so the
+# whole path sorts chronologically and a reverse sort is newest-first. Only the
+# 60 newest are opened, and `find` rather than a glob because a year of sessions
+# is more arguments than a shell will pass. It runs ONCE per desk, not per tick.
+tx_codex() {
+  [ -d "$HOME/.codex/sessions" ] || return 0
+  for f in $(find "$HOME/.codex/sessions" -type f -name 'rollout-*.jsonl' 2>/dev/null \
+             | sort -r | head -60); do
+    head -n 1 "$f" 2>/dev/null | grep -q "\"cwd\":\"$cwd\"" && { printf '|%s' "$f"; return 0; }
+  done
+}
+
+# FOUR WAYS OUT OF THE CACHE, and the LIVENESS one is the reason it is safe.
+#
+# An agent that ENDS does not take its pane with it: office.zsh appends a line
+# that leaves a shell behind, and the pane keeps its id, its pid and its CLAUDE
+# kind. So a cache keyed on anything about the PANE goes on reporting a dead
+# session's clock for the rest of the day — the probe caught exactly that, twice,
+# against a pid key and then against a pid-and-command key. Only the agent's own
+# file knows, so `live` is checked every tick: no fork, and exact.
+#
+# The pid, the foreground command and the hook are cheap extras on top, not the
+# guarantee. A respawned pane is a new agent; a command that changes from
+# `claude` to `zsh` is one too; and @office_tx_cmd is in the key because setting
+# one has to take effect NOW — a hook added, changed or removed over a readable
+# cached path would otherwise do nothing until something else happened to
+# invalidate it, which for a hook you just set reads as a hook that is ignored.
+# The command also changes for a moment when an agent runs something in the
+# foreground, which costs one re-resolve and no wrong answer — and a re-resolve
+# every tick is only what this script did before the cache existed.
+if [ -z "$tx" ] || [ ! -r "$tx" ] || [ "$txkey" != "$pid $cmd $hook" ] \
+   || { [ -n "$live" ] && [ ! -e "$live" ]; }; then
+  # Each reader answers "<liveness-file>|<transcript>", and the liveness half is
+  # optional: a file whose disappearance means that session is over. It comes back
+  # on stdout and not in a variable because a resolver runs in a subshell, which
+  # can hand nothing back to its caller. It is re-established on EVERY resolve,
+  # not only the first, because it is read in through a pane option.
+  got=""
+  [ -n "$hook" ] && { h=$($hook "$id" 2>/dev/null); [ -n "$h" ] && got="|$h"; }
+  [ -n "$got" ] || got=$(tx_claude)
+  [ -n "$got" ] || got=$(tx_codex)
+  live=${got%%|*}; tx=${got#*|}
+  [ -r "$tx" ] || { tx=""; live=""; }
+  tmux set -p -t "$id" @office_tx "$tx" 2>/dev/null
+  tmux set -p -t "$id" @office_tx_key "$pid $cmd $hook" 2>/dev/null
+  tmux set -p -t "$id" @office_tx_live "$live" 2>/dev/null
 fi
-[ -n "$tx" ] || exit 0
+[ -n "$tx" ] || forget
+
+# WHEN did this desk last write? The transcript's mtime: the moment the agent's
+# last line, or your last prompt, hit the file. This is the half that works for
+# EVERY CLI above, because it needs no format at all — office never opens the
+# file to answer it. office-attn reads it as @office_wrote for the "your turn"
+# clock, which is really the CACHE clock: an hour with nothing written and the
+# provider has dropped whatever it was holding.
+#
+# Screen-watching can only say "nothing has moved since I last looked", which is
+# a proxy for the question and not an answer to it: right to about a tick while a
+# desk sits still, and wrong whenever the pixels move for a reason that is not a
+# turn. A pane that changed shape is the common one, and office-attn skips those
+# looks now. The file does not move when the screen does.
+#
+# BSD form then GNU, and it is the ANSWER that decides, never the exit status:
+# GNU's -f means "the filesystem", takes no %m, and prints `?` while exiting 0 —
+# so a plain `stat -f %m || stat -c %Y` would leave `?` on the pane, and
+# office-attn would do arithmetic on it. Digits, or nothing.
+wrote=$(stat -f %m "$tx" 2>/dev/null)
+case $wrote in *[!0-9]*|"") wrote=$(stat -c %Y "$tx" 2>/dev/null) ;; esac
+case $wrote in *[!0-9]*|"") wrote="" ;; esac
+# An empty answer CLEARS it, the same as finding no transcript at all. The file
+# can go between the read above and this line, and leaving the old number there
+# would have office-attn counting from a moment that no longer means anything.
+if [ -n "$wrote" ]; then tmux set -p -t "$id" @office_wrote "$wrote" 2>/dev/null
+elif [ -n "$had" ]; then tmux set -up -t "$id" @office_wrote 2>/dev/null
+fi
+
+# ...and here the shared half ends. The NUMBER is a usage record, and that is
+# Claude Code's shape: Codex writes `token_count` events with different keys
+# again, and a plausible wrong number on a border is worse than an empty one. So
+# anything that is not a Claude Code transcript has had its whole job done above.
+# (Codex does carry its own token totals, and a reader for them is a real thing
+# to add — measured against a live Codex desk, not guessed at from a file.)
+case $tx in
+  *"/.claude/projects/"*) ;;
+  *) exit 0 ;;
+esac
 
 # The last usage record. `tail -c` bounds the read to the end of what can be a
 # very large file, and the `^{` test throws away the partial line that bound

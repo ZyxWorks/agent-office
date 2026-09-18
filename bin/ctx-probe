@@ -25,6 +25,7 @@
 #     reader that takes the last hit rather than the first gets a plausible wrong
 #     answer, which is the worst kind, so the fixture carries both.
 emulate -L zsh
+zmodload -F zsh/stat b:zstat 2>/dev/null   # the mtime check below, without a stat(1) that differs per OS
 
 export TMUX_TMPDIR=$(mktemp -d)
 fake=$(mktemp -d)                       # a $HOME with nothing but Claude's files
@@ -110,6 +111,90 @@ mv "$tx" "$fake/.claude/projects/some-other-slug/$sid.jsonl"
 fixture 0 0 250000 > "$fake/.claude/projects/some-other-slug/$sid.jsonl"
 rmdir "$fake/.claude/projects/$slug"
 want "slug moved: found by session id anyway" "$(ctx)" "  250k#[default]"
+
+# --- when this desk last wrote -------------------------------------------------
+# The transcript's mtime, left on the pane for office-attn. That readout is the
+# CACHE clock -- an hour with nothing written and the next thing you say is
+# charged as a new conversation -- and the screen it used to be read off cannot
+# answer it: a scroll, a resize or a zoom all reset the screen and not the file.
+tx2="$fake/.claude/projects/some-other-slug/$sid.jsonl"
+touch -t 202001010000 "$tx2"
+ctx >/dev/null
+want "the transcript's mtime lands on the pane" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" \
+  "$(zstat +mtime "$tx2")"
+
+# ...and a dead session never keeps counting. The agent ending leaves the pane a
+# shell with its CLAUDE kind intact, so this script goes on being called and finds
+# nothing; anything left behind would have office-attn timing a session that is
+# over. Both ways out that find no transcript have to drop it.
+mv "$tx2" "$tx2.gone"
+ctx >/dev/null
+want "no transcript: the clock is dropped" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+mv "$tx2.gone" "$tx2"
+ctx >/dev/null
+mv "$fake/.claude/sessions/$pid.json" "$fake/.claude/sessions/$pid.gone"
+ctx >/dev/null
+want "the agent ended: the clock is dropped" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
+
+# --- a Codex desk ---------------------------------------------------------------
+# Codex keys nothing by pid, so the trick above has nothing to grab. What it does
+# record is the directory it started in, on its first line, and in an office that
+# is exact: every agent after the first gets its own worktree, so two Codex desks
+# never share a cwd. The clock is the file's mtime, which needs no format at all --
+# and there is deliberately NO number, because a usage record is Claude Code's
+# shape and a plausible wrong number on a border is worse than an empty one.
+pcwd=$(tmux -L ctxprobe display -p -t "$pane" '#{pane_current_path}')
+mkdir -p "$fake/.codex/sessions/2026/09/18"
+roll="$fake/.codex/sessions/2026/09/18/rollout-2026-09-18T09-36-34-01a0b372-19b1-76f2-98ba-b97e293779c5.jsonl"
+print -r -- "{\"timestamp\":\"2026-09-18T07:36:34.492Z\",\"type\":\"session_meta\",\"payload\":{\"session_id\":\"01a0b372\",\"cwd\":\"$pcwd\",\"originator\":\"Codex CLI\"}}" > "$roll"
+print -r -- '{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":0,"total_tokens":108060}}}}' >> "$roll"
+touch -t 202002020000 "$roll"
+# the Claude reader has to come up empty, or it answers first and this proves nothing
+mv "$fake/.claude/sessions/$pid.json" "$fake/.claude/sessions/$pid.gone"
+want "a Codex desk: no number on the border"  "$(ctx)" ""
+want "a Codex desk: but its clock is read"    \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$roll")"
+# ...and a rollout from a DIFFERENT directory is not this desk's
+mv "$roll" "$roll.other"
+print -r -- "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/somewhere/else\"}}" > "$roll.other"
+ctx >/dev/null
+want "a Codex rollout from another directory is ignored" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+rm -f "$roll.other"
+
+# --- any other CLI: @office_tx_cmd ----------------------------------------------
+# Twenty-odd agent CLIs exist and office ships readers for two. The third question
+# this asks is yours: a command handed the pane id that prints a path. It is tried
+# FIRST, so it also overrides a reader that would otherwise answer.
+mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
+mine="$shim/my-transcript.jsonl"
+print -r -- '{"mine":1}' > "$mine"
+touch -t 202003030000 "$mine"
+printf '#!/bin/sh\nprintf %%s %s\n' "$mine" > "$shim/mytx"; chmod +x "$shim/mytx"
+# Set over a LIVE cache, which is the case that matters: this call caches the
+# Claude transcript, readable and with its session file present, so nothing about
+# the pane is about to change. A hook you have just set has to take effect on the
+# next tick anyway — @office_tx_cmd is part of the cache key for exactly this.
+ctx >/dev/null
+want "cached first: the Claude transcript" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_tx)" \
+  "$fake/.claude/projects/some-other-slug/$sid.jsonl"
+tmux -L ctxprobe set -p -t "$pane" @office_tx_cmd "$shim/mytx"
+ctx >/dev/null
+want "@office_tx_cmd answers, and beats the built-in readers" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$mine")"
+# ...and taking it away hands the desk straight back to the built-in reader.
+tmux -L ctxprobe set -up -t "$pane" @office_tx_cmd
+ctx >/dev/null
+want "...and removing it hands the desk back" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_tx)" \
+  "$fake/.claude/projects/some-other-slug/$sid.jsonl"
+rm -rf "$fake/.codex"
+ctx >/dev/null
 
 # --- rubbish in ----------------------------------------------------------------
 # A border is not a place to print a parse error, and half a line is what `tail -c`

@@ -161,11 +161,19 @@ Five things you can do to a pane, and nothing else:
 | | |
 |---|---|
 | `⇧←↑↓→` | move between panes |
+| `Ctrl-Space` `⇧←↑↓→` | move the **pane**: it trades places with the one that way |
 | `Ctrl-Space` `n` | one more pane: a menu — parked panes, every agent, shell, file editor |
 | `Ctrl-Space` `x` | park this pane. Still running; `Ctrl-Space n` lists it to bring back |
 | `Ctrl-Space` `q` | close this pane. A menu: click it, or `c` to close and `k` or Escape to keep |
 | `Ctrl-Space` `z` | zoom this pane full screen, and back |
 | drag a pane's title onto another | it moves there, the rest shift along |
+
+Moving a pane is the movement key with the prefix held first: `⇧→` walks you to
+the desk on the right, `Ctrl-Space` `⇧→` sends *this* desk over there instead.
+The cursor travels with it, so a second press moves it on again, and it wraps at
+the edge exactly as walking between panes does. It is the same thing a title
+drag does with a mouse — and the one that works on **tmux 3.4 upwards**, where
+the drag needs 3.7.
 
 Movement is a chord because it is what you do most and arrows carry their
 modifier natively; every other action is the prefix, which is the tmux
@@ -185,7 +193,7 @@ parks or comes back — `office` writes it into a tmux option rather than the
 status bar polling a command, which would always be one interval behind:
 
 ```
-^Space │ n new (2 parked) │ x park │ q close │ z zoom │ ⇧←↑↓→ move · drag a title to reorder
+^Space │ n new (2 parked) │ x park │ q close │ z zoom │ ⇧←↑↓→ move · ^Space ⇧←↑↓→ move the desk · drag a title
 ```
 
 `^Space` lights up while you are holding the prefix, `(N parked)` only shows
@@ -260,6 +268,29 @@ Code's own prompt cache holds for an hour — so the next thing you say to that
 desk is charged as if the conversation were new. `1h20m` says that at a glance
 and `80m` does not. The office does not know anybody's billing rules and does not
 pretend to: it states the age, and you know what an hour costs you.
+
+**And that number is read off the file, not off the screen.** An agent writes
+every turn — its own and yours — into a transcript, so the moment either of you
+last wrote is on disk, exact, and office reads it there. Screen-watching is what
+tells you the desk has *stopped*; it is a poor answer to *when*, because it only
+ever knows "nothing has moved since I last looked". The file does not move when
+the screen does.
+
+Office ships readers for **Claude Code** and **Codex**, and `@office_tx_cmd` is
+the same question asked of a command of your own — it is handed a pane id and
+prints the path that desk is writing to, which is one line for any of the twenty
+other CLIs. An agent office has no reader for keeps the screen's clock, which is
+what it always had, and that clock is right to about one tick while a desk sits
+still.
+
+The screen clock's own worst reset is fixed for everybody, reader or not: **a
+pane that changed shape is skipped rather than judged.** Every line reflows when
+a pane is resized, so the compare counted the whole screen as changed and the
+wait started again from zero — and the grid is rebuilt whenever a pane is added,
+parked, closed or brought back, which resizes every *other* pane in the office.
+Opening one desk wiped the number on all the rest. (Scrolling back through the
+output was never one of these: `capture-pane` reads the live screen, not the
+copy-mode view.)
 
 ### How full each desk's context window is
 
@@ -449,10 +480,21 @@ Environment variables, set before sourcing `office.zsh`. All optional.
 | `OFFICE_CTX_WARN` | `400000` | context tokens at which a desk's number takes the accent colour |
 | `OFFICE_CTX_ALARM` | `600000` | ...and the alarm colour. Use `120000` / `170000` for a 200k window |
 | `OFFICE_UPDATE_CHECK` | `1` | `0` stops the background `git fetch` on `office on`. The only network call there is |
+
 | `OFFICE_ON_CMD` | *(empty)* | your own command, run when you walk in |
 | `OFFICE_OFF_CMD` | *(empty)* | your own command, run when you go home |
 | `OFFICE_RUNNING_CHECK` | `false` | exits 0 when it is already up |
 | `OFFICE_ON_ALWAYS` | `0` | `1` runs `OFFICE_ON_CMD` every walk-in, even when the check says up |
+
+### Reading another agent's transcript
+
+`@office_tx_cmd` is a tmux option rather than an environment variable, because it
+is asked per pane. Set it — globally with `tmux set -g`, or on one pane with
+`tmux set -p` — to a command that is handed a pane id and prints the file that
+desk writes its conversation to. It is tried before the built-in Claude Code and
+Codex readers, so it also overrides them. Its mtime becomes the **your turn**
+clock; the context number stays Claude Code only, because that one means reading
+a usage record and every CLI writes a different one.
 
 The always-on trio is for anything that should come up when you sit down and go
 down when you leave, a local server, a tunnel, a sync daemon:
