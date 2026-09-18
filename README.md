@@ -166,14 +166,22 @@ Five things you can do to a pane, and nothing else:
 | `Ctrl-Space` `x` | park this pane. Still running; `Ctrl-Space n` lists it to bring back |
 | `Ctrl-Space` `q` | close this pane. A menu: click it, or `c` to close and `k` or Escape to keep |
 | `Ctrl-Space` `z` | zoom this pane full screen, and back |
-| drag a pane's title onto another | it moves there, the rest shift along |
+| `Ctrl-Space` + drag a title onto another pane | it moves there, the rest shift along |
+| drag a border | resize, the way tmux always did |
 
 Moving a pane is the movement key with the prefix held first: `⇧→` walks you to
 the desk on the right, `Ctrl-Space` `⇧→` sends *this* desk over there instead.
 The cursor travels with it, so a second press moves it on again, and it wraps at
-the edge exactly as walking between panes does. It is the same thing a title
-drag does with a mouse — and the one that works on **tmux 3.4 upwards**, where
-the drag needs 3.7.
+the edge exactly as walking between panes does. It works on **tmux 3.4 upwards**.
+
+**The mouse is the same rule.** `Ctrl-Space`, then drag a pane's title onto
+another pane, and it moves there. Without the prefix a border drag is a border
+drag: it resizes. tmux hands over a press on a column divider and a press on a
+title as the same event with no coordinates to tell them apart, so one gesture
+had to win — and for a while the move won, which quietly took mouse resizing
+away. Behind the prefix both fit, and the prefix already means "do this to the
+pane" everywhere else here. The mouse half needs tmux 3.7; the keyboard half
+does not.
 
 Movement is a chord because it is what you do most and arrows carry their
 modifier natively; every other action is the prefix, which is the tmux
@@ -193,7 +201,7 @@ parks or comes back — `office` writes it into a tmux option rather than the
 status bar polling a command, which would always be one interval behind:
 
 ```
-^Space │ n new (2 parked) │ x park │ q close │ z zoom │ ⇧←↑↓→ move · ^Space ⇧←↑↓→ move the desk · drag a title
+^Space │ n new (2 parked) │ x park │ q close │ z zoom │ ⇧←↑↓→ move · ^Space then ⇧←↑↓→ or drag a title  moves the desk
 ```
 
 `^Space` lights up while you are holding the prefix, `(N parked)` only shows
@@ -275,6 +283,13 @@ last wrote is on disk, exact, and office reads it there. Screen-watching is what
 tells you the desk has *stopped*; it is a poor answer to *when*, because it only
 ever knows "nothing has moved since I last looked". The file does not move when
 the screen does.
+
+A reader has to prove the CLI is running **in this pane**, by looking in the
+pane's own process group — never by matching a directory. That rule is written
+in blood: a reader that matched on the directory alone handed a Claude desk a
+rollout the ChatGPT app had written in that same directory hours earlier, so the
+border read `your turn 4h18m` at a desk that was working, and lost its context
+number with it. A directory is not an identity.
 
 Office ships readers for **Claude Code** and **Codex**, and `@office_tx_cmd` is
 the same question asked of a command of your own — it is handed a pane id and

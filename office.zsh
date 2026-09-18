@@ -472,7 +472,7 @@ _office_bar() {                        # <session>
   # Zoom is a FORMAT and not a pushed tone: ^Space z is plain tmux and fires
   # without office, so only tmux can answer it on every redraw. It needs the
   # theme's `#{E:` — through `#{@office_bar}` it comes out LITERAL (tmux 3.7b).
-  out+="${_OFFICE_BAR_SEP} │ #[default]${_OFFICE_BAR_OPEN}⇧ ← ↑ ↓ →  move · ^Space ⇧ ←↑↓→  move the desk#{?#{>=:#{version},3.7}, · drag a title,}#[default]"
+  out+="${_OFFICE_BAR_SEP} │ #[default]${_OFFICE_BAR_OPEN}⇧ ← ↑ ↓ →  move · ^Space then ⇧ ←↑↓→#{?#{>=:#{version},3.7}, or drag a title,}  moves the desk#[default]"
   # NB: no "=" prefix here. set-option takes a plain session name and rejects
   # the exact-match form that every other tmux command accepts.
   tmux set -t "$1" @office_bar "$out" 2>/dev/null
@@ -922,23 +922,30 @@ _office_room() {                       # <session>
 # detached), which is why `bind n` hands one down as OFFICE_CLIENT. From inside
 # a pane there already is one, and -c is left off.
 _office_menu() {                       # <session>
-  local s=$1 dir=$PWD i n=${#OFFICE_AGENTS} line
+  local s=$1 dir=$PWD i n=${#OFFICE_AGENTS} line k=0
   local client=$OFFICE_CLIENT; unset OFFICE_CLIENT
   # ponytail: $dir goes into a tmux command unescaped — fine for an ordinary
   # path; a quote or a '#' in one would need escaping, if that ever bites.
   local run="run-shell -b \"OFFICE_SESSION='$s' OFFICE_PANE_PATH='$dir' zsh -ic 'office new"
   local -a items menu_c keys=(a b c d f g h i j k)   # s and e are taken below
+  # The shell is FIRST, because it is the one pick that always means the same
+  # thing and the one you reach for without thinking. Everything under it — what
+  # you parked, which agent, the editor — is a choice you have to read the menu
+  # to make. Asked for by the operator, 2026-09-18.
+  items+=("shell" s "$run --shell'\"" "")
+  # k counts the parked panes, NOT the items: a, b, c stay a, b, c however many
+  # fixed picks sit above them. They did not, the moment the shell moved to the
+  # top — the first parked pane silently became `b` and the menu probe said so.
   for line in ${(f)"$(_office_parked "$s")"}; do
-    (( $#items / 3 < $#keys )) || break
-    items+=("back: ${${line#*$'\t'}//\#/}" "${keys[$#items / 3 + 1]}" "$run --back ${line%%$'\t'*}'\"")
+    (( k < $#keys )) || break
+    items+=("back: ${${line#*$'\t'}//\#/}" "${keys[$(( ++k ))]}" "$run --back ${line%%$'\t'*}'\"")
   done
   (( $#items )) && items+=("")          # one empty name is a separator
   (( n > 9 )) && n=9                    # the keys are the digits 1-9, no more
   for (( i = 1; i <= n; i++ )); do
     items+=("$(_office_agent_label $i | tr -d '#')" "$i" "$run --agent $i'\"")
   done
-  items+=("" "shell" s "$run --shell'\"")
-  [[ -n $(_office_pane_of_kind "$s" EDITOR) ]] || items+=("file editor" e "$run --edit'\"")
+  [[ -n $(_office_pane_of_kind "$s" EDITOR) ]] || items+=("" "file editor" e "$run --edit'\"")
   [[ -n $client ]] && menu_c=(-c "$client")
   # -M so a click picks an item: without it tmux lets only a menu opened FROM a
   # mouse binding take the mouse. -M is tmux 3.5+, and 3.4 refuses the whole
@@ -1158,7 +1165,8 @@ _office_help() {
   print -P "  ${g}Ctrl-Space z${r}   zoom this pane, and back"
   print -P "  ${g}Shift-←↑↓→${r}     move between panes"
   print -P "  ${g}^Space Shift-←↑↓→${r}  move the PANE instead: it trades places with that one"
-  print -P "  ${g}drag a title${r}   onto another pane to move it there; the rest shift along"
+  print -P "  ${g}^Space + drag a title${r}  the same with the mouse, onto any other pane"
+  print -P "  ${d}A border drag on its own resizes, the way it always did.${r}"
   print -P "  ${d}Drag across text to copy it, or double-click a word — it is on the${r}"
   print -P "  ${d}clipboard when you let go. A border shows what that pane is, and 'your${r}"
   print -P "  ${d}turn' when an agent is waiting on you.\n${r}"
