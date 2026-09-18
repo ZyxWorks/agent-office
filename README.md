@@ -170,7 +170,7 @@ Five things you can do to a pane, and nothing else:
 
 Moving a pane is the movement key with the prefix held first: `⇧→` walks you to
 the desk on the right, `Ctrl-Space` `⇧→` sends *this* desk over there instead.
-The cursor travels with it, so pressing again moves it again, and it wraps at
+The cursor travels with it, so a second press moves it on again, and it wraps at
 the edge exactly as walking between panes does. It is the same thing a title
 drag does with a mouse — and the one that works on **tmux 3.4 upwards**, where
 the drag needs 3.7.
