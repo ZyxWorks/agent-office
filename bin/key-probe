@@ -118,6 +118,55 @@ def main():
             bad += not ok
         tmux("select-pane", "-t", "1")
 
+    # --- the prefix takes the PANE with you -----------------------------------
+    # Shift-arrow moves YOU between panes. Press the prefix first and the desk
+    # comes along. Checked on the pane IDS and not on which one is selected,
+    # because those are two different claims and both have to hold: the panes
+    # trade places, AND the cursor stays on the one that moved, which is what
+    # lets a second press move it on again.
+    tmux("select-pane", "-t", "1")
+    before = tmux("list-panes", "-F", "#{pane_id}").stdout.split()
+    mine = tmux("display", "-p", "#{pane_id}").stdout.strip()
+    os.write(fd, b"\x00")
+    time.sleep(0.25)
+    os.write(fd, raw(rb"\x1b[1;2C"))
+    time.sleep(0.6)
+    after = tmux("list-panes", "-F", "#{pane_id}").stdout.split()
+    active = tmux("display", "-p", "#{pane_id}").stdout.strip()
+    if after == before[::-1]:
+        print(f"  ok   {'prefix Shift-Right':22} pane moved {before} -> {after}")
+    else:
+        print(f"  FAIL {'prefix Shift-Right':22} {before} -> {after}   (did not move)")
+        bad += 1
+    if active == mine:
+        print(f"  ok   {'...cursor follows it':22} still on {active}")
+    else:
+        print(f"  FAIL {'...cursor follows it':22} on {active}, wanted {mine}")
+        bad += 1
+
+    # With nothing in that direction the key has to do nothing AND say nothing.
+    # These two panes are side by side, so there is no row to move into: tmux's
+    # own answer is "can't find pane: {up-of}" written across the status bar,
+    # which reads as a key that is broken. The guard is what stops it.
+    tmux("clear-history")               # not the message log; just tidy
+    os.write(fd, b"\x00")
+    time.sleep(0.25)
+    os.write(fd, raw(rb"\x1b[1;2A"))
+    time.sleep(0.6)
+    if tmux("list-panes", "-F", "#{pane_id}").stdout.split() == after:
+        print(f"  ok   {'prefix Shift-Up':22} no row above: nothing moved")
+    else:
+        print(f"  FAIL {'prefix Shift-Up':22} no row above, but a pane moved")
+        bad += 1
+    msgs = tmux("show-messages").stdout
+    if "can't find pane" not in msgs:
+        print(f"  ok   {'...and says nothing':22} no error on the status bar")
+    else:
+        print(f"  FAIL {'...and says nothing':22} tmux complained: {msgs.strip()!r}")
+        bad += 1
+    tmux("swap-pane", "-d", "-s", after[0], "-t", after[1])   # recorder back to pane 1
+    tmux("select-pane", "-t", "1")
+
     time.sleep(WINDOW)
     got = out.read_bytes() if out.exists() else b""
     tmux("kill-server")

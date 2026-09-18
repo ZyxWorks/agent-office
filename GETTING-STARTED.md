@@ -225,6 +225,7 @@ Not for day one. Come back to this.
 | | |
 |---|---|
 | `⇧←↑↓→` | move between panes |
+| `Ctrl+Space` `⇧←↑↓→` | move the pane itself: it swaps with the one that way |
 
 And `Ctrl+Space`, then:
 

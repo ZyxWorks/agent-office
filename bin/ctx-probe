@@ -25,6 +25,7 @@
 #     reader that takes the last hit rather than the first gets a plausible wrong
 #     answer, which is the worst kind, so the fixture carries both.
 emulate -L zsh
+zmodload -F zsh/stat b:zstat 2>/dev/null   # the mtime check below, without a stat(1) that differs per OS
 
 export TMUX_TMPDIR=$(mktemp -d)
 fake=$(mktemp -d)                       # a $HOME with nothing but Claude's files
@@ -110,6 +111,34 @@ mv "$tx" "$fake/.claude/projects/some-other-slug/$sid.jsonl"
 fixture 0 0 250000 > "$fake/.claude/projects/some-other-slug/$sid.jsonl"
 rmdir "$fake/.claude/projects/$slug"
 want "slug moved: found by session id anyway" "$(ctx)" "  250k#[default]"
+
+# --- when this desk last wrote -------------------------------------------------
+# The transcript's mtime, left on the pane for office-attn. That readout is the
+# CACHE clock -- an hour with nothing written and the next thing you say is
+# charged as a new conversation -- and the screen it used to be read off cannot
+# answer it: a scroll, a resize or a zoom all reset the screen and not the file.
+tx2="$fake/.claude/projects/some-other-slug/$sid.jsonl"
+touch -t 202001010000 "$tx2"
+ctx >/dev/null
+want "the transcript's mtime lands on the pane" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" \
+  "$(zstat +mtime "$tx2")"
+
+# ...and a dead session never keeps counting. The agent ending leaves the pane a
+# shell with its CLAUDE kind intact, so this script goes on being called and finds
+# nothing; anything left behind would have office-attn timing a session that is
+# over. Both ways out that find no transcript have to drop it.
+mv "$tx2" "$tx2.gone"
+ctx >/dev/null
+want "no transcript: the clock is dropped" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+mv "$tx2.gone" "$tx2"
+ctx >/dev/null
+mv "$fake/.claude/sessions/$pid.json" "$fake/.claude/sessions/$pid.gone"
+ctx >/dev/null
+want "the agent ended: the clock is dropped" \
+  "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" ""
+mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
 
 # --- rubbish in ----------------------------------------------------------------
 # A border is not a place to print a parse error, and half a line is what `tail -c`

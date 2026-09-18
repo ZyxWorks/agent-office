@@ -472,7 +472,7 @@ _office_bar() {                        # <session>
   # Zoom is a FORMAT and not a pushed tone: ^Space z is plain tmux and fires
   # without office, so only tmux can answer it on every redraw. It needs the
   # theme's `#{E:` — through `#{@office_bar}` it comes out LITERAL (tmux 3.7b).
-  out+="${_OFFICE_BAR_SEP} │ #[default]${_OFFICE_BAR_OPEN}⇧ ← ↑ ↓ →  move#{?#{>=:#{version},3.7}, · drag a title to reorder,}#[default]"
+  out+="${_OFFICE_BAR_SEP} │ #[default]${_OFFICE_BAR_OPEN}⇧ ← ↑ ↓ →  move · ^Space ⇧ ←↑↓→  move the desk#{?#{>=:#{version},3.7}, · drag a title,}#[default]"
   # NB: no "=" prefix here. set-option takes a plain session name and rejects
   # the exact-match form that every other tmux command accepts.
   tmux set -t "$1" @office_bar "$out" 2>/dev/null
@@ -1157,6 +1157,7 @@ _office_help() {
   print -P "  ${g}Ctrl-Space q${r}   close this pane"
   print -P "  ${g}Ctrl-Space z${r}   zoom this pane, and back"
   print -P "  ${g}Shift-←↑↓→${r}     move between panes"
+  print -P "  ${g}^Space Shift-←↑↓→${r}  move the PANE instead: it trades places with that one"
   print -P "  ${g}drag a title${r}   onto another pane to move it there; the rest shift along"
   print -P "  ${d}Drag across text to copy it, or double-click a word — it is on the${r}"
   print -P "  ${d}clipboard when you let go. A border shows what that pane is, and 'your${r}"

@@ -245,6 +245,28 @@ want "waiting a while: the border counts the minutes" "$(watch $quiet)" "  your 
 tmux set -p -t "$quiet" @office_still $(( now - 4800 ))
 want "waiting past an hour: it counts in hours"      "$(watch $quiet)" "  your turn 1h20m"
 
+# --- the transcript's clock beats the screen's --------------------------------
+# What the number is FOR is the hour: an agent nobody has written to for that
+# long has lost whatever its provider was caching, and the next thing you say is
+# charged as a new conversation. The screen cannot measure that. Scroll back
+# through a waiting desk's output, resize the window, or zoom another pane so
+# nothing looks at this one for ten minutes, and the screen clock starts again
+# from zero -- on exactly the desk whose age you came back to the machine to read.
+#
+# So for a Claude Code desk office-ctx leaves @office_wrote on the pane: the
+# mtime of the file the agent and you both append to, which is the second either
+# of you last wrote and nothing on screen can move. Here the screen says the pane
+# changed a moment ago and the file says an hour and twenty minutes. The file wins.
+tmux set -p -t "$quiet" @office_still "$now"
+tmux set -p -t "$quiet" @office_wrote $(( now - 4800 ))
+want "a Claude desk counts from the last WRITE, not the last redraw" \
+  "$(watch $quiet)" "  your turn 1h20m"
+# Every other agent has no transcript to read and no @office_wrote, and keeps the
+# screen clock it always had. This is the line that says so.
+tmux set -up -t "$quiet" @office_wrote
+tmux set -p -t "$quiet" @office_still $(( now - 500 ))
+want "any other agent keeps the screen clock"        "$(watch $quiet)" "  your turn 8m"
+
 # --- a blip does not cost the wait -------------------------------------------
 # The bug this section exists for, reported after an overnight run: the border
 # said "your turn" for a minute or two, then went blank, then came back with no

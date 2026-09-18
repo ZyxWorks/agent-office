@@ -161,11 +161,19 @@ Five things you can do to a pane, and nothing else:
 | | |
 |---|---|
 | `⇧←↑↓→` | move between panes |
+| `Ctrl-Space` `⇧←↑↓→` | move the **pane**: it trades places with the one that way |
 | `Ctrl-Space` `n` | one more pane: a menu — parked panes, every agent, shell, file editor |
 | `Ctrl-Space` `x` | park this pane. Still running; `Ctrl-Space n` lists it to bring back |
 | `Ctrl-Space` `q` | close this pane. A menu: click it, or `c` to close and `k` or Escape to keep |
 | `Ctrl-Space` `z` | zoom this pane full screen, and back |
 | drag a pane's title onto another | it moves there, the rest shift along |
+
+Moving a pane is the movement key with the prefix held first: `⇧→` walks you to
+the desk on the right, `Ctrl-Space` `⇧→` sends *this* desk over there instead.
+The cursor travels with it, so pressing again moves it again, and it wraps at
+the edge exactly as walking between panes does. It is the same thing a title
+drag does with a mouse — and the one that works on **tmux 3.4 upwards**, where
+the drag needs 3.7.
 
 Movement is a chord because it is what you do most and arrows carry their
 modifier natively; every other action is the prefix, which is the tmux
@@ -185,7 +193,7 @@ parks or comes back — `office` writes it into a tmux option rather than the
 status bar polling a command, which would always be one interval behind:
 
 ```
-^Space │ n new (2 parked) │ x park │ q close │ z zoom │ ⇧←↑↓→ move · drag a title to reorder
+^Space │ n new (2 parked) │ x park │ q close │ z zoom │ ⇧←↑↓→ move · ^Space ⇧←↑↓→ move the desk · drag a title
 ```
 
 `^Space` lights up while you are holding the prefix, `(N parked)` only shows
@@ -260,6 +268,17 @@ Code's own prompt cache holds for an hour — so the next thing you say to that
 desk is charged as if the conversation were new. `1h20m` says that at a glance
 and `80m` does not. The office does not know anybody's billing rules and does not
 pretend to: it states the age, and you know what an hour costs you.
+
+**And that number is read off the file, not off the screen.** A Claude Code desk
+writes every turn — the agent's and yours — into its own transcript, so the
+moment either of you last wrote is on disk, exact, and office reads it there.
+Screen-watching is what tells you the desk has *stopped*; it cannot tell you
+when, because it only ever knows "nothing has moved since I last looked". Scroll
+back through a waiting desk's output, resize the window, or zoom another pane so
+nothing looks at this one for ten minutes, and that clock starts again from zero
+— on exactly the desk whose age you came back to the machine to read. The file
+does not move when the screen does. Any other agent has no transcript to read
+and keeps the screen's clock, which is what it always had.
 
 ### How full each desk's context window is
 

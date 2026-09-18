@@ -103,6 +103,13 @@ are the twenty you did not mean to change. It exits non-zero if any moved.
 and never consults a key table, so Shift-Left looks broken under send-keys and
 is perfectly fine for a human.
 
+It also presses the prefix *and then* a Shift-arrow, which moves the pane rather
+than you. Two claims there, and both have to hold: the panes trade places, and
+the cursor stays on the one that moved, or a second press moves its neighbour
+back. The third check is the quiet one — with no row to move into, the key must
+do nothing **and say nothing**. Without the `pane_at_*` guard tmux writes
+"can't find pane: {up-of}" across the status bar, which reads as a broken key.
+
 Touched the mouse or copy mode? Run `bin/mouse-probe`. Same throwaway office and
 same real client, but it writes raw SGR mouse bytes: a drag has to land on the
 clipboard in every pane kind, and Escape and a click have to get you out of copy
@@ -138,6 +145,18 @@ tolerance then eats — worth eighteen seconds of a border saying "your turn"
 mid-task before it was measured). One case here rotates a line and must still
 count as waiting; another animates one line at 10Hz and must never. It also
 checks the gate by expanding the expression that ships rather than a copy of it.
+
+The clock it prints is **not** the screen's, though, wherever there is a better
+one. `bin/office-ctx` leaves `@office_wrote` on a Claude Code desk — the mtime
+of the transcript both the agent and you append to — and the watcher counts from
+that instead. The screen can only ever say "nothing has moved since I last
+looked", and a scroll, a resize, or a zoom that stopped anyone from looking at
+that pane all reset it to zero, on the desk whose age is the thing you came back
+to read. The probe pins both halves: the file's clock wins when there is one, and
+a desk with no transcript keeps the screen's. If you change either script, keep
+them in step — `@office_wrote` is dropped on every way out of `office-ctx` that
+finds no transcript, or a desk whose agent has ended goes on counting for a
+session that is over.
 
 Touched `bin/office-ctx`? Run `bin/ctx-probe`. No Claude Code and no API call
 needed: that script reads exactly three things — the pane's process group,

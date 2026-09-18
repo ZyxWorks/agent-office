@@ -47,12 +47,20 @@ id=${1:?usage: office-ctx <pane-id>}
 
 [ -d "$HOME/.claude/sessions" ] || exit 0     # not Claude Code: nothing to read
 
-IFS='|' read -r pid warn alarm swarn salarm <<EOF
-$(tmux display -p -t "$id" '#{pane_pid}|#{@office_ctx_warn}|#{@office_ctx_alarm}|#{@office_ctx_style_warn}|#{@office_ctx_style_alarm}' 2>/dev/null)
+IFS='|' read -r pid warn alarm swarn salarm had <<EOF
+$(tmux display -p -t "$id" '#{pane_pid}|#{@office_ctx_warn}|#{@office_ctx_alarm}|#{@office_ctx_style_warn}|#{@office_ctx_style_alarm}|#{@office_wrote}' 2>/dev/null)
 EOF
 [ -n "$pid" ] || exit 0
 [ -n "$warn" ]  || warn=400000
 [ -n "$alarm" ] || alarm=600000
+
+# An agent that ENDED leaves the pane as a shell (office.zsh appends that line to
+# every desk command), and the pane keeps its CLAUDE kind — so this script keeps
+# being called and finds nothing. Whatever is left in @office_wrote is then a
+# dead session's clock, and office-attn would go on counting the hours since it
+# as though the desk were merely quiet. Drop it on every way out that found no
+# transcript, and only when there IS one to drop, so the usual case costs no fork.
+forget() { [ -n "$had" ] && tmux set -up -t "$id" @office_wrote 2>/dev/null; exit 0; }
 
 # Which session is running in this pane. Splitting the JSON on quotes rather than
 # matching a pattern per key: `"sessionId":"VALUE"` splits so that the key and the
@@ -80,7 +88,7 @@ $(ps -ax -o pid=,pgid= 2>/dev/null | awk -v want="$pid" -v home="$HOME" '
     }
   }')
 EOF
-[ -n "$sid" ] || exit 0
+[ -n "$sid" ] || forget
 
 slug=$(printf '%s' "$cwd" | tr '/.' '--')
 tx="$HOME/.claude/projects/$slug/$sid.jsonl"
@@ -90,7 +98,31 @@ if [ ! -r "$tx" ]; then
     [ -r "$f" ] && { tx=$f; break; }
   done
 fi
-[ -n "$tx" ] || exit 0
+[ -n "$tx" ] || forget
+
+# WHEN did this desk last write? The transcript's mtime, which is the moment the
+# agent's last line — or your last prompt — hit the file, and the only record of
+# it that lives outside the screen. office-attn reads it as @office_wrote for the
+# "your turn" clock, because that clock is really the CACHE clock: an hour with
+# nothing written and the provider has dropped whatever it was holding, so the
+# next thing you say is charged as a brand new conversation.
+#
+# Screen-watching cannot answer this and never could. It can only say "nothing
+# has moved since I last looked", which a scroll back through the output, a
+# resize, or a zoom that stopped anyone from looking at this pane all reset to
+# zero — and the number you lose is the one you came back to the machine for.
+# The file knows. ponytail: one `stat` on a path this script already resolved. No
+# new probing, and a desk running anything but Claude Code never gets this far,
+# so it keeps the screen clock it always had.
+#
+# BSD form then GNU, and it is the ANSWER that decides, never the exit status:
+# GNU's -f means "the filesystem", takes no %m, and prints `?` while exiting 0 —
+# so a plain `stat -f %m || stat -c %Y` would leave `?` on the pane, and
+# office-attn would do arithmetic on it. Digits, or nothing.
+wrote=$(stat -f %m "$tx" 2>/dev/null)
+case $wrote in *[!0-9]*|"") wrote=$(stat -c %Y "$tx" 2>/dev/null) ;; esac
+case $wrote in *[!0-9]*|"") wrote="" ;; esac
+[ -n "$wrote" ] && tmux set -p -t "$id" @office_wrote "$wrote" 2>/dev/null
 
 # The last usage record. `tail -c` bounds the read to the end of what can be a
 # very large file, and the `^{` test throws away the partial line that bound

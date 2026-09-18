@@ -69,8 +69,8 @@ id=${1:?usage: office-attn <pane-id>}
 # ONE tmux call for all of it, the clock included: `%s` is strftime, which
 # display-message expands alongside the #{} formats, so there is no `date` fork
 # in a job that runs every few seconds for every desk on screen.
-IFS='|' read -r now since secs sock wasquiet <<EOF
-$(tmux display -p -t "$id" '%s|#{@office_still}|#{@office_attn_secs}|#{socket_path}|#{@office_quiet}' 2>/dev/null)
+IFS='|' read -r now since secs sock wasquiet wrote <<EOF
+$(tmux display -p -t "$id" '%s|#{@office_still}|#{@office_attn_secs}|#{socket_path}|#{@office_quiet}|#{@office_wrote}' 2>/dev/null)
 EOF
 [ -n "$now" ] || exit 0                # no such pane any more: say nothing
 [ -n "$secs" ] || secs=20
@@ -147,6 +147,21 @@ fi
 [ "$wasquiet" = 1 ] || { tmux set -p -t "$id" @office_quiet 1 2>/dev/null; exit 0; }
 
 # Still. Since when, though — a pane that has never moved has no answer yet.
+#
+# THE SCREEN'S CLOCK IS A GUESS; THE TRANSCRIPT'S IS THE FACT. For a Claude Code
+# desk office-ctx has already found the file the agent and you both append to,
+# and left its mtime in @office_wrote: the exact second either of you last wrote.
+# Prefer it. It cannot be thrown away by a scroll back through the output, by a
+# resize, or by a zoom that simply stopped anyone from looking at this pane —
+# and every one of those reset the screen clock to zero, on the desk whose age
+# was the thing you came back to the machine to read. It is also the number the
+# hour-long prompt cache actually runs on, which is what the readout is for.
+#
+# Any other agent has no transcript here and no @office_wrote, so it keeps the
+# screen clock unchanged. The gate above is the same either way: nothing is said
+# until the SCREEN has been still for two looks, so a file that is written while
+# the desk is plainly working never puts "your turn" on a busy border.
+[ -n "$wrote" ] && since=$wrote
 [ -n "$since" ] || { tmux set -p -t "$id" @office_still "$now" 2>/dev/null; exit 0; }
 idle=$((now - since))
 [ "$idle" -ge "$secs" ] || exit 0
