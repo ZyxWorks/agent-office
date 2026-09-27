@@ -13,7 +13,8 @@ fail=0
 cat >"$T/herdr" <<EOF
 #!/bin/sh
 case "\$1 \$2" in
-  "pane list") cat "$T/panes.json" 2>/dev/null || { echo '{"error":{"code":"server_not_running"}}'; exit 1; } ;;
+  "pane list") cat "$T/panes.json" 2>/dev/null || { echo miss >>"$T/misses"; echo '{"error":{"code":"server_not_running"}}'; exit 1; } ;;
+  "status server") if [ -f "$T/up" ]; then echo "status: running"; else echo "status: not running"; fi ;;
   "pane report-metadata") shift 2
     cat >/dev/null # a CLI that reads stdin must not eat the pane list
     [ "\$1" = w:gone ] && exit 1 # closed between list and report
@@ -109,12 +110,20 @@ HERDR_BIN_PATH=$T/herdr METER_EVERY=0 CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" 
 sleep 2
 if kill -0 "$lp" 2>/dev/null; then echo "FAIL [loop-exit] still running after 2s"; kill "$lp"; wait "$lp" 2>/dev/null; fail=1; fi
 
-# the loop keeps going through one missed pass (a busy server), and reports again after
-printf '{"result":{"panes":[%s]}}' "$(pane w:p1 idle claude s1)" >"$T/panes.json"; : >"$T/reports"
+# a server that is up but not answering (an outage) never stops the loop, however long;
+# once it answers again the meter reports again. Synchronised on observed calls, not sleeps.
+lines() { if [ -f "$1" ]; then wc -l <"$1" | tr -d ' '; else echo 0; fi; }
+until_n() { i=0; while [ "$(lines "$1")" -lt "$2" ] && [ $i -lt 100 ]; do sleep 0.1; i=$(( i + 1 )); done; [ "$(lines "$1")" -ge "$2" ]; }
+printf '{"result":{"panes":[%s]}}' "$(pane w:p1 idle claude s1)" >"$T/panes.json"; : >"$T/reports"; : >"$T/misses"; touch "$T/up"
 HERDR_BIN_PATH=$T/herdr METER_EVERY=1 CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" & lp=$!
-sleep 0.5; mv "$T/panes.json" "$T/panes.off"; sleep 1.2; mv "$T/panes.off" "$T/panes.json"; sleep 1.5
-if kill "$lp" 2>/dev/null; then wait "$lp" 2>/dev/null; else echo "FAIL [one-miss] loop died after one missed pass"; fail=1; fi
-[ "$(grep -c '^w:p1 ' "$T/reports")" -ge 2 ] || { echo "FAIL [one-miss] no report after recovery"; fail=1; }
+until_n "$T/reports" 1 || { echo "FAIL [outage] no first report"; fail=1; }
+mv "$T/panes.json" "$T/panes.off"
+until_n "$T/misses" 4 || { echo "FAIL [outage] never retried"; fail=1; }
+kill -0 "$lp" 2>/dev/null || { echo "FAIL [outage] loop died during an outage"; fail=1; }
+mv "$T/panes.off" "$T/panes.json"
+until_n "$T/reports" 2 || { echo "FAIL [outage] no report after recovery"; fail=1; }
+if kill "$lp" 2>/dev/null; then wait "$lp" 2>/dev/null; fi
+rm -f "$T/up"
 
 # start: one meter per server however often the hook runs; a recycled pid is not trusted;
 # a second socket (a named herdr session) gets its own

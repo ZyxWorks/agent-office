@@ -28,7 +28,7 @@
 # when a Codex desk needs the number.
 #
 # `meter` loops; `meter once` does one pass. The loop exits after the herdr
-# server has been gone for three passes; the plugin's startup hook starts it again.
+# server has been stopped for three passes; the plugin's startup hook starts it again.
 
 H=${HERDR_BIN_PATH:-herdr}
 P=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects
@@ -84,8 +84,12 @@ pass() {
 
 command -v jq >/dev/null || { echo "meter: needs jq" >&2; exit 1; }
 [ "${1:-}" = once ] && { pass; exit; }
+# a failed pass while the server still says it is running is an outage: keep going.
+# Three passes with the server stopped means it is gone; the next server's startup
+# hook starts a fresh meter, so this one must not poll a dead socket forever.
+up() { "$H" status server 2>/dev/null | grep -q '^status: running'; }
 miss=0
 while [ "$miss" -lt 3 ]; do
-  if pass; then miss=0; else miss=$(( miss + 1 )); fi
+  if pass || up; then miss=0; else miss=$(( miss + 1 )); fi
   sleep "$EVERY"
 done

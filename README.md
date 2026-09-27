@@ -485,6 +485,7 @@ context size and how long a desk has waited on you, come as a herdr plugin:
 ```sh
 herdr integration install claude          # herdr learns each pane's session id
 herdr plugin link ~/path/to/agent-office/herdr
+herdr server stop                          # the meter starts with the next server
 ```
 
 Then add `$ctx` and `$turn` to the agent rows in `~/.config/herdr/config.toml`:
