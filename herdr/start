@@ -9,6 +9,6 @@ pidf=$dir/meter.$key.pid
 pid=$(cat "$pidf" 2>/dev/null)
 # a recycled pid is not our meter, so ask what it is before trusting it
 meter=$(cd "$(dirname "$0")" && pwd)/meter
-[ -n "$pid" ] && ps -p "$pid" -o command= 2>/dev/null | grep -qF "$meter" && exit 0
+[ -n "$pid" ] && ps -p "$pid" -o args= 2>/dev/null | grep -qF "$meter" && exit 0
 nohup sh "$meter" </dev/null >/dev/null 2>&1 &
 echo $! >"$pidf"
