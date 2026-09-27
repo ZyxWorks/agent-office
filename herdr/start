@@ -1,0 +1,14 @@
+#!/bin/sh
+# start — herdr's startup hook: make sure one meter runs for this server, then return.
+# Startup hooks must exit, so the meter is left running on its own; the pid file
+# (per socket, so named herdr sessions each get theirs) stops a second copy after
+# a live handoff re-runs this hook.
+dir=${HERDR_PLUGIN_STATE_DIR:-${TMPDIR:-/tmp}}
+key=$(printf %s "${HERDR_SOCKET_PATH:-default}" | cksum | cut -d' ' -f1)
+pidf=$dir/meter.$key.pid
+pid=$(cat "$pidf" 2>/dev/null)
+# a recycled pid is not our meter, so ask what it is before trusting it
+meter=$(cd "$(dirname "$0")" && pwd)/meter
+[ -n "$pid" ] && ps -p "$pid" -o command= 2>/dev/null | grep -qF "$meter" && exit 0
+nohup sh "$meter" </dev/null >/dev/null 2>&1 &
+echo $! >"$pidf"

@@ -1,0 +1,88 @@
+#!/bin/sh
+# meter — Agent Office's two readouts, on herdr's sidebar instead of a tmux border.
+#
+#     ○ agent-office
+#       claude · 412k▲ · 4m
+#
+# $ctx is what the model was last handed: input + cache-creation + cache-read on
+# the newest usage record, the same number office-ctx shows and /context uses.
+# One ▲ past METER_WARN, two past METER_ALARM; the sidebar colours on those.
+#
+# $turn is how long a desk has waited on you (idle, done, or blocked on a
+# permission prompt), read from the transcript's mtime. Just the minutes: the
+# state icon already says whose turn it is, and the sidebar is 26 columns. Past an hour the
+# provider has dropped its cache, so the next prompt is charged as a new
+# conversation — the sidebar turns it red once it shows hours.
+#
+# herdr already knows which session lives in which pane (its Claude integration
+# reports the id on SessionStart, and again after /clear, /compact, --resume),
+# so there is no process-group hunt: the id names the transcript directly.
+# Subagents write under <id>/subagents/, which the glob below never reaches.
+#
+# Records that do not count: sidechains, and zero-usage ones (Claude Code writes
+# a "<synthetic>" zero record after an interrupt or API error). A compact
+# boundary newer than any usage means the old number is a lie: show nothing
+# until the next reply brings a real one.
+#
+# ponytail: Claude Code only. Codex writes a different usage record; add a reader
+# when a Codex desk needs the number.
+#
+# `meter` loops; `meter once` does one pass. The loop exits after the herdr
+# server has been gone for three passes; the plugin's startup hook starts it again.
+
+H=${HERDR_BIN_PATH:-herdr}
+P=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects
+EVERY=${METER_EVERY:-30}
+WARN=${METER_WARN:-400000}
+ALARM=${METER_ALARM:-600000}
+
+age() { # seconds -> 4m / 1h12m
+  m=$(( $1 / 60 ))
+  if [ "$m" -ge 60 ]; then echo "$(( m / 60 ))h$(( m % 60 ))m"; else echo "${m}m"; fi
+}
+
+ctx_of() { # transcript -> "412k▲" or nothing
+  n=$(tail -n 400 "$1" | jq -rR 'fromjson? | select(.isSidechain != true)
+    | if .type == "system" and .subtype == "compact_boundary" then "-"
+      elif .message.usage? then (.message.usage | (.input_tokens // 0)
+        + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0))
+        | select(. > 0)
+      else empty end' 2>/dev/null | tail -1)
+  case $n in ''|-|*[!0-9]*) return ;; esac
+  mark=
+  [ "$n" -gt "$WARN" ] && mark=▲
+  [ "$n" -gt "$ALARM" ] && mark=▲▲
+  echo "$(( n / 1000 ))k$mark"
+}
+
+pass() {
+  list=$("$H" pane list 2>/dev/null) && echo "$list" | jq -e '.result.panes' >/dev/null 2>&1 || return 1
+  now=$(date +%s)
+  echo "$list" | jq -r '.result.panes[]
+    | select(.agent_session.agent == "claude" and .agent_session.kind == "id")
+    | "\(.pane_id) \(.agent_status) \(.agent_session.value)"' |
+  while read -r pane status sid; do
+    case $sid in *[!0-9a-zA-Z-]*|'') continue ;; esac # an id, never a path or a glob
+    f=$(ls -t "$P"/*/"$sid".jsonl 2>/dev/null | head -1)
+    ctx='' turn=''
+    if [ -n "$f" ]; then
+      ctx=$(ctx_of "$f")
+      case $status in idle|done|blocked)
+        t=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f") # GNU first: GNU `stat -f` means filesystem, prints junk
+        d=$(( now - t )); [ "$d" -lt 0 ] && d=0
+        turn=$(age "$d") ;;
+      esac
+    fi
+    # an empty value clears the token, so a fresh /clear or a working desk shows nothing stale
+    "$H" pane report-metadata "$pane" --source agent-office:meter \
+      --token "ctx=$ctx" --token "turn=$turn" --ttl-ms $(( EVERY * 4000 )) >/dev/null 2>&1
+  done
+}
+
+command -v jq >/dev/null || { echo "meter: needs jq" >&2; exit 1; }
+[ "${1:-}" = once ] && { pass; exit; }
+miss=0
+while [ "$miss" -lt 3 ]; do
+  if pass; then miss=0; else miss=$(( miss + 1 )); fi
+  sleep "$EVERY"
+done

@@ -1,0 +1,130 @@
+#!/bin/sh
+# meter-probe — every case meter has to get right, against a fake herdr and fake
+# transcripts. No herdr server, no Claude, no network. Exit 0 = all pass.
+set -u
+here=$(cd "$(dirname "$0")" && pwd)
+T=$(mktemp -d) && trap 'rm -rf "$T"' EXIT
+mkdir -p "$T/cfg/projects/-proj-a" "$T/cfg/projects/-proj-b"
+A=$T/cfg/projects/-proj-a B=$T/cfg/projects/-proj-b
+fail=0
+
+# fake herdr: `pane list` prints $T/panes.json (or fails when it is missing),
+# `pane report-metadata` appends its argv to $T/reports.
+cat >"$T/herdr" <<EOF
+#!/bin/sh
+case "\$1 \$2" in
+  "pane list") cat "$T/panes.json" 2>/dev/null || { echo '{"error":{"code":"server_not_running"}}'; exit 1; } ;;
+  "pane report-metadata") shift 2; echo "\$*" >>"$T/reports" ;;
+esac
+EOF
+chmod +x "$T/herdr"
+
+u() { # usage record: total split as input/cache-read
+  printf '{"type":"assistant","message":{"model":"m","usage":{"input_tokens":%s,"cache_creation_input_tokens":0,"cache_read_input_tokens":%s}}}\n' 1 "$(( $1 - 1 ))"
+}
+pane() { printf '{"pane_id":"%s","agent_status":"%s","agent_session":{"agent":"%s","kind":"id","value":"%s"}}' "$@"; }
+run() { # panes... ; runs one pass
+  printf '{"result":{"panes":[%s]}}' "$(IFS=,; echo "$*")" >"$T/panes.json"
+  : >"$T/reports"
+  HERDR_BIN_PATH=$T/herdr CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" once
+}
+expect() { # pane want-substring
+  got=$(grep "^$1 " "$T/reports" || echo "(no report)")
+  case $got in *"$2"*) ;; *) echo "FAIL [$3] $1: want '$2' in: $got"; fail=1 ;; esac
+}
+never() { # pane
+  grep -q "^$1 " "$T/reports" && { echo "FAIL [$2] $1 was reported: $(grep "^$1 " "$T/reports")"; fail=1; }
+}
+ago() { touch -t "$(date -r $(( $(date +%s) - $1 )) +%Y%m%d%H%M.%S 2>/dev/null || date -d "@$(( $(date +%s) - $1 ))" +%Y%m%d%H%M.%S)" "$2"; }
+
+# 1 idle: number and clock
+u 58084 >"$A/s1.jsonl"; ago 300 "$A/s1.jsonl"
+# 2 working: number, no clock
+u 120000 >"$A/s2.jsonl"
+# 3 blocked on a prompt counts as your turn; over an hour shows hours
+u 90000 >"$B/s3.jsonl"; ago 4500 "$B/s3.jsonl"
+# 4 done counts too
+u 1000 >"$A/s4.jsonl"
+# 5 no transcript yet (fresh /clear): both cleared
+# 6 a <synthetic> zero record after an interrupt does not wipe the number
+{ u 200000; echo '{"type":"assistant","message":{"model":"<synthetic>","usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}'; } >"$A/s6.jsonl"
+# 7 compacted since the last reply: no number until the next one
+{ u 500000; echo '{"type":"system","subtype":"compact_boundary"}'; } >"$A/s7.jsonl"
+# 8 a reply after the compact brings the number back
+{ u 500000; echo '{"type":"system","subtype":"compact_boundary"}'; u 30000; } >"$A/s8.jsonl"
+# 9 sidechain records never count
+{ u 70000; printf '{"isSidechain":true,"type":"assistant","message":{"usage":{"input_tokens":1,"cache_read_input_tokens":999999}}}\n'; } >"$A/s9.jsonl"
+# 10 warn and alarm marks
+u 450000 >"$A/s10.jsonl"; u 700000 >"$A/s11.jsonl"
+# 12 a broken line and missing fields do not break the pass
+{ u 40000; echo 'not json {'; echo '{"message":{"usage":{"input_tokens":5000}}}'; } >"$A/s12.jsonl"
+# 13 clock in the future (a touched file, a clock jump) reads 0m, never negative
+u 1000 >"$A/s13.jsonl"; touch -t 209901010000 "$A/s13.jsonl"
+# 14 a subagent transcript with the same name under <id>/subagents is not the session
+mkdir -p "$A/s14/subagents"; u 999000 >"$A/s14/subagents/s14.jsonl"
+
+run "$(pane w:p1 idle claude s1)" "$(pane w:p2 working claude s2)" "$(pane w:p3 blocked claude s3)" \
+    "$(pane w:p4 "done" claude s4)" "$(pane w:p5 idle claude s5)" "$(pane w:p6 idle claude s6)" \
+    "$(pane w:p7 idle claude s7)" "$(pane w:p8 idle claude s8)" "$(pane w:p9 idle claude s9)" \
+    "$(pane w:p10 idle claude s10)" "$(pane w:p11 idle claude s11)" "$(pane w:p12 idle claude s12)" \
+    "$(pane w:p13 idle claude s13)" "$(pane w:p14 idle claude s14)" \
+    "$(pane w:x1 idle codex s1)" "$(pane w:x2 idle claude '../s1')" "$(pane w:x3 idle claude '*')" \
+    '{"pane_id":"w:x4","agent_status":"idle"}'
+
+expect w:p1 "--token ctx=58k --token turn=5m" idle
+expect w:p2 "--token ctx=120k --token turn= " working
+expect w:p3 "--token ctx=90k --token turn=1h15m" blocked
+expect w:p4 "turn=0m" "done"
+expect w:p5 "--token ctx= --token turn= " no-transcript
+expect w:p6 "--token ctx=200k " synthetic
+expect w:p7 "--token ctx= " compacted
+expect w:p8 "--token ctx=30k " after-compact
+expect w:p9 "--token ctx=70k " sidechain
+expect w:p10 "--token ctx=450k▲ " warn
+expect w:p11 "--token ctx=700k▲▲ " alarm
+expect w:p12 "--token ctx=5k " broken-line
+expect w:p13 "turn=0m" future-clock
+expect w:p14 "--token ctx= " subagent-file
+never w:x1 codex
+never w:x2 path-id
+never w:x3 glob-id
+never w:x4 no-session
+expect w:p1 "--source agent-office:meter" source
+expect w:p1 "--ttl-ms 120000" ttl
+
+# server gone: a pass fails instead of reporting
+rm -f "$T/panes.json"; : >"$T/reports"
+if HERDR_BIN_PATH=$T/herdr CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" once; then echo "FAIL [server-gone] pass succeeded"; fail=1; fi
+[ -s "$T/reports" ] && { echo "FAIL [server-gone] reported"; fail=1; }
+
+# the loop gives up after three missed passes instead of spinning forever
+HERDR_BIN_PATH=$T/herdr METER_EVERY=0 CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" & lp=$!
+sleep 2
+if kill -0 "$lp" 2>/dev/null; then echo "FAIL [loop-exit] still running after 2s"; kill "$lp"; wait "$lp" 2>/dev/null; fail=1; fi
+
+# the loop keeps going through one missed pass (a busy server), and reports again after
+printf '{"result":{"panes":[%s]}}' "$(pane w:p1 idle claude s1)" >"$T/panes.json"; : >"$T/reports"
+HERDR_BIN_PATH=$T/herdr METER_EVERY=1 CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" & lp=$!
+sleep 0.5; mv "$T/panes.json" "$T/panes.off"; sleep 1.2; mv "$T/panes.off" "$T/panes.json"; sleep 1.5
+if kill "$lp" 2>/dev/null; then wait "$lp" 2>/dev/null; else echo "FAIL [one-miss] loop died after one missed pass"; fail=1; fi
+[ "$(grep -c '^w:p1 ' "$T/reports")" -ge 2 ] || { echo "FAIL [one-miss] no report after recovery"; fail=1; }
+
+# start: one meter per server however often the hook runs; a recycled pid is not trusted;
+# a second socket (a named herdr session) gets its own
+M="$here/meter"
+count() { pgrep -f "sh $M\$" | wc -l | tr -d ' '; }
+st() { HERDR_BIN_PATH=$T/herdr METER_EVERY=1 CLAUDE_CONFIG_DIR=$T/cfg HERDR_PLUGIN_STATE_DIR=$T/state \
+  HERDR_SOCKET_PATH=$1 sh "$here/start"; }
+mkdir -p "$T/state"; before=$(count)
+st /s/one; st /s/one; st /s/one; sleep 0.3
+[ "$(count)" = $(( before + 1 )) ] || { echo "FAIL [start-once] $(( $(count) - before )) meters"; fail=1; }
+sleep 30 & decoy=$!; for f in "$T"/state/meter.*.pid; do echo "$decoy" >"$f"; done
+st /s/one; sleep 0.3
+[ "$(count)" = $(( before + 2 )) ] || { echo "FAIL [recycled-pid] did not start a new meter"; fail=1; }
+st /s/two; sleep 0.3
+[ "$(count)" = $(( before + 3 )) ] || { echo "FAIL [second-socket] shares a meter"; fail=1; }
+{ kill "$decoy"; wait "$decoy"; } 2>/dev/null; for f in "$T"/state/meter.*.pid; do kill "$(cat "$f")" 2>/dev/null; done
+pkill -f "sh $M\$" 2>/dev/null; true
+
+[ "$fail" = 0 ] && echo "meter-probe: all cases pass"
+exit "$fail"

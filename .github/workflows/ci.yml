@@ -166,3 +166,7 @@ jobs:
       # the menu draws only on a real client, so this one attaches one
       - name: menu-probe
         run: bin/menu-probe
+
+      # herdr/meter against a fake herdr and fake transcripts; needs only sh and jq
+      - name: meter-probe
+        run: herdr/meter-probe
