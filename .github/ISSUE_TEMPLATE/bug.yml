@@ -1,13 +1,14 @@
 name: Something is broken
-description: A pane in the wrong place, a key that does nothing, a pane that will not close.
+description: A wrong meter reading, a broken install, a key that does nothing.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Almost every report is answered by the three commands below, so please
-        paste them even if the problem looks obvious. A key that does nothing is
-        usually a terminal that never sent it.
+        Please paste the diagnostics even if the problem looks obvious. Say
+        whether you run the herdr-first office (the meter plugin today) or the
+        legacy tmux office (0.x). Check the output for private paths or names
+        before posting.
   - type: textarea
     id: what
     attributes:
@@ -17,12 +18,16 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: Output of the three commands.
+      description: Output of the commands for the office you run.
       value: |
-        $ tmux -V ; echo $TERM_PROGRAM ; uname -s
+        $ uname -s ; echo $TERM_PROGRAM
 
+        herdr (the meter plugin):
+        $ herdr --version
+
+        legacy tmux office (0.x):
+        $ tmux -V
         $ office doctor
-
         $ tmux list-panes -a -F '#{session_name} #{pane_id} #{@office_kind} #{pane_left},#{pane_top}'
       render: shell
     validations: { required: true }
@@ -30,5 +35,5 @@ body:
     id: terminal
     attributes:
       label: Terminal and OS
-      placeholder: iTerm2 on macOS 15 / Windows Terminal on WSL2 Ubuntu
+      placeholder: WezTerm on macOS 15 / GNOME Terminal on Ubuntu 24.04
     validations: { required: true }

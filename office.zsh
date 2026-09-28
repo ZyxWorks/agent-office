@@ -26,7 +26,7 @@
 #
 # Bare `office` prints this. `ao` and `o` are the short aliases.
 # Key bindings live in office.tmux.conf; `office help` lists every one of them.
-# Configure with the OFFICE_* variables below; see the README.
+# Configure with the OFFICE_* variables below; see docs/legacy-tmux/README.md.
 
 _OFFICE_OWN_PGID=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
 _OFFICE_HOME=${0:A:h}                  # where this package lives, for its helpers
@@ -46,7 +46,7 @@ OFFICE_SESSION_LABEL="${OFFICE_SESSION_LABEL:-CLAUDE}"
 
 # Desks on more than one provider: Claude, Codex, a local model. Each element
 # is "LABEL command words...", the label first and the rest the pane command —
-# see the README for the shape. Left unset, it is built from the two variables
+# see docs/legacy-tmux/README.md for the shape. Left unset, it is built from the two variables
 # above, so an existing .zshrc sees no change at all: one agent, and Ctrl-Space
 # n still offers it. `_office_menu` lists every entry, plus a shell and the editor.
 typeset -ga OFFICE_AGENTS

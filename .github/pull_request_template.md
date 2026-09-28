@@ -3,6 +3,6 @@
 **What this changes**
 
 **How you verified it**
-<!-- There is no test suite: almost everything here is a side effect on a live
-     tmux server. Paste the commands you ran and what you saw. The throwaway
-     office pattern in CONTRIBUTING.md is the usual way. -->
+<!-- Paste the commands you ran and what you saw. Never test against a live
+     office: CONTRIBUTING.md says how to isolate a run. Meter changes run
+     herdr/meter-probe. -->

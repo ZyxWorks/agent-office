@@ -5,9 +5,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        Worth reading `CONTRIBUTING.md` first: this deliberately has no plugin
-        system, no config file and no daemon, and `office off` kills the tmux
-        server so nothing may depend on persistent state.
+        Worth reading `CONTRIBUTING.md` first. Agent Office packages herdr,
+        Firstmate, treehouse and the tools around them behind one config; it
+        does not rewrite them. A feature a component should have belongs in
+        that component's own repo. The tmux office (0.x) gets no new features.
   - type: textarea
     id: idea
     attributes:
