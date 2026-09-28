@@ -14,24 +14,27 @@
 # provider has dropped its cache, so the next prompt is charged as a new
 # conversation — the sidebar turns it red once it shows hours.
 #
-# herdr already knows which session lives in which pane (its Claude integration
+# Herdr already knows which session lives in a Claude pane (its integration
 # reports the id on SessionStart, and again after /clear, /compact, --resume),
 # so there is no process-group hunt: the id names the transcript directly.
-# Subagents write under <id>/subagents/, which the glob below never reaches.
+# Codex has no pane session id, but its rollout metadata records the launch cwd;
+# the pane's foreground_cwd chooses among the newest rollouts for that desk.
+# A local model launched through `ollama launch claude` uses Claude Code's
+# transcript shape and is covered by the Claude reader; a direct local runtime
+# without that pane-owned transcript is intentionally left blank.
+# Subagents write under <id>/subagents/, which the Claude glob below never reaches.
 #
 # Records that do not count: sidechains, and zero-usage ones (Claude Code writes
 # a "<synthetic>" zero record after an interrupt or API error). A compact
 # boundary newer than any usage means the old number is a lie: show nothing
 # until the next reply brings a real one.
 #
-# ponytail: Claude Code only. Codex writes a different usage record; add a reader
-# when a Codex desk needs the number.
-#
 # `meter` loops; `meter once` does one pass. The loop exits after the herdr
 # server has been stopped for three passes; the plugin's startup hook starts it again.
 
 H=${HERDR_BIN_PATH:-herdr}
 P=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects
+CP=${CODEX_HOME:-$HOME/.codex}/sessions
 EVERY=${METER_EVERY:-30}
 WARN=${METER_WARN:-400000}
 ALARM=${METER_ALARM:-600000}
@@ -47,7 +50,34 @@ ctx_of() { # transcript -> "412k▲" or nothing
       elif .message.usage? then (.message.usage | (.input_tokens // 0)
         + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0))
         | select(. > 0)
-      else empty end' 2>/dev/null | tail -1)
+      else empty end
+    | select(. == "-" or (type == "number" and . > 0))' 2>/dev/null | tail -1)
+  case $n in ''|-|*[!0-9]*) return ;; esac
+  mark=
+  [ "$n" -gt "$WARN" ] && mark=▲
+  [ "$n" -gt "$ALARM" ] && mark=▲▲
+  echo "$(( n / 1000 ))k$mark"
+}
+
+codex_file() { # launch cwd -> newest rollout for this pane
+  [ -d "$CP" ] || return 0
+  [ -n "$1" ] || return 0
+  find "$CP" -type f -name 'rollout-*.jsonl' 2>/dev/null | sort -r | head -40 |
+  while IFS= read -r f; do
+    head -n 1 "$f" 2>/dev/null |
+      jq -e --arg cwd "$1" 'select(.type == "session_meta" and .payload.cwd == $cwd)' >/dev/null 2>&1 &&
+      { printf '%s\n' "$f"; break; }
+  done
+}
+
+codex_ctx_of() { # rollout -> "412k▲" or nothing
+  n=$(tail -c 400000 "$1" 2>/dev/null | jq -rR '
+    fromjson?
+    | if .type == "token_usage_record" then (.payload.usage.input_tokens? // empty)
+      elif .type == "event_msg" and .payload.type == "token_count" then
+        (.payload.info.last_token_usage.input_tokens? // empty)
+      else empty end
+    | select(type == "number" and . > 0)' 2>/dev/null | tail -1)
   case $n in ''|-|*[!0-9]*) return ;; esac
   mark=
   [ "$n" -gt "$WARN" ] && mark=▲
@@ -59,14 +89,24 @@ pass() {
   list=$("$H" pane list 2>/dev/null) && echo "$list" | jq -e '.result.panes' >/dev/null 2>&1 || return 1
   now=$(date +%s)
   echo "$list" | jq -r '.result.panes[]
-    | select(.agent_session.agent == "claude" and .agent_session.kind == "id")
-    | "\(.pane_id) \(.agent_status) \(.agent_session.value)"' |
-  while read -r pane status sid; do
-    case $sid in *[!0-9a-zA-Z-]*|'') continue ;; esac # an id, never a path or a glob
-    f=$(ls -t "$P"/*/"$sid".jsonl 2>/dev/null | head -1)
+    | select((.agent_session.agent == "claude" and .agent_session.kind == "id") or .agent == "codex")
+    | [ .pane_id, .agent_status, (.agent_session.agent // .agent // "-"),
+        (.foreground_cwd // .cwd // "-"), (.agent_session.value // "-") ] | @tsv' |
+  while IFS="$(printf '\t')" read -r pane status agent cwd sid; do
     ctx='' turn=''
+    case $agent in
+      claude)
+        case $sid in *[!0-9a-zA-Z-]*|'') continue ;; esac # an id, never a path or a glob
+        f=$(ls -t "$P"/*/"$sid".jsonl 2>/dev/null | head -1)
+        [ -n "$f" ] && ctx=$(ctx_of "$f")
+        ;;
+      codex)
+        f=$(codex_file "$cwd")
+        [ -n "$f" ] && ctx=$(codex_ctx_of "$f")
+        ;;
+      *) continue ;;
+    esac
     if [ -n "$f" ]; then
-      ctx=$(ctx_of "$f")
       case $status in idle|done|blocked)
         t=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null) # GNU first: GNU `stat -f` means filesystem, prints junk
         case $t in ''|*[!0-9]*) ;; *) # gone between ls and stat: no clock this pass

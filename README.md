@@ -323,18 +323,25 @@ which of four desks to compact without interrupting any of them to ask.
 
 It is the same figure `/context` reports: input plus cache-creation plus
 cache-read on that session's last turn, read straight out of Claude Code's own
-transcript. Finding it needs no configuration and no hook in your settings —
+transcript. Codex records the equivalent input size in its newest
+`token_usage_record` under `~/.codex/sessions/<YYYY>/<MM>/<DD>/`; its cached-input
+field is already part of `input_tokens`, so it is not added a second time.
 Claude Code writes `~/.claude/sessions/<pid>.json` for every session it runs, so
 a pane asks its own process group which of its children has one of those and
-reads the session id out of it. Exact even with two desks in one checkout, which
-is more than guessing from directory names can manage.
+reads the session id out of it. A local model launched with
+`ollama launch claude --model gemma4:12b` writes the same Claude transcript
+shape (including its real model name), so it is covered by that reader too.
+Codex has no pid-linked session file, so the
+meter matches the pane's foreground working directory to Codex's
+`session_meta.cwd`. Exact pane identity is available for Claude; Codex's
+same-directory duplicate ceiling remains the newest matching rollout.
 
-**This is the one Claude Code special case in the package**, and it costs nothing
-to anyone else: no `~/.claude/sessions` and `bin/office-ctx` exits on its second
-line, so a `codex` or `aider` desk simply has no number. It is one screen of
-`sh` with the file layout written down at the top, so when Claude Code moves
-those files it is a ten-minute fix. `bin/ctx-probe` is the check, and it needs no
-API call: a fake `$HOME` with those two files in it is a complete stand-in.
+Claude Code remains the only built-in reader for the tmux border helper
+`bin/office-ctx`; the herdr meter has the separate Codex reader described above.
+The direct Zyx/Ollama runtime records usage in its own workspace store without
+a pane-owned transcript or Herdr session identity, so that unsupported form
+stays blank rather than guessing. `bin/ctx-probe` and `herdr/meter-probe` are
+the checks, and neither needs an API call.
 
 ### The one chord, and why it is only arrows
 
@@ -479,8 +486,9 @@ then `office off` and `office on`.
 
 ## On herdr
 
-Running [herdr](https://herdr.dev) instead of tmux? The same two readouts, the
-context size and how long a desk has waited on you, come as a herdr plugin:
+Running [herdr](https://herdr.dev) instead of tmux? The context size comes as a
+herdr plugin; Herdr's built-in state icon still shows whether a desk is working,
+idle, done or blocked:
 
 ```sh
 herdr integration install claude          # herdr learns each pane's session id
@@ -488,26 +496,27 @@ herdr plugin link ~/path/to/agent-office/herdr
 herdr server stop                          # the meter starts with the next server
 ```
 
-Then add `$ctx` and `$turn` to the agent rows in `~/.config/herdr/config.toml`:
+Then add `$ctx` to the original agent rows in `~/.config/herdr/config.toml`:
 
 ```toml
 [ui.sidebar.agents]
 rows = [
   ["state_icon", "machine", "workspace", "tab"],
   ["agent",
-   { token = "$ctx", dim = true, rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] },
-   { token = "$turn", rules = [{ contains = "h", fg = "#f55", bold = true }] }],
+   { token = "$ctx", dim = true, rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
 ]
 ```
 
 ```
  ○ agent-office
-   claude · 412k▲ · 4m
+   claude · 412k▲
 ```
 
-One ▲ past 400k, two past 600k (`METER_WARN`, `METER_ALARM`). The clock turns
-red once it shows hours: the prompt cache is gone. Claude Code only for now.
-Needs `jq`. `herdr/meter-probe` tests it without a herdr server.
+One ▲ past 400k, two past 600k (`METER_WARN`, `METER_ALARM`). Claude, Codex,
+and Claude Code launched against a local Ollama model are supported; a direct
+local runtime with no pane-owned context record stays blank. Herdr's own state
+icon remains the source of working, idle, done, blocked and unknown status.
+Needs `jq`; `herdr/meter-probe` tests it without a herdr server.
 
 ## Configuration
 
