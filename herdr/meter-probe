@@ -5,7 +5,9 @@ set -u
 here=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d) && trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/cfg/projects/-proj-a" "$T/cfg/projects/-proj-b"
+mkdir -p "$T/codex/sessions/2026/09/28"
 A=$T/cfg/projects/-proj-a B=$T/cfg/projects/-proj-b
+C=$T/codex/sessions/2026/09/28
 fail=0
 
 # fake herdr: `pane list` prints $T/panes.json (or fails when it is missing),
@@ -27,10 +29,11 @@ u() { # usage record: total split as input/cache-read
   printf '{"type":"assistant","message":{"model":"m","usage":{"input_tokens":%s,"cache_creation_input_tokens":0,"cache_read_input_tokens":%s}}}\n' 1 "$(( $1 - 1 ))"
 }
 pane() { printf '{"pane_id":"%s","agent_status":"%s","agent_session":{"agent":"%s","kind":"id","value":"%s"}}' "$@"; }
+codexpane() { printf '{"pane_id":"%s","agent_status":"%s","agent":"codex","cwd":"%s","foreground_cwd":"%s"}' "$1" "$2" "$3" "$3"; }
 run() { # panes... ; runs one pass
   printf '{"result":{"panes":[%s]}}' "$(IFS=,; echo "$*")" >"$T/panes.json"
   : >"$T/reports"
-  HERDR_BIN_PATH=$T/herdr CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" once
+  HERDR_BIN_PATH=$T/herdr CLAUDE_CONFIG_DIR=$T/cfg CODEX_HOME=$T/codex sh "$here/meter" once
 }
 expect() { # pane want-substring
   got=$(grep "^$1 " "$T/reports" || echo "(no report)")
@@ -66,13 +69,26 @@ u 450000 >"$A/s10.jsonl"; u 700000 >"$A/s11.jsonl"
 u 1000 >"$A/s13.jsonl"; touch -t 209901010000 "$A/s13.jsonl"
 # 14 a subagent transcript with the same name under <id>/subagents is not the session
 mkdir -p "$A/s14/subagents"; u 999000 >"$A/s14/subagents/s14.jsonl"
+# 15 Codex's newest context is input_tokens; cached_input_tokens is already included.
+CODEX_WT=$T/codex-worktree
+{ printf '%s\n' '{"type":"session_meta","payload":{"cwd":"'"$CODEX_WT"'"}}'
+  printf '%s\n' '{"type":"token_usage_record","payload":{"usage":{"input_tokens":123456,"cached_input_tokens":100000,"output_tokens":42}}}'
+  printf '%s\n' '{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":123456},"model_context_window":258400}}}'
+} >"$C/rollout-2026-09-28T00-00-00-codex.jsonl"
+ago 300 "$C/rollout-2026-09-28T00-00-00-codex.jsonl"
+# 16 A local model launched through Claude Code keeps the Claude transcript shape.
+printf '%s\n' '{"type":"assistant","message":{"model":"gemma4:12b","usage":{"input_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":29999}}}' >"$A/s17.jsonl"
+# 17 A local/unsupported agent has no reader, so it must not inherit another desk's number.
 
 run "$(pane w:p1 idle claude s1)" "$(pane w:p2 working claude s2)" "$(pane w:p3 blocked claude s3)" \
     "$(pane w:p4 "done" claude s4)" "$(pane w:p5 idle claude s5)" "$(pane w:p6 idle claude s6)" \
     "$(pane w:p7 idle claude s7)" "$(pane w:p8 idle claude s8)" "$(pane w:p9 idle claude s9)" \
     "$(pane w:p10 idle claude s10)" "$(pane w:p11 idle claude s11)" "$(pane w:p12 idle claude s12)" \
     "$(pane w:p13 idle claude s13)" "$(pane w:p14 idle claude s14)" \
-    "$(pane w:x1 idle codex s1)" "$(pane w:x2 idle claude '../s1')" "$(pane w:x3 idle claude '*')" \
+    "$(codexpane w:p15 idle "$CODEX_WT")" "$(codexpane w:p16 working "$CODEX_WT")" \
+    "$(pane w:p17 idle claude s17)" \
+    "$(codexpane w:x1 idle "$T/no-such-worktree")" "$(pane w:x2 idle claude '../s1')" "$(pane w:x3 idle claude '*')" \
+    '{"pane_id":"w:local","agent":"local-model","agent_status":"idle"}' \
     '{"pane_id":"w:x4","agent_status":"idle"}'
 
 expect w:p1 "--token ctx=58k --token turn=5m" idle
@@ -89,9 +105,13 @@ expect w:p11 "--token ctx=700k▲▲ " alarm
 expect w:p12 "--token ctx=5k " broken-line
 expect w:p13 "turn=0m" future-clock
 expect w:p14 "--token ctx= " subagent-file
-never w:x1 codex
+expect w:p15 "--token ctx=123k --token turn=5m" codex
+expect w:p16 "--token ctx=123k --token turn= " codex-working
+expect w:p17 "--token ctx=30k" local-claude
+expect w:x1 "--token ctx= --token turn= " codex-no-session
 never w:x2 path-id
 never w:x3 glob-id
+never w:local unsupported-local-agent
 never w:x4 no-session
 expect w:p1 "--source agent-office:meter" source
 
