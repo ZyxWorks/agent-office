@@ -1,6 +1,6 @@
 # Every probe, on a real tmux server, on both platforms this ships for.
 #
-# CONTRIBUTING.md says there is no test suite, because almost everything here is
+# docs/legacy-tmux/CONTRIBUTING.md says there is no test suite, because almost everything here is
 # a side effect on a live tmux server. That is still true — and it is exactly
 # what these six do: each builds a throwaway office on its own socket, two of
 # them attach a REAL client on a pty and type raw bytes at it, and they tear it
@@ -52,7 +52,7 @@ jobs:
         run: |
           tmux -V && zsh --version && git --version && python3 --version
 
-      # Cheap and catches most of it, which is why CONTRIBUTING asks for it
+      # Cheap and catches most of it, which is why the legacy CONTRIBUTING asks for it
       # before a push. Here it gates the rest: a syntax error makes every probe
       # below fail in a way that reads like a real regression.
       - name: syntax
