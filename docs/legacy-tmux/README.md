@@ -6,7 +6,7 @@
 > [main README](../../README.md) and
 > [the migration notes](../../README.md#the-tmux-office-legacy).
 
-### Several agents. One window.
+**Several agents. One window.**
 
 Each one in its own git worktree. The one that has stopped and is waiting on you
 says so, on its own border, without being asked.

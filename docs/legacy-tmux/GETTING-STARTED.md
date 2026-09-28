@@ -249,7 +249,7 @@ And the mouse, with no key at all:
 |---|---|
 | drag a pane's title onto another pane | it moves there, the rest shift along |
 | drag across text | it is on the clipboard when you let go, nothing to press |
-| double-click a word | the same, for one word |
+| double-click a word in terminal output | copy that word; apps that own mouse input may handle the double-click |
 | click in a pane that scrolled | back at the live prompt, typing again (Escape does it too) |
 
 Each pane's top border shows its number and what it is, and the bar along the

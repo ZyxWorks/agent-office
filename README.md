@@ -1,6 +1,6 @@
 # Agent Office
 
-### A whole agent developer setup, out of one box.
+**A whole agent developer setup, out of one box.**
 
 [![CI](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml/badge.svg)](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-c9903f)](LICENSE)

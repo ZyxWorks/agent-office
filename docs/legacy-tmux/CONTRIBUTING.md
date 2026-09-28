@@ -245,8 +245,8 @@ live office. So every new probe either names its socket on every call (`tmux -L`
 as `key-probe` does) or runs `unset TMUX TMUX_PANE` right after exporting
 `TMUX_TMPDIR`, as the zsh probes do.
 
-CI runs all seven on every push, on **macOS and Ubuntu**, and the gap between them
-is worth keeping: Ubuntu ships tmux 3.4 against macOS's 3.7b, and that alone
+CI runs all nine tmux probes plus `herdr/meter-probe` on every push, on
+**macOS and Ubuntu**, and the gap between them is worth keeping: Ubuntu ships tmux 3.4 against macOS's 3.7b, and that alone
 found two version-dependent bugs on its first run — `#{!:...}` silently inverting
 a gate, and a probe asserting one Shift-Enter encoding when tmux picks it by
 version. Prefer `#{==:x,0}` to `#{!:x}`. And check an option EXISTS on 3.4 before
