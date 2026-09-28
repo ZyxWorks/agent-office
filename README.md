@@ -477,6 +477,38 @@ terminal and nothing more.
 Put those lines in your `.zshrc` **above** the `source .../office.zsh` line,
 then `office off` and `office on`.
 
+## On herdr
+
+Running [herdr](https://herdr.dev) instead of tmux? The same two readouts, the
+context size and how long a desk has waited on you, come as a herdr plugin:
+
+```sh
+herdr integration install claude          # herdr learns each pane's session id
+herdr plugin link ~/path/to/agent-office/herdr
+herdr server stop                          # the meter starts with the next server
+```
+
+Then add `$ctx` and `$turn` to the agent rows in `~/.config/herdr/config.toml`:
+
+```toml
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", "machine", "workspace", "tab"],
+  ["agent",
+   { token = "$ctx", dim = true, rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] },
+   { token = "$turn", rules = [{ contains = "h", fg = "#f55", bold = true }] }],
+]
+```
+
+```
+ ○ agent-office
+   claude · 412k▲ · 4m
+```
+
+One ▲ past 400k, two past 600k (`METER_WARN`, `METER_ALARM`). The clock turns
+red once it shows hours: the prompt cache is gone. Claude Code only for now.
+Needs `jq`. `herdr/meter-probe` tests it without a herdr server.
+
 ## Configuration
 
 Environment variables, set before sourcing `office.zsh`. All optional.
