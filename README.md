@@ -54,7 +54,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 |---|---|---|
 | [herdr](https://herdr.dev) | terminal sessions, panes, tabs, and each agent's native state (working, idle, done, blocked) | herdr upstream |
 | Agent Office herdr preset | keys, sidebar, theme and a silent "done" sound, so the daily look is the default look | this repo (planned) |
-| Agent Office meter | a herdr plugin that shows how full each agent's context window is in the sidebar | this repo ([`herdr/`](herdr), works today) |
+| Agent Office meter | a herdr plugin that shows how full each agent's context window is, and how long it has waited on you, in the sidebar | this repo ([`herdr/`](herdr), works today) |
 | [Firstmate](https://github.com/kunchenguid/firstmate) | supervises coding agents: dispatch, status, review, cleanup | Firstmate upstream |
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf` | [their upstreams](https://github.com/kunchenguid) |
@@ -185,8 +185,8 @@ tested there, so it is not claimed.
 Two things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
-   context size in herdr's sidebar, next to herdr's own state icon. Setup by
-   hand is in [Getting started](GETTING-STARTED.md#today-the-meter-by-hand).
+   context size, and how long it has waited on you, in herdr's sidebar next to
+   herdr's own state. Setup by hand is in [Getting started](GETTING-STARTED.md#today-the-meter-by-hand).
    It supports Claude Code, Codex, and Claude Code run against a local Ollama
    model; any agent it cannot identify stays blank rather than guessing. Two
    Codex agents in the same directory can show the same number, because Codex

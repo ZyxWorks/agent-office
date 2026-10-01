@@ -48,7 +48,7 @@ ago() { touch -t "$(date -r $(( $(date +%s) - $1 )) +%Y%m%d%H%M.%S 2>/dev/null |
 u 58084 >"$A/s1.jsonl"; ago 300 "$A/s1.jsonl"
 # 2 working: number, no clock
 u 120000 >"$A/s2.jsonl"
-# 3 blocked on a prompt counts as your turn; over an hour shows hours
+# 3 blocked on a prompt counts as your turn; over an hour shows whole hours only
 u 90000 >"$B/s3.jsonl"; ago 4500 "$B/s3.jsonl"
 # 4 done counts too
 u 1000 >"$A/s4.jsonl"
@@ -93,7 +93,7 @@ run "$(pane w:p1 idle claude s1)" "$(pane w:p2 working claude s2)" "$(pane w:p3 
 
 expect w:p1 "--token ctx=58k --token turn=5m" idle
 expect w:p2 "--token ctx=120k --token turn= " working
-expect w:p3 "--token ctx=90k --token turn=1h15m" blocked
+expect w:p3 "--token ctx=90k --token turn=1h " blocked
 expect w:p4 "turn=0m" "done"
 expect w:p5 "--token ctx= --token turn= " no-transcript
 expect w:p6 "--token ctx=200k " synthetic
