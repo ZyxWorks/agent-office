@@ -2,17 +2,19 @@
 # meter — Agent Office's two readouts, on herdr's sidebar instead of a tmux border.
 #
 #     ○ agent-office
-#       claude · 412k▲ · 4m
+#       idle · 47m · 412k▲
 #
 # $ctx is what the model was last handed: input + cache-creation + cache-read on
 # the newest usage record, the same number office-ctx shows and /context uses.
 # One ▲ past METER_WARN, two past METER_ALARM; the sidebar colours on those.
 #
 # $turn is how long a desk has waited on you (idle, done, or blocked on a
-# permission prompt), read from the transcript's mtime. Just the minutes: the
-# state icon already says whose turn it is, and the sidebar is 26 columns. Past an hour the
-# provider has dropped its cache, so the next prompt is charged as a new
-# conversation — the sidebar turns it red once it shows hours.
+# permission prompt), read from the transcript's mtime. Together with $ctx it says
+# what waking the desk costs: past an hour the provider has dropped its cache, so
+# the next prompt is charged as a new conversation, and that cost grows with the
+# context. So past an hour the clock shows whole hours only (the sidebar turns it
+# red on the "h"): the minutes no longer matter, and "blocked · 12h · 612k▲▲"
+# still fits the sidebar's 26 columns.
 #
 # Herdr already knows which session lives in a Claude pane (its integration
 # reports the id on SessionStart, and again after /clear, /compact, --resume),
@@ -39,9 +41,9 @@ EVERY=${METER_EVERY:-30}
 WARN=${METER_WARN:-400000}
 ALARM=${METER_ALARM:-600000}
 
-age() { # seconds -> 4m / 1h12m
+age() { # seconds -> 4m / 1h
   m=$(( $1 / 60 ))
-  if [ "$m" -ge 60 ]; then echo "$(( m / 60 ))h$(( m % 60 ))m"; else echo "${m}m"; fi
+  if [ "$m" -ge 60 ]; then echo "$(( m / 60 ))h"; else echo "${m}m"; fi
 }
 
 ctx_of() { # transcript -> "412k▲" or nothing

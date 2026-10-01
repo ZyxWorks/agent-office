@@ -502,20 +502,21 @@ herdr plugin link ~/path/to/agent-office/herdr
 herdr server stop                          # the meter starts with the next server
 ```
 
-Then add `$ctx` to the original agent rows in `~/.config/herdr/config.toml`:
+Then put `$turn` and `$ctx` in the original agent rows in `~/.config/herdr/config.toml`:
 
 ```toml
 [ui.sidebar.agents]
 rows = [
   ["state_icon", "machine", "workspace", "tab"],
-  ["agent",
+  ["state_text",
+   { token = "$turn", rules = [{ contains = "h", fg = "#f55", bold = true }] },
    { token = "$ctx", dim = true, rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
 ]
 ```
 
 ```
  ○ agent-office
-   claude · 412k▲
+   idle · 47m · 412k▲
 ```
 
 One ▲ past 400k, two past 600k (`METER_WARN`, `METER_ALARM`). Claude, Codex,

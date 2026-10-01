@@ -14,7 +14,7 @@
 | **Firstmate** | an agent that supervises other agents. You tell it what you want; it starts workers, watches them and reports back |
 | **worker** | a coding agent Firstmate started for one task |
 | **treehouse** | hands each worker its own git worktree from a pool, so workers never step on each other or on you |
-| **meter** | the Agent Office herdr plugin that shows how full each agent's context window is |
+| **meter** | the Agent Office herdr plugin that shows how full each agent's context window is and how long it has waited on you |
 
 ## 2. What you need first
 
@@ -45,7 +45,7 @@ optional [workstation tools](README.md#workstation-profile-optional).
 `office on` opens the office herdr session and one Firstmate inside it. Talk to
 Firstmate like any agent: say what you want done. It starts workers, each in a
 treehouse worktree, and you see them in herdr's sidebar with their state and,
-from the meter, their context size.
+from the meter, their context size and how long they have waited on you.
 
 The rest of the day:
 
@@ -77,25 +77,29 @@ herdr plugin link ~/agent-office/herdr
 The meter starts with the next herdr server. Stopping the server stops
 everything running in it, so restart herdr when no work is running there.
 
-Then add `$ctx` to the agent rows in `~/.config/herdr/config.toml`:
+Then put `$turn` and `$ctx` in the agent rows in `~/.config/herdr/config.toml`:
 
 ```toml
 [ui.sidebar.agents]
 rows = [
   ["state_icon", "machine", "workspace", "tab"],
-  ["agent",
+  ["state_text",
+   { token = "$turn", rules = [{ contains = "h", fg = "#f55", bold = true }] },
    { token = "$ctx", dim = true, rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
 ]
 ```
 
 ```
  ○ agent-office
-   claude · 412k▲
+   idle · 47m · 412k▲
 ```
 
-One ▲ past 400k tokens, two past 600k. Change those with `METER_WARN` and
-`METER_ALARM` in the environment the herdr server starts in. herdr's own state
-icon still says whether the agent is working, idle, done or blocked.
+`47m` is how long the agent has waited on you (idle, done or blocked). Past an
+hour it shows whole hours in red, `2h`: the prompt cache has gone cold, so
+waking the agent costs about as much as its context size. One ▲ past 400k
+tokens, two past 600k. Change those with `METER_WARN` and `METER_ALARM` in the
+environment the herdr server starts in. The row leaves out the agent's name so
+all three fit herdr's default 26-column sidebar.
 
 Firstmate and treehouse install from their own repos today:
 [Firstmate](https://github.com/kunchenguid/firstmate),
