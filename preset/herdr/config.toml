@@ -1,0 +1,105 @@
+# Agent Office herdr preset. The daily look and keys of the office, as a herdr config.toml.
+# Copy this file and the sounds/ folder next to it into ~/.config/herdr/ (see preset/README.md).
+# Every key herdr does not set here keeps herdr's default; preset/README.md lists the effective
+# keys and preset/preset-probe checks that list against herdr itself.
+#
+# `onboarding` is left out on purpose: a new user still gets herdr's first-run setup. Once you
+# have chosen, add `onboarding = false` yourself, as herdr's own default config says.
+
+# Keys carried over from the tmux office (office.tmux.conf), so muscle memory carries over.
+#   Shift+arrow          jump to a pane (no prefix)
+#   Ctrl+Space then:
+#     n / -              new pane right / below
+#     q                  close pane        z  zoom        Shift+arrow  swap pane that way
+#     c                  new tab           Space  next tab             1..9  tab by number
+#     Enter              copy mode         d  leave herdr (keeps running)      ?  all keys
+# Ctrl+Space and not herdr's Ctrl+B: Ctrl+B is "back one character" in the shell and in the
+# agents' prompts. Nothing here binds Ctrl+A/E/U/W or Alt+B/F, because the WezTerm example's
+# Mac text keys send exactly those bytes to the agent and herdr must let them through.
+[keys]
+prefix = "ctrl+space"
+focus_pane_left  = ["shift+left",  "prefix+left"]
+focus_pane_right = ["shift+right", "prefix+right"]
+focus_pane_up    = ["shift+up",    "prefix+up"]
+focus_pane_down  = ["shift+down",  "prefix+down"]
+swap_pane_left   = "prefix+shift+left"
+swap_pane_right  = "prefix+shift+right"
+swap_pane_up     = "prefix+shift+up"
+swap_pane_down   = "prefix+shift+down"
+split_vertical   = "prefix+n"
+split_horizontal = "prefix+minus"
+close_pane       = "prefix+q"
+detach           = "prefix+d"
+next_tab         = "prefix+space"
+copy_mode        = "prefix+enter"
+
+[ui]
+# Agents panel grouped by space. herdr's default too, kept explicit because it is a choice
+# (the other one, "priority", reorders the list as agents change state).
+agent_panel_sort = "spaces"
+
+# Only "needs you" plays a sound. A worker finishing is routine under Firstmate, so its sound is
+# a silent mp3: herdr has no per-event off switch, and done_path overrides only the finished
+# sound. Relative paths resolve from this file's folder, so sounds/ travels with it.
+[ui.sound]
+enabled = true
+done_path = "sounds/silent.mp3"
+
+# Row 1 is herdr's state icon and the space name. Row 2 reads "claude · 412k▲ · 47m · idle":
+# the agent, its context size and how long it has waited on you (the two numbers that say what
+# waking it costs), then herdr's own state word. The state goes last because row 1's icon already
+# shows it, so a long row trims only that word in the 26-column sidebar.
+#
+# $ctx and $turn come from the Agent Office meter (herdr/); without it they stay blank.
+# Context: green, amber once the meter adds ▲, red with ▲▲ (the meter decides when, per model).
+# Clock: green under 30m, amber 30-44m, red from 45m and on every whole hour ("2h"): the prompt
+# cache lasts an hour. herdr rules have no regex, so the minutes are matched as text, and the
+# bare "3m" / "4m" / "5m" rules stop a few minutes from matching the 30s-50s rules below them.
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", "workspace"],
+  ["agent",
+   { token = "$ctx", fg = "#6FA37A", rules = [{ contains = "▲▲", fg = "#C25450", bold = true }, { contains = "▲", fg = "#C9903F" }] },
+   { token = "$turn", fg = "#6FA37A", rules = [
+     { contains = "h", fg = "#C25450", bold = true },
+     { starts_with = "45", fg = "#C25450", bold = true },
+     { starts_with = "46", fg = "#C25450", bold = true },
+     { starts_with = "47", fg = "#C25450", bold = true },
+     { starts_with = "48", fg = "#C25450", bold = true },
+     { starts_with = "49", fg = "#C25450", bold = true },
+     { equals = "5m" },
+     { starts_with = "5", fg = "#C25450", bold = true },
+     { equals = "3m" },
+     { starts_with = "3", fg = "#C9903F" },
+     { equals = "4m" },
+     { starts_with = "4", fg = "#C9903F" }] },
+   { token = "state_text", fg = "#9a9ca6", dim = true }],
+]
+
+# Zyx look, same palette as theme/office-theme.tmux.conf.
+# Monochrome by conviction: state is tone, not hue.
+# Amber (#C9903F) means "this needs you". Red (#C25450) means "act on this".
+[theme]
+name = "catppuccin"
+auto_switch = false
+
+[theme.custom]
+panel_bg      = "#0b0c10"   # ink
+sidebar_bg    = "#0e1016"   # band
+active_row_bg = "#16181f"   # panel
+selection_bg  = "#2a2d36"   # raised chip
+surface0      = "#16181f"
+surface1      = "#2a2d36"
+surface_dim   = "#0e1016"
+overlay0      = "#4e505a"   # hairlines only
+overlay1      = "#6a6c77"
+text          = "#f6f5f1"
+subtext0      = "#9a9ca6"
+accent        = "#C9903F"
+yellow        = "#C9903F"
+peach         = "#C9903F"
+red           = "#C25450"
+green         = "#f6f5f1"   # done = bright tone, not a hue
+blue          = "#9a9ca6"
+teal          = "#9a9ca6"
+mauve         = "#8a8d96"

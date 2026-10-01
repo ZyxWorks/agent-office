@@ -48,9 +48,26 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install tmux fzf fd
 
+      # herdr from its own GitHub release at a reviewed version, checked against a pinned hash:
+      # preset-probe asks herdr itself which keys the preset really gives you.
+      - name: install herdr 0.9.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            Linux-X64)   asset=herdr-linux-x86_64  sum=2a02fed16beb651ef006e1d43f048f652ca4dc58ad053cd2d44450563d5c54b7 ;;
+            macOS-ARM64) asset=herdr-macos-aarch64 sum=5fc7a7e7adfaca56fa80aa89dcb025693357268dab8285b9ce2d08a2313c89de ;;
+            *) echo "no pinned herdr for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/herdr-bin"
+          gh release download v0.9.1 -R herdrdev/herdr -p "$asset" -O "$RUNNER_TEMP/herdr-bin/herdr"
+          echo "$sum  $RUNNER_TEMP/herdr-bin/herdr" | shasum -a 256 -c
+          chmod +x "$RUNNER_TEMP/herdr-bin/herdr"
+          echo "$RUNNER_TEMP/herdr-bin" >> "$GITHUB_PATH"
+
       - name: versions
         run: |
-          tmux -V && zsh --version && git --version && python3 --version
+          tmux -V && zsh --version && git --version && python3 --version && herdr --version
 
       # Cheap and catches most of it, which is why the legacy CONTRIBUTING asks for it
       # before a push. Here it gates the rest: a syntax error makes every probe
@@ -69,7 +86,7 @@ jobs:
           sh -n bin/office-attn
           sh -n bin/office-ctx
           sh -n bin/office-cwd
-          python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe
+          python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe
 
       # tmux refuses to parse a config it cannot read, and a broken one would
       # otherwise only surface as "the keys do nothing" inside a probe.
@@ -170,3 +187,8 @@ jobs:
       # herdr/meter against a fake herdr and fake transcripts; needs only sh and jq
       - name: meter-probe
         run: herdr/meter-probe
+
+      # the herdr preset against herdr's own check and defaults: no clash, the documented keys are
+      # the real ones, the Mac text keys pass through, nothing private. Needs no herdr server.
+      - name: preset-probe
+        run: preset/preset-probe

@@ -77,7 +77,8 @@ herdr plugin link ~/agent-office/herdr
 The meter starts with the next herdr server. To start or replace it without
 restarting Herdr, use the steps below.
 
-Then put `$turn` and `$ctx` in the agent rows in `~/.config/herdr/config.toml`:
+Then put `$turn` and `$ctx` in the agent rows in `~/.config/herdr/config.toml`
+(the [preset](#today-the-preset-by-hand) already has them, in its own colours):
 
 ```toml
 [ui.sidebar.agents]
@@ -159,6 +160,15 @@ state directory to exist, which `herdr plugin link` creates.
 Verified on Herdr 0.9.1 in a named isolated session: refresh retained the PID,
 kill plus the start hook produced a new PID, the server stayed running, and
 teardown verified that the default session was unchanged.
+
+## Today: the preset by hand
+
+`works today`. The office's herdr keys, sidebar, theme and silent "done"
+sound, and an optional WezTerm example with Mac text keys, are in
+[`preset/`](preset). [Its README](preset/README.md) has the copy steps and
+every key.
+
+## Today: Firstmate and treehouse
 
 Firstmate and treehouse install from their own repos today:
 [Firstmate](https://github.com/kunchenguid/firstmate),
