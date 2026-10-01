@@ -499,7 +499,7 @@ idle, done or blocked:
 ```sh
 herdr integration install claude          # herdr learns each pane's session id
 herdr plugin link ~/path/to/agent-office/herdr
-herdr server stop                          # the meter starts with the next server
+# The meter starts with the next server; see Getting started for a live meter update.
 ```
 
 Then put `$turn` and `$ctx` in the original agent rows in `~/.config/herdr/config.toml`:
@@ -510,7 +510,7 @@ rows = [
   ["state_icon", "machine", "workspace", "tab"],
   ["state_text",
    { token = "$turn", rules = [{ contains = "h", fg = "#f55", bold = true }] },
-   { token = "$ctx", dim = true, rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
+   { token = "$ctx", fg = "#6c6", rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
 ]
 ```
 
@@ -519,10 +519,15 @@ rows = [
    idle · 47m · 412k▲
 ```
 
-One ▲ past 400k, two past 600k (`METER_WARN`, `METER_ALARM`). Claude, Codex,
+One ▲ (amber) past 200k, two ▲▲ (red) past 600k (`METER_WARN`,
+`METER_ALARM`), or sooner at 50% / 75% of the model window. Claude, Codex,
 and Claude Code launched against a local Ollama model are supported; a direct
 local runtime with no pane-owned context record stays blank. Herdr's own state
 icon remains the source of working, idle, done, blocked and unknown status.
+Window sizes live in `herdr/model-windows.tsv` (longest literal prefix wins;
+unknown models use 1M). `$model` adds a short label such as `opus-5.5`.
+See [Getting started](../../GETTING-STARTED.md#today-the-meter-by-hand) for
+sidebar setup and replacing the meter without stopping Herdr.
 Needs `jq`; `herdr/meter-probe` tests it without a herdr server.
 
 ## Configuration

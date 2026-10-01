@@ -103,7 +103,7 @@ harness = "claude"
 [meter]
 enabled = true
 interval_seconds = 30
-warn_tokens = 400000
+warn_tokens = 200000
 alarm_tokens = 600000
 
 [herdr.ui]                            # passed through to herdr as-is

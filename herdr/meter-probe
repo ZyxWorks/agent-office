@@ -26,7 +26,7 @@ EOF
 chmod +x "$T/herdr"
 
 u() { # usage record: total split as input/cache-read
-  printf '{"type":"assistant","message":{"model":"m","usage":{"input_tokens":%s,"cache_creation_input_tokens":0,"cache_read_input_tokens":%s}}}\n' 1 "$(( $1 - 1 ))"
+  printf '{"type":"assistant","message":{"model":"%s","usage":{"input_tokens":%s,"cache_creation_input_tokens":0,"cache_read_input_tokens":%s}}}\n' "${2:-m}" 1 "$(( $1 - 1 ))"
 }
 pane() { printf '{"pane_id":"%s","agent_status":"%s","agent_session":{"agent":"%s","kind":"id","value":"%s"}}' "$@"; }
 codexpane() { printf '{"pane_id":"%s","agent_status":"%s","agent":"codex","cwd":"%s","foreground_cwd":"%s"}' "$1" "$2" "$3" "$3"; }
@@ -62,7 +62,7 @@ u 1000 >"$A/s4.jsonl"
 # 9 sidechain records never count
 { u 70000; printf '{"isSidechain":true,"type":"assistant","message":{"usage":{"input_tokens":1,"cache_read_input_tokens":999999}}}\n'; } >"$A/s9.jsonl"
 # 10 warn and alarm marks
-u 450000 >"$A/s10.jsonl"; u 700000 >"$A/s11.jsonl"
+u 250000 >"$A/s10.jsonl"; u 700000 >"$A/s11.jsonl"
 # 12 a broken line and missing fields do not break the pass
 { u 40000; echo 'not json {'; echo '{"message":{"usage":{"input_tokens":5000}}}'; } >"$A/s12.jsonl"
 # 13 clock in the future (a touched file, a clock jump) reads 0m, never negative
@@ -100,7 +100,7 @@ expect w:p6 "--token ctx=200k " synthetic
 expect w:p7 "--token ctx= " compacted
 expect w:p8 "--token ctx=30k " after-compact
 expect w:p9 "--token ctx=70k " sidechain
-expect w:p10 "--token ctx=450k▲ " warn
+expect w:p10 "--token ctx=250k▲ " warn
 expect w:p11 "--token ctx=700k▲▲ " alarm
 expect w:p12 "--token ctx=5k " broken-line
 expect w:p13 "turn=0m" future-clock
@@ -114,6 +114,65 @@ never w:x3 glob-id
 never w:local unsupported-local-agent
 never w:x4 no-session
 expect w:p1 "--source agent-office:meter" source
+expect w:p1 "--token model=m " unknown-model-label
+expect w:p5 "--token model= " no-transcript-model
+expect w:p6 "--token model=m " synthetic-model
+expect w:p7 "--token model=m " compact-retains-model
+expect w:x1 "--token model= " codex-no-model
+
+# Both readers use strict boundaries, absolute limits, and the table's windows.
+for agent in claude codex; do
+  for spec in 'm 200000 600000' 'claude-haiku-4-5-20251001 100000 150000' 'gpt-5.2-codex 200000 300000'; do
+    # shellcheck disable=SC2086 # split the literal test row into three fields
+    set -- $spec; model=$1 warn=$2 alarm=$3
+    for boundary in "$warn" "$((warn + 1))" "$alarm" "$((alarm + 1))"; do
+      mark=; [ "$boundary" -gt "$warn" ] && mark=▲; [ "$boundary" -gt "$alarm" ] && mark=▲▲
+      if [ "$agent" = claude ]; then
+        u "$boundary" "$model" >"$A/model.jsonl"
+        run "$(pane w:model idle claude model)"
+      else
+        { printf '{"type":"session_meta","payload":{"cwd":"%s"}}\n' "$T/model"
+          printf '{"type":"turn_context","payload":{"model":"%s"}}\n' "$model"
+          printf '{"type":"token_usage_record","payload":{"usage":{"input_tokens":%s}}}\n' "$boundary"
+        } >"$C/rollout-2026-09-29-model.jsonl"
+        run "$(codexpane w:model idle "$T/model")"
+      fi
+      expect w:model "--token ctx=$((boundary / 1000))k$mark " "$agent-$model-$boundary"
+    done
+  done
+done
+expect w:model '--token model=gpt-5.2-codex ' codex-label
+
+# Claude labels drop the provider prefix/date and use a dotted version.
+# Sidechains, synthetic/error records, and malformed model fields never replace it.
+{ u 200001 claude-opus-5-5-20260901
+  echo '{"type":"assistant","isSidechain":true,"message":{"model":"claude-haiku-4-5","usage":{"input_tokens":999999}}}'
+  echo '{"type":"assistant","message":{"model":"<synthetic>"}}'
+  echo '{"type":"assistant","message":{"model":123}}'
+  printf '%s\n' '{"type":"assistant","message":{"model":"bad\nmodel"}}'
+} >"$A/model.jsonl"
+run "$(pane w:model idle claude model)"
+expect w:model '--token model=opus-5.5 ' claude-label
+expect w:model '--token ctx=200k▲ ' claude-model-filter
+u 200001 claude-opus-4-6 >"$A/model.jsonl"
+run "$(pane w:model idle claude model)"
+expect w:model '--token ctx=200k▲ ' longest-prefix
+u 600000 >"$A/model.jsonl"
+(METER_WARN=80000 METER_ALARM=120000 run "$(pane w:model idle claude model)")
+expect w:model '--token ctx=600k▲▲ ' env-limits
+
+# Codex models can switch; a large response must not hide the turn_context.
+{ printf '{"type":"session_meta","payload":{"cwd":"%s","model":"gpt-5.2-codex"}}\n' "$T/model"
+  echo '{"type":"turn_context","payload":{"model":"gpt-6.1-sol"}}'
+  awk 'BEGIN { for (i=0; i<50000; i++) print "{\"type\":\"padding\"}" }'
+  echo '{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":350000}}}}'
+} >"$C/rollout-2026-09-29-model.jsonl"
+run "$(codexpane w:model idle "$T/model")"
+expect w:model '--token ctx=350k▲ ' codex-switch-window
+expect w:model '--token model=gpt-6.1-sol ' codex-model-before-tail
+printf '{"type":"session_meta","payload":{"cwd":"%s","model":"gpt-5.2-codex"}}\n' "$T/model" >"$C/rollout-2026-09-29-model.jsonl"
+run "$(codexpane w:model idle "$T/model")"
+expect w:model '--token model=gpt-5.2-codex ' codex-meta-fallback
 
 # a pane that closes mid-pass (its report fails) is not a dead server, even when it is listed last
 if ! run "$(pane w:p1 idle claude s1)" "$(pane w:gone idle claude s2)"; then echo "FAIL [pane-gone] pass reported a miss"; fail=1; fi

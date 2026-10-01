@@ -74,8 +74,8 @@ herdr integration install claude              # herdr learns each pane's session
 herdr plugin link ~/agent-office/herdr
 ```
 
-The meter starts with the next herdr server. Stopping the server stops
-everything running in it, so restart herdr when no work is running there.
+The meter starts with the next herdr server. To start or replace it without
+restarting Herdr, use the steps below.
 
 Then put `$turn` and `$ctx` in the agent rows in `~/.config/herdr/config.toml`:
 
@@ -85,7 +85,7 @@ rows = [
   ["state_icon", "machine", "workspace", "tab"],
   ["state_text",
    { token = "$turn", rules = [{ contains = "h", fg = "#f55", bold = true }] },
-   { token = "$ctx", dim = true, rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
+   { token = "$ctx", fg = "#6c6", rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
 ]
 ```
 
@@ -96,10 +96,69 @@ rows = [
 
 `47m` is how long the agent has waited on you (idle, done or blocked). Past an
 hour it shows whole hours in red, `2h`: the prompt cache has gone cold, so
-waking the agent costs about as much as its context size. One ▲ past 400k
-tokens, two past 600k. Change those with `METER_WARN` and `METER_ALARM` in the
-environment the herdr server starts in. The row leaves out the agent's name so
-all three fit herdr's default 26-column sidebar.
+waking the agent costs about as much as its context size. One ▲ (amber) past
+200k tokens, two ▲▲ (red) past 600k. For smaller windows the marks appear sooner:
+amber past 50%, red past 75%. The worse of cost and fill wins. `METER_WARN` and
+`METER_ALARM` override the absolute limits in the meter's environment.
+
+The meter reads Claude's assistant model and Codex's latest `turn_context` model
+(with `session_meta` as a fallback). Edit [`herdr/model-windows.tsv`](herdr/model-windows.tsv)
+for your selected model's window. Entries are literal model ids or prefixes;
+the longest match wins. Unknown models use 1M. Plans, providers and configured
+window limits can differ from the defaults in the table; adjust the matching
+entry for your setup. This table cannot distinguish two sessions using the same
+model id with different window limits.
+
+`$model` is the short model label, for example `opus-5.5` or `gpt-6.1-sol`.
+Put it on a separate row to keep the default 26-column sidebar readable:
+
+```toml
+["$model"], # add inside ui.sidebar.agents.rows
+```
+
+### Apply meter updates without restarting Herdr
+
+After updating the linked checkout, replace only the running meter. The refresh
+plugin action (`herdr plugin action invoke refresh --plugin agent-office.meter`)
+runs `meter once`; it updates tokens immediately but does not replace the loop.
+Run this in a shell with the same transcript paths and any `METER_*` overrides
+as the original meter. Adjust `meter_root` and `session` for your installation:
+
+```sh
+(
+set -eu
+meter_root="$HOME/agent-office/herdr"
+session=default
+HERDR_SOCKET_PATH=$(herdr status --json --session "$session" | jq -er '.server.socket')
+HERDR_BIN_PATH=$(command -v herdr)
+export HERDR_SOCKET_PATH HERDR_BIN_PATH
+export HERDR_PLUGIN_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/herdr/plugins/agent-office.meter"
+key=$(printf %s "$HERDR_SOCKET_PATH" | cksum | cut -d' ' -f1)
+pidf="$HERDR_PLUGIN_STATE_DIR/meter.$key.pid"
+pid=$(cat "$pidf")
+# Refuse to signal a recycled PID; wait for the old process before running start.
+if ps -p "$pid" -o args= | grep -qF "$meter_root/meter"; then
+  kill "$pid"
+  for attempt in 1 2 3 4 5; do
+    ps -p "$pid" -o args= | grep -qF "$meter_root/meter" || break
+    sleep 1
+  done
+fi
+if ps -p "$pid" -o args= | grep -qF "$meter_root/meter"; then
+  echo 'meter still exiting; do not start another copy' >&2
+else
+  sh "$meter_root/start"
+fi
+)
+```
+
+For a first manual start there is no PID file: skip the PID/kill block and run
+`sh "$meter_root/start"` with the environment above. The hook needs the plugin
+state directory to exist, which `herdr plugin link` creates.
+
+Verified on Herdr 0.9.1 in a named isolated session: refresh retained the PID,
+kill plus the start hook produced a new PID, the server stayed running, and
+teardown verified that the default session was unchanged.
 
 Firstmate and treehouse install from their own repos today:
 [Firstmate](https://github.com/kunchenguid/firstmate),
