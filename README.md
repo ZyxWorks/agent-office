@@ -53,7 +53,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 | component | what it does | owner |
 |---|---|---|
 | [herdr](https://herdr.dev) | terminal sessions, panes, tabs, and each agent's native state (working, idle, done, blocked) | herdr upstream |
-| Agent Office herdr preset | keys, sidebar, theme and a silent "done" sound, so the daily look is the default look | this repo (planned) |
+| Agent Office herdr preset | keys, sidebar, theme and a silent "done" sound, so the daily look is the default look, plus an optional WezTerm example with Mac text keys | this repo ([`preset/`](preset), works today by hand) |
 | Agent Office meter | a herdr plugin that shows how full each agent's context window is, and how long it has waited on you, in the sidebar | this repo ([`herdr/`](herdr), works today) |
 | [Firstmate](https://github.com/kunchenguid/firstmate) | supervises coding agents: dispatch, status, review, cleanup | Firstmate upstream |
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
@@ -182,7 +182,7 @@ tested there, so it is not claimed.
 
 ## What works today
 
-Two things are real right now:
+Three things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
    context size, and how long it has waited on you, in herdr's sidebar next to
@@ -192,7 +192,12 @@ Two things are real right now:
    Codex agents in the same directory can show the same number, because Codex
    is matched by directory. `herdr/meter-probe` tests it without a herdr
    server.
-2. **The tmux office (0.x)**, documented in
+2. **The herdr preset**, in [`preset/`](preset): the office's keys, sidebar,
+   theme and silent "done" sound as a herdr `config.toml`, and an optional
+   WezTerm example with Mac text keys (Cmd and Option arrows). You copy it in
+   by hand; [its README](preset/README.md) lists every key.
+   `preset/preset-probe` checks it against herdr itself.
+3. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).
 
 ## The tmux office (legacy)

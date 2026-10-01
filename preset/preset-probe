@@ -1,0 +1,234 @@
+#!/usr/bin/env python3
+"""preset-probe - checks the herdr preset and the WezTerm example against the tools themselves.
+
+    preset/preset-probe          run every check, exit 1 on any failure
+    preset/preset-probe --list   print the effective herdr keys (preset over herdr's defaults)
+
+No herdr server is touched: `herdr config check` and `herdr --default-config` only read files,
+and both run with a throwaway HOME. HERDR_BIN picks the herdr binary (default: herdr on PATH).
+
+Comments in a config are not keys. A herdr key the preset leaves alone keeps herdr's default,
+so the keys a user actually gets are herdr's defaults with the preset on top, and herdr's own
+check does not see a clash between the two: binding split_vertical to prefix+n while next_tab
+keeps its default prefix+n passes `herdr config check`. So this probe builds the effective map
+itself, from the running herdr's defaults, and checks the documented key table against it.
+herdr 0.9.1 accepts copy_mode and swap_pane_* but leaves them out of --default-config; the
+preset sets them, so their effective keys are the preset's, and `config check` still rejects an
+action herdr does not have.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+CONFIG = os.path.join(HERE, "herdr", "config.toml")
+SOUND = os.path.join(HERE, "herdr", "sounds", "silent.mp3")
+WEZTERM = os.path.join(HERE, "wezterm", "wezterm.lua")
+README = os.path.join(HERE, "README.md")
+METER = os.path.join(ROOT, "herdr", "meter")
+HERDR = os.environ.get("HERDR_BIN", "herdr")
+
+# What the WezTerm example's Mac text keys must send: the readline keys agents read.
+TEXT_KEYS = {
+    ("LeftArrow", "CMD"): "\x01",   # line start
+    ("RightArrow", "CMD"): "\x05",  # line end
+    ("LeftArrow", "OPT"): "\x1bb",  # word back
+    ("RightArrow", "OPT"): "\x1bf", # word forward
+    ("Backspace", "CMD"): "\x15",   # delete line
+    ("Backspace", "OPT"): "\x17",   # delete word
+}
+
+failures = []
+
+
+def check(ok, what):
+    print(("ok   " if ok else "FAIL ") + what)
+    if not ok:
+        failures.append(what)
+
+
+def run(args, **env):
+    home = tempfile.mkdtemp(prefix="preset-probe.")
+    try:
+        full = dict(os.environ, HOME=home, XDG_CONFIG_HOME=os.path.join(home, ".config"), **env)
+        return subprocess.run(args, env=full, capture_output=True, text=True)
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def keys_section(lines, commented):
+    """The [keys] table's own `name = value` lines. herdr's default config shows them commented
+    out, and its commented example tables ([[keys.command]], [keys.indexed]) end the table."""
+    out, inside = {}, False
+    for line in lines:
+        bare = line.strip().lstrip("#").strip()
+        if bare.startswith("["):
+            inside = bare == "[keys]"
+            continue
+        if not inside or line.strip().startswith("#") != commented:
+            continue
+        # a prose line such as `type = "shell" runs detached` is not a key
+        m = re.match(r'^([a-z_]+)\s*=\s*("(?:[^"\\]|\\.)*"|\[[^\]]*\])\s*(#.*)?$', bare)
+        if m:
+            value = json.loads(m.group(2))
+            out[m.group(1)] = [v for v in (value if isinstance(value, list) else [value]) if v]
+    return out
+
+
+def expand(binding):
+    m = re.match(r"^(.*?)(\d)\.\.(\d)$", binding)
+    if not m:
+        return [binding]
+    return [m.group(1) + str(i) for i in range(int(m.group(2)), int(m.group(3)) + 1)]
+
+
+def effective_keys():
+    got = run([HERDR, "--default-config"])
+    if got.returncode != 0:
+        return None, None
+    defaults = keys_section(got.stdout.splitlines(), commented=True)
+    with open(CONFIG, encoding="utf-8") as f:
+        preset = keys_section(f.read().splitlines(), commented=False)
+    eff = dict(defaults)
+    eff.update(preset)
+    return defaults, eff
+
+
+def main():
+    if shutil.which(HERDR) is None:
+        print(f"FAIL herdr not found ({HERDR}); this probe checks the preset against herdr itself")
+        return 1
+    version = run([HERDR, "--version"]).stdout.strip()
+    _, eff = effective_keys()
+    if eff is None:
+        print(f"FAIL {HERDR} --default-config did not run")
+        return 1
+    if "--list" in sys.argv[1:]:
+        for action in sorted(eff):
+            print(f"{action:28} {', '.join(eff[action]) or '(unset)'}")
+        return 0
+    print(f"# {version}")
+
+    # 1. herdr parses the preset: no unknown key, bad binding or style, and the sound file exists.
+    got = run([HERDR, "config", "check"], HERDR_CONFIG_PATH=CONFIG)
+    check(got.returncode == 0 and got.stdout.strip() == "config: ok",
+          "herdr config check: " + (got.stdout + got.stderr).strip().replace("\n", " / "))
+
+    with open(CONFIG, encoding="utf-8") as f:
+        text = f.read()
+    preset_actions = [a for a in keys_section(text.splitlines(), False) if a != "prefix"]
+
+    # 2. No two actions on one key, preset and defaults together. Navigate-mode keys are a mode
+    # of their own, and the prefix is not an action.
+    prefix = eff["prefix"][0]
+    owners = {}
+    for action, bindings in eff.items():
+        if action == "prefix" or action.startswith("navigate_"):
+            continue
+        for b in bindings:
+            for key in expand(b):
+                owners.setdefault(key, []).append(action)
+    clashes = {k: v for k, v in owners.items() if len(v) > 1}
+    check(not clashes, "no key bound twice" + (f": {clashes}" if clashes else ""))
+    check(prefix not in owners, f"the prefix {prefix} is not also an action")
+
+    # 3. The documented key table is what herdr really does. Each row names a herdr action in
+    # backticks in its last column; its keys column must list exactly the effective bindings.
+    with open(README, encoding="utf-8") as f:
+        doc = f.read()
+    documented = {}
+    for line in doc.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 3 and re.fullmatch(r"`[a-z_]+`", cells[2]):
+            documented[cells[2].strip("`")] = re.findall(r"`([^`]+)`", cells[1])
+    check(bool(documented), "README.md has a key table")
+    m = re.search(r"prefix is `([^`]+)`", doc)
+    check(m is not None and m.group(1) == prefix, f"README.md names the prefix {prefix}")
+    for action, keys in sorted(documented.items()):
+        want = eff.get(action)
+        check(want is not None and sorted(keys) == sorted(want),
+              f"README.md {action}: {', '.join(keys)}" + ("" if want is None or sorted(keys) == sorted(want)
+                                                          else f" (herdr: {', '.join(want) or 'unset'})"))
+    for action in preset_actions:
+        check(action in documented, f"README.md documents the preset's {action}")
+
+    # 4. The Mac text keys reach the agent: WezTerm sends readline bytes, herdr binds none of them.
+    with open(WEZTERM, encoding="utf-8") as f:
+        lua = f.read()
+    sent = {}
+    for key, mods, s in re.findall(
+            r'key = "(\w+)", mods = "(\w+)", action = wezterm\.action\.SendString\("([^"]*)"\)', lua):
+        sent[(key, mods)] = re.sub(r"\\x([0-9a-fA-F]{2})", lambda h: chr(int(h.group(1), 16)), s)
+    for (key, mods), want in TEXT_KEYS.items():
+        check(sent.get((key, mods)) == want, f"wezterm.lua {mods}+{key} sends {want!r}")
+
+    def herdr_name(seq):
+        if len(seq) == 1 and 1 <= ord(seq) <= 26:
+            return "ctrl+" + chr(ord(seq) + 96)
+        if len(seq) == 2 and seq[0] == "\x1b":
+            return "alt+" + seq[1]
+        return None
+
+    for want in TEXT_KEYS.values():
+        name = herdr_name(want)
+        taken = owners.get(name, []) + (["prefix"] if name == prefix else [])
+        check(name is not None and not taken,
+              f"herdr leaves {name} to the pane" + (f" (bound to {', '.join(taken)})" if taken else ""))
+
+    # WezTerm itself, when it is here: its effective keys, not just the file's text.
+    if shutil.which("wezterm"):
+        got = run(["wezterm", "--config-file", WEZTERM, "show-keys"])
+        table = got.stdout.split("Default key table", 1)[-1].split("\n\n\n", 1)[0] if got.returncode == 0 else ""
+        mods_name = {"CMD": "SUPER", "OPT": "ALT"}
+        for (key, mods), want in TEXT_KEYS.items():
+            escaped = "".join(f"\\u{{{ord(c):x}}}" if ord(c) < 32 else c for c in want)
+            check(re.search(rf"^\s*{mods_name[mods]}\s+{key}\s+->\s+SendString\(\"{re.escape(escaped)}\"\)",
+                            table, re.M) is not None,
+                  f"wezterm show-keys: {mods_name[mods]} {key} sends {want!r}")
+        for key in ("Space", "LeftArrow", "RightArrow", "UpArrow", "DownArrow"):
+            mods = "CTRL" if key == "Space" else "SHIFT"
+            check(re.search(rf"^\s*{mods}\s+{key}\b", table, re.M) is None,
+                  f"wezterm leaves {mods} {key} to herdr")
+    else:
+        print("skip wezterm not installed: its own key table was not read, only wezterm.lua")
+
+    # 5. The look keeps herdr's native state, and the meter really publishes the tokens it uses.
+    rows = re.search(r"^rows = \[(.*?)^\]", text, re.S | re.M)
+    rows = rows.group(1) if rows else ""
+    check('"state_icon"' in rows and '"state_text"' in rows, "sidebar rows keep herdr's state_icon and state_text")
+    with open(METER, encoding="utf-8") as f:
+        meter = f.read()
+    for token in sorted(set(re.findall(r'token = "\$(\w+)"', rows))):
+        check(f'--token "{token}=' in meter, f"the meter publishes ${token}")
+
+    # 6. A new user still gets herdr's onboarding.
+    check(re.search(r"^\s*onboarding\s*=", text, re.M) is None, "onboarding is left to herdr")
+
+    # 7. The done sound is there and silent.
+    check(os.path.getsize(SOUND) > 0, "sounds/silent.mp3 exists")
+    if shutil.which("ffmpeg"):
+        got = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-i", SOUND, "-af", "volumedetect", "-f", "null", "-"],
+                             capture_output=True, text=True)
+        m = re.search(r"max_volume: (-?[\d.]+) dB", got.stderr)
+        check(m is not None and float(m.group(1)) <= -60, f"sounds/silent.mp3 is silent (max {m.group(1) if m else '?'} dB)")
+    else:
+        print("skip ffmpeg not installed: silence of sounds/silent.mp3 not measured")
+
+    # 8. Nothing from one person's machine.
+    for path in (CONFIG, WEZTERM, README):
+        with open(path, encoding="utf-8") as f:
+            body = f.read()
+        hits = re.findall(r"/Users/\w+|/home/\w+|/opt/homebrew|\.zyx/", body)
+        check(not hits, f"{os.path.relpath(path, ROOT)} has no private path" + (f": {hits}" if hits else ""))
+
+    print(f"\n{len(failures)} failed" if failures else "\nall passed")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
