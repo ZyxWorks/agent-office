@@ -108,7 +108,7 @@ Optional. The office runs in any terminal. Copy
 [`wezterm/wezterm.lua`](wezterm/wezterm.lua) to `~/.config/wezterm/wezterm.lua`,
 or take the parts you want into your own. It sets the colours, turns off the
 terminal bell (herdr plays the one sound that matters), dims windows without
-focus, adds the Mac text keys, and opens every new window straight into herdr,
+focus, adds the Mac text keys, and opens every new window or tab straight into herdr,
 falling back to your shell if herdr is missing or you detach. Font, size and
 transparency stay yours: examples are commented out in the file.
 
