@@ -1,0 +1,18 @@
+# Model id/prefix -> window tokens. Longest literal prefix wins; * is fallback.
+# Edit for your selected session's available window (plans/providers can differ).
+# https://platform.claude.com/docs/en/build-with-claude/context-windows
+claude-opus-5 1000000
+claude-opus-4-8 1000000
+claude-opus-4-7 1000000
+claude-opus-4-6 1000000
+claude-opus-4 200000
+claude-sonnet-5 1000000
+claude-sonnet-4-6 1000000
+claude-sonnet-4 200000
+claude-haiku-4 200000
+claude-3 200000
+# https://developers.openai.com/api/docs/models/gpt-5.2-codex
+gpt-5.2-codex 400000
+# https://developers.openai.com/api/docs/models/gpt-6.1-sol
+gpt-6.1-sol 1050000
+* 1000000
