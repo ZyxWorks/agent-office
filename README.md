@@ -135,10 +135,12 @@ The rules the config follows:
 | `office status` / `office doctor` | read-only: installed and running versions, what the office owns, meter and integration health, Firstmate readiness, pending updates. Unknown is never reported as healthy. | planned |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. | planned |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. | planned |
+| `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
 
 Today, `office` on your `PATH` is still the tmux office, and its commands are
 documented in the [legacy README](docs/legacy-tmux/README.md). The 1.0
-commands above replace them; they are not additions to them.
+commands above replace them; they are not additions to them. `office keys` is
+the one 1.0 command it already has.
 
 ### What the commands promise
 
@@ -195,7 +197,8 @@ Three things are real right now:
 2. **The herdr preset**, in [`preset/`](preset): the office's keys, sidebar,
    theme and silent "done" sound as a herdr `config.toml`, and an optional
    WezTerm example with Mac text keys (Cmd and Option arrows). You copy it in
-   by hand; [its README](preset/README.md) lists every key.
+   by hand; [its README](preset/README.md) lists every key, and `office keys`
+   prints them on one screen.
    `preset/preset-probe` checks it against herdr itself.
 3. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).

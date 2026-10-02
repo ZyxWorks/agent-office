@@ -166,7 +166,7 @@ teardown verified that the default session was unchanged.
 `works today`. The office's herdr keys, sidebar, theme and silent "done"
 sound, and an optional WezTerm example with Mac text keys, are in
 [`preset/`](preset). [Its README](preset/README.md) has the copy steps and
-every key.
+every key. `office keys` prints them all on one screen.
 
 ## Today: Firstmate and treehouse
 

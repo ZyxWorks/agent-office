@@ -4,6 +4,9 @@
     preset/preset-probe          run every check, exit 1 on any failure
     preset/preset-probe --list   print the effective herdr keys (preset over herdr's defaults)
 
+keys.txt is the one-screen sheet `office keys` prints. It is a text file a person edits; this
+probe checks that it names every key herdr really has, and none it does not.
+
 No herdr server is touched: `herdr config check` and `herdr --default-config` only read files,
 and both run with a throwaway HOME. HERDR_BIN picks the herdr binary (default: herdr on PATH).
 
@@ -30,6 +33,7 @@ CONFIG = os.path.join(HERE, "herdr", "config.toml")
 SOUND = os.path.join(HERE, "herdr", "sounds", "silent.mp3")
 WEZTERM = os.path.join(HERE, "wezterm", "wezterm.lua")
 README = os.path.join(HERE, "README.md")
+SHEET = os.path.join(HERE, "keys.txt")
 METER = os.path.join(ROOT, "herdr", "meter")
 HERDR = os.environ.get("HERDR_BIN", "herdr")
 
@@ -42,6 +46,8 @@ TEXT_KEYS = {
     ("Backspace", "CMD"): "\x15",   # delete line
     ("Backspace", "OPT"): "\x17",   # delete word
 }
+# How keys.txt, the `office keys` sheet, names each of them.
+SHEET_TEXT_KEYS = {"cmd+left", "cmd+right", "opt+left", "opt+right", "cmd+backspace", "opt+backspace"}
 
 failures = []
 
@@ -197,6 +203,34 @@ def main():
     else:
         print("skip wezterm not installed: its own key table was not read, only wezterm.lua")
 
+    # 4b. The `office keys` sheet: one screen, and every key herdr really has is on it, with
+    # nothing it does not have. "arrow" on the sheet stands for all four arrows.
+    with open(SHEET, encoding="utf-8") as f:
+        sheet = f.read()
+    lines = sheet.splitlines()
+    check(len(lines) <= 23 and all(len(l) <= 80 for l in lines),
+          f"keys.txt fits one 80x24 screen ({len(lines)} lines, widest {max(map(len, lines))})")
+    tokens = set(re.findall(r"(?<![\w+])[a-z]+(?:\+[a-z0-9?.]+)+", sheet))
+    on_sheet = set()
+    for t in tokens - SHEET_TEXT_KEYS:
+        dirs = ("left", "right", "up", "down") if t.endswith("+arrow") else (None,)
+        for d in dirs:
+            on_sheet.update(expand(t[:-len("arrow")] + d if d else t))
+    bound = {}
+    for action, bindings in eff.items():
+        if action != "prefix" and not action.startswith("navigate_"):
+            for b in bindings:
+                for key in expand(b):
+                    bound[key] = action
+    missing = sorted(f"{k} ({a})" for k, a in bound.items() if k not in on_sheet)
+    check(not missing, "keys.txt lists every herdr key" + (f": missing {', '.join(missing)}" if missing else ""))
+    extra = sorted(on_sheet - set(bound) - {prefix})
+    check(not extra, "keys.txt lists no key herdr does not have" + (f": {', '.join(extra)}" if extra else ""))
+    check(SHEET_TEXT_KEYS <= tokens, "keys.txt lists the Mac text keys"
+          + (f": missing {', '.join(sorted(SHEET_TEXT_KEYS - tokens))}" if not SHEET_TEXT_KEYS <= tokens else ""))
+    m = re.search(r"prefix = (\S+):", sheet)
+    check(m is not None and m.group(1) == prefix, f"keys.txt names the prefix {prefix}")
+
     # 5. The look keeps herdr's native state, and the meter really publishes the tokens it uses.
     rows = re.search(r"^rows = \[(.*?)^\]", text, re.S | re.M)
     rows = rows.group(1) if rows else ""
@@ -220,7 +254,7 @@ def main():
         print("skip ffmpeg not installed: silence of sounds/silent.mp3 not measured")
 
     # 8. Nothing from one person's machine.
-    for path in (CONFIG, WEZTERM, README):
+    for path in (CONFIG, WEZTERM, README, SHEET):
         with open(path, encoding="utf-8") as f:
             body = f.read()
         hits = re.findall(r"/Users/\w+|/home/\w+|/opt/homebrew|\.zyx/", body)
