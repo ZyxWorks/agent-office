@@ -19,8 +19,8 @@ What it gives you:
 
 - **Keys** from the tmux office, so muscle memory carries over (table below).
 - **Sidebar**: herdr's own state icon and state word stay. Between them the
-  [meter](../herdr) adds context size and how long the agent has waited on you:
-  `claude · 412k▲ · 47m · idle`. Without the meter those two stay blank.
+  [meter](../herdr) adds context size and transcript age, how long since the
+  agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. Without the meter those two stay blank.
 - **Sound**: only "needs you" plays. A worker finishing is routine, so that
   sound is silent.
 - **Theme**: monochrome. Amber means "this needs you", red means "act on this".

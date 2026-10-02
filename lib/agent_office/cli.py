@@ -29,6 +29,8 @@ office: Agent Office, one command for the whole agent setup.
                                      whether this release is tested with it
   office help | version
 
+Also `fm`: open the office's Firstmate, and `fm restart` (see `fm --help`).
+
 Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, update,
 status) is planned. Until each one lands, any other verb runs the tmux office (0.x)
 from bin/office-tmux: see docs/legacy-tmux/README.md. Run that way it is a separate process,

@@ -14,7 +14,7 @@
 | **Firstmate** | an agent that supervises other agents. You tell it what you want; it starts workers, watches them and reports back |
 | **worker** | a coding agent Firstmate started for one task |
 | **treehouse** | hands each worker its own git worktree from a pool, so workers never step on each other or on you |
-| **meter** | the Agent Office herdr plugin that shows how full each agent's context window is and how long it has waited on you |
+| **meter** | the Agent Office herdr plugin that shows how full each agent's context window is and how long since it last wrote to its transcript |
 
 ## 2. What you need first
 
@@ -33,7 +33,7 @@ Everything else is what `office tools` and `office install` are for.
 ```sh
 git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
 ~/agent-office/bin/office tools   # works today: herdr, treehouse and the agent tools you lack
-~/agent-office/install.sh         # works today: the config, herdr's config, the office command
+~/agent-office/install.sh         # works today: the config, herdr's config, the office and fm commands
 office on                         # planned: open the office and its Firstmate
 ```
 
@@ -46,7 +46,7 @@ and leaves every tool you already have as it is.
 
 `office install` checks `~/.config/agent-office/config.toml` (and writes a
 starter the first time), generates herdr's config from the preset and your
-`[herdr]` keys, puts `office` on your `PATH` in `~/.local/bin`, and stops your
+`[herdr]` keys, puts `office` and `fm` on your `PATH` in `~/.local/bin`, and stops your
 zsh loading the tmux office's `office` function if you had it. It shows every
 change first, backs up anything it replaces and asks before it does. `--check`
 shows the plan and changes nothing. It starts nothing, and it never touches
@@ -61,7 +61,8 @@ Firstmate is not installed by either: [clone it yourself](#today-firstmate).
 `office on` opens the office herdr session and one Firstmate inside it. Talk to
 Firstmate like any agent: say what you want done. It starts workers, each in a
 treehouse worktree, and you see them in herdr's sidebar with their state and,
-from the meter, their context size and how long they have waited on you.
+from the meter, their context size and how long since each last wrote to its
+transcript.
 
 The rest of the day:
 
@@ -69,8 +70,8 @@ The rest of the day:
 |---|---|---|
 | walk away, leave it all running | `office break` | planned |
 | come back | `office on` | planned |
-| jump to Firstmate | `fm` | planned |
-| give Firstmate a fresh conversation, work saved first | `fm restart` | planned |
+| jump to Firstmate | `fm` | works today, once the herdr session runs |
+| give Firstmate a fresh conversation, work saved first | `fm restart` | works today |
 | see what is installed, who updates it and whether it is tested | `office doctor` | works today |
 | see what is running | `office status` | planned |
 | update everything to a tested set | `office update` | planned |
@@ -112,12 +113,28 @@ rows = [
    idle · 47m · 412k▲
 ```
 
-`47m` is how long the agent has waited on you (idle, done or blocked). Past an
-hour it shows whole hours in red, `2h`: the prompt cache has gone cold, so
-waking the agent costs about as much as its context size. One ▲ (amber) past
-200k tokens, two ▲▲ (red) past 600k. For smaller windows the marks appear sooner:
-amber past 50%, red past 75%. The worse of cost and fill wins. `METER_WARN` and
-`METER_ALARM` override the absolute limits in the meter's environment.
+`47m` is transcript age: how long since the agent last wrote to its
+transcript, shown while herdr says it is idle, done or blocked. Past an hour it
+shows whole hours, `2h`. It is a hint that a desk has sat a while. It is not
+proof of how long the agent has waited on you, and it knows nothing about a
+provider's prompt cache or billing.
+
+One ▲ (amber) past 200k tokens, two ▲▲ (red) past 600k. For smaller windows the
+marks appear sooner: amber past 50%, red past 75%. The worse of size and fill
+wins.
+
+The limits and the pass interval come from the `[meter]` keys of your Agent
+Office config: `office install` writes them to
+`~/.local/state/agent-office/meter.json`, and the meter reads that file again
+on every pass, so a change reaches a running meter without a restart. Without
+that file, `METER_EVERY`, `METER_WARN` and `METER_ALARM` in the herdr server's
+environment set them. A variable exported after the server started never
+reaches it. `office doctor` shows what the running meter uses.
+
+Codex panes are matched by the session id that herdr's Codex integration
+reports (`herdr integration install codex`). Without it the meter guesses by
+directory, and two Codex panes in one directory show `?` instead of a number
+that may belong to the other one.
 
 The meter reads Claude's assistant model and Codex's latest `turn_context` model
 (with `session_meta` as a fallback). Edit [`herdr/model-windows.tsv`](herdr/model-windows.tsv)
@@ -139,8 +156,7 @@ Put it on a separate row to keep the default 26-column sidebar readable:
 After updating the linked checkout, replace only the running meter. The refresh
 plugin action (`herdr plugin action invoke refresh --plugin agent-office.meter`)
 runs `meter once`; it updates tokens immediately but does not replace the loop.
-Run this in a shell with the same transcript paths and any `METER_*` overrides
-as the original meter. Adjust `meter_root` and `session` for your installation:
+Run this in a shell with the same transcript paths as the original meter. Adjust `meter_root` and `session` for your installation:
 
 ```sh
 (
@@ -173,6 +189,9 @@ fi
 For a first manual start there is no PID file: skip the PID/kill block and run
 `sh "$meter_root/start"` with the environment above. The hook needs the plugin
 state directory to exist, which `herdr plugin link` creates.
+
+`office doctor` tells the installed meter from the running one: when the
+version or folder it runs differs from what is installed, replace it as above.
 
 Verified on Herdr 0.9.1 in a named isolated session: refresh retained the PID,
 kill plus the start hook produced a new PID, the server stayed running, and

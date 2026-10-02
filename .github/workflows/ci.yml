@@ -88,7 +88,7 @@ jobs:
           sh -n bin/office-ctx
           sh -n bin/office-cwd
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
-            bin/office bin/install-probe bin/notify-probe lib/agent_office/*.py
+            bin/office bin/install-probe bin/notify-probe bin/fm bin/fm-probe lib/agent_office/*.py
           sh -n herdr/notify
 
       # tmux refuses to parse a config it cannot read, and a broken one would
@@ -138,6 +138,11 @@ jobs:
       - name: notify-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
         run: /usr/bin/python3 bin/notify-probe
+
+      # fm and fm restart against a herdr server of the probe's own, in a throwaway HOME, with a
+      # stand-in Firstmate that herdr detects as claude.
+      - name: fm-probe
+        run: bin/fm-probe
 
       # The tmux office's (0.x) installer, until its last release is tagged.
       # A fresh HOME, so the installer is tested the way a stranger meets it:

@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""fm-probe: `fm` and `fm restart` against a herdr server of their own.
+
+Never your herdr: the probe makes a throwaway $HOME (under /tmp, because herdr's socket path
+must stay short), starts a headless herdr server there for a session only it uses, and stops it
+at the end. Firstmate is a stand-in: a small `claude` that herdr detects by name, that reports
+its own state to herdr, logs every line it is sent, and answers /stow the way a mode file in
+its folder says. Each case below is a promise the README makes for `fm`.
+
+  bin/fm-probe
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+FM = REPO / "bin" / "fm"
+SESSION = f"ao-fm-probe-{os.getpid()}"
+fails = 0
+
+FAKE = r'''#!/usr/bin/env python3
+import os, re, subprocess, sys, time
+pane = os.environ.get("HERDR_PANE_ID", "")
+log = open(".fake-log", "a")
+def state(s):
+    subprocess.run(["herdr", "pane", "report-agent", "--source", "fake", "--agent", "claude",
+                    "--state", s, pane], capture_output=True)
+log.write("start %r FM_HOME=%s\n" % (sys.argv[1:], os.environ.get("FM_HOME"))); log.flush()
+print("fake claude", flush=True)
+state("idle")
+while True:
+    sys.stdout.write("> "); sys.stdout.flush()
+    line = sys.stdin.readline()
+    if not line:
+        break
+    line = line.strip()
+    log.write("got " + line + "\n"); log.flush()
+    mode = open(".fake-mode").read().strip() if os.path.exists(".fake-mode") else "ok"
+    if line.startswith("/stow"):
+        state("working")
+        time.sleep(1)
+        nonce = re.search(r"reset-safe-([0-9a-f]+)", line).group(1)
+        if mode == "ask":
+            print("May I archive an entry? [y/n]", flush=True); state("blocked"); continue
+        print("Stow receipt: memory unchanged.", flush=True)
+        if mode == "ok":
+            print("office-stow-reset-safe-" + nonce, flush=True)
+        elif mode == "notsafe":
+            print("office-stow-not-safe-" + nonce, flush=True)
+        state("idle")
+    elif line == "/clear":
+        print("fresh conversation", flush=True); state("idle")
+    else:
+        state("working"); time.sleep(0.5); print("ok", flush=True); state("idle")
+'''
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+root = Path(tempfile.mkdtemp(prefix="aofm.", dir="/tmp" if os.path.isdir("/tmp") else None))
+home, fakebin, code, fmhome = root / "h", root / "bin", root / "code", root / "fmhome"
+for d in (home, fakebin, code, fmhome):
+    d.mkdir()
+(fakebin / "claude").write_text(FAKE)
+(fakebin / "claude").chmod(0o755)
+herdr_bin = shutil.which("herdr")
+if not herdr_bin:
+    sys.exit("fm-probe: needs herdr on PATH")
+PATH = os.pathsep.join([str(fakebin), str(Path(herdr_bin).parent), os.path.dirname(sys.executable), "/usr/bin", "/bin"])
+BASE = {"HOME": str(home), "PATH": PATH, "TERM": "xterm-256color", "LANG": "C.UTF-8", "SHELL": "/bin/sh"}
+log, mode = code / ".fake-log", code / ".fake-mode"
+
+
+def config(**fm):
+    keys = {"code": str(code), "home": str(fmhome), **fm}
+    text = f'schema = 1\n[office]\nsession = "{SESSION}"\n[firstmate]\n' + "".join(f'{k} = "{v}"\n' for k, v in keys.items())
+    cfg = home / ".config" / "agent-office" / "config.toml"
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(text)
+
+
+def herdr(*args, check_rc=True):
+    r = subprocess.run([herdr_bin, "--session", SESSION, *args], env=dict(BASE, HERDR_SESSION=SESSION),
+                       capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60)
+    if check_rc and r.returncode != 0:
+        raise SystemExit(f"fm-probe: herdr {' '.join(args)} failed: {r.stderr}")
+    return json.loads(r.stdout).get("result", {}) if r.stdout.startswith("{") else r.stdout
+
+
+def fm(*args):
+    # start_new_session: no terminal, so fm never attaches, the way a script or CI meets it
+    return subprocess.run([sys.executable, str(FM), *args], env=dict(BASE), capture_output=True, text=True,
+                          stdin=subprocess.DEVNULL, start_new_session=True, timeout=300)
+
+
+def agents():
+    return herdr("agent", "list").get("agents", [])
+
+
+def lines():
+    return log.read_text().splitlines() if log.exists() else []
+
+
+server = None
+try:
+    print("no herdr session yet")
+    config()
+    r = fm()
+    check("fm says the session is not running and how to start it", r.returncode == 1
+          and f"herdr session '{SESSION}' is not running" in r.stderr and f"herdr --session {SESSION}" in r.stderr,
+          r.stdout + r.stderr)
+    r = fm("restart")
+    check("so does fm restart", r.returncode == 1 and "is not running" in r.stderr, r.stdout + r.stderr)
+
+    server = subprocess.Popen([herdr_bin, "--session", SESSION, "server"], env=dict(BASE, HERDR_SESSION=SESSION),
+                              cwd=str(home), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, start_new_session=True)
+    for _ in range(40):
+        st = subprocess.run([herdr_bin, "--session", SESSION, "status", "--json"], env=dict(BASE, HERDR_SESSION=SESSION),
+                            capture_output=True, text=True)
+        if st.stdout.startswith("{") and json.loads(st.stdout).get("server", {}).get("running"):
+            break
+        time.sleep(0.5)
+    else:
+        raise SystemExit("fm-probe: the probe's herdr server did not start")
+
+    print("fm starts one Firstmate and passes its arguments unchanged")
+    r = fm("restart")
+    check("fm restart with no Firstmate resets nothing", r.returncode == 1 and "nothing to restart" in r.stderr,
+          r.stdout + r.stderr)
+    r = fm("--", "restart", "a b", "x;y $(no)")
+    check("fm -- ... starts it", r.returncode == 0 and "started Firstmate" in r.stdout, r.stdout + r.stderr)
+    check("every argument arrives as it was given, restart included",
+          lines()[:1] == [f"start ['restart', 'a b', 'x;y $(no)'] FM_HOME={fmhome}"], str(lines()))
+    a = agents()
+    check("one agent, named firstmate, in the checkout", len(a) == 1 and a[0].get("name") == "firstmate"
+          and os.path.realpath(a[0].get("cwd", "")) == os.path.realpath(code), str(a))
+    check("without a terminal it says how to attach", f"herdr session attach {SESSION}" in r.stdout, r.stdout)
+    r = fm()
+    check("fm again focuses it", r.returncode == 0 and "focused it" in r.stdout and len(agents()) == 1,
+          r.stdout + r.stderr)
+    r = fm("--model", "x")
+    check("arguments for a running Firstmate are refused, not dropped", r.returncode == 1
+          and "would not reach it" in r.stderr and len(agents()) == 1 and len(lines()) == 1, r.stdout + r.stderr)
+
+    print("fm restart saves first, and resets only when the save is confirmed")
+    mode.write_text("ok")
+    r = fm("restart")
+    sent = [l for l in lines() if l.startswith("got ")]
+    check("a confirmed save, then /clear", r.returncode == 0 and len(sent) == 2 and sent[0].startswith("got /stow ")
+          and sent[1] == "got /clear" and "saved its work" in r.stdout, r.stdout + r.stderr + str(sent))
+    check("it says it reset the conversation, not the launch wiring", "launch-time wiring" in r.stdout, r.stdout)
+    for m, why in (("notsafe", "not safe to reset"), ("silent", "no result line")):
+        mode.write_text(m)
+        n = len(lines())
+        r = fm("restart")
+        new = lines()[n:]
+        check(f"a stow answer that is {m}: exit 1, nothing reset", r.returncode == 1 and why in r.stderr
+              and "Nothing was reset" in r.stderr and len(new) == 1 and new[0].startswith("got /stow"),
+              r.stdout + r.stderr + str(new))
+    mode.write_text("ask")
+    n = len(lines())
+    r = fm("restart")
+    check("a question during the stow: exit 1, nothing reset", r.returncode == 1 and "stopped to ask" in r.stderr
+          and not any(l == "got /clear" for l in lines()[n:]), r.stdout + r.stderr)
+    n = len(lines())
+    r = fm("restart")
+    check("while it still waits for the answer, nothing is even sent", r.returncode == 1
+          and "waiting for an answer" in r.stderr and lines()[n:] == [], r.stdout + r.stderr)
+    pane = agents()[0]["pane_id"]
+    herdr("pane", "report-agent", "--source", "fake", "--agent", "claude", "--state", "idle", pane)
+
+    print("one fm at a time")
+    import fcntl
+    lockfile = home / ".local" / "state" / "agent-office" / "fm.lock"
+    with open(lockfile, "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        n = len(lines())
+        r = fm("restart")
+        check("a second fm is refused while one runs", r.returncode == 1 and "another fm is running" in r.stderr
+              and lines()[n:] == [], r.stdout + r.stderr)
+
+    print("fm never guesses which agent is Firstmate")
+    herdr("agent", "rename", pane, "someone")
+    r = fm()
+    check("an unnamed agent in the checkout is refused, with the command that adopts it", r.returncode == 1
+          and pane in r.stderr and "agent rename <pane> firstmate" in r.stderr and len(agents()) == 1,
+          r.stdout + r.stderr)
+    other = herdr("tab", "create", "--cwd", str(root), "--no-focus")["root_pane"]["pane_id"]
+    time.sleep(1)
+    herdr("agent", "start", "firstmate", "--kind", "claude", "--pane", other)
+    n = len(lines())
+    r = fm("restart")
+    check("the name on an agent outside the checkout is refused, and it is sent nothing", r.returncode == 1
+          and "fm leaves it alone" in r.stderr and not (root / ".fake-log").read_text().count("got "),
+          r.stdout + r.stderr)
+    r = fm()
+    check("fm does not start a second one either", r.returncode == 1 and len(agents()) == 2, r.stdout + r.stderr)
+
+    print("harness")
+    config(harness="codex")
+    r = fm("restart")
+    check("fm restart refuses a harness it is not built for", r.returncode == 1 and "claude only" in r.stderr,
+          r.stdout + r.stderr)
+finally:
+    if server is not None:
+        subprocess.run([herdr_bin, "--session", SESSION, "server", "stop"], env=dict(BASE, HERDR_SESSION=SESSION),
+                       capture_output=True)
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server.kill()
+    shutil.rmtree(root, ignore_errors=True)
+
+print("FAIL: %d" % fails if fails else "PASS")
+sys.exit(1 if fails else 0)

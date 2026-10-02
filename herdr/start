@@ -6,6 +6,15 @@
 dir=${HERDR_PLUGIN_STATE_DIR:-${TMPDIR:-/tmp}}
 key=$(printf %s "${HERDR_SOCKET_PATH:-default}" | cksum | cut -d' ' -f1)
 pidf=$dir/meter.$key.pid
+# herdr reports no config of its own, so record the one this server started with, for
+# office doctor: the path from its environment and the content as it was right now. Written
+# on every start, before the pid check: after a live handoff the meter from before keeps running.
+case ${XDG_CONFIG_HOME:-} in /*) cfg=$XDG_CONFIG_HOME ;; *) cfg=$HOME/.config ;; esac
+cfg=${HERDR_CONFIG_PATH:-$cfg/herdr/config.toml}
+sha=$({ sha256sum "$cfg" 2>/dev/null || shasum -a 256 "$cfg" 2>/dev/null; } | cut -d' ' -f1)
+jq -n --arg socket "${HERDR_SOCKET_PATH:-}" --arg config "$cfg" --arg sha "$sha" --argjson at "$(date +%s)" \
+  '{ schema: 1, socket: $socket, herdr_config: $config, sha256: $sha, at: $at }' \
+  >"$dir/meter.$key.server.json.tmp" 2>/dev/null && mv "$dir/meter.$key.server.json.tmp" "$dir/meter.$key.server.json"
 pid=$(cat "$pidf" 2>/dev/null)
 # a recycled pid is not our meter, so ask what it is before trusting it
 meter=$(cd "$(dirname "$0")" && pwd)/meter
