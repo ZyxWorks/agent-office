@@ -242,6 +242,11 @@ h.done()
 # depend on, or reach, what this machine has installed. Only git is real.
 
 
+sys.path.insert(0, str(REPO / "lib"))
+from agent_office import config as C  # noqa: E402
+COMPONENTS = C.read_toml(REPO / "config" / "components.toml", "components.toml")["component"]
+
+
 def program(h, path, version, extra=""):
     """A fake program at path under the throwaway home, linked from its PATH folder like an install."""
     real = h.home / path
@@ -260,8 +265,10 @@ def office_kit(h, integration="claude: current (v10) (/x)\ncodex: not installed 
     program(h, "fakebin/treehouse", "v3.1.0")
     program(h, "brew/Cellar/jq/1.8.2/bin/jq", "jq-1.8.2")
     program(h, "nm/bin/no-mistakes", "no-mistakes version v1.84.0 (4822244) 2026-09-26T08:31:07Z")
-    for tool in ("gh-axi", "chrome-devtools-axi", "lavish-axi", "quota-axi", "tasks-axi", "gnhf"):
-        program(h, f"node/lib/node_modules/{tool}/dist/bin/{tool}.js", "0.1.35")
+    program(h, "brew/Cellar/gh/2.97.0/bin/gh", "gh version 2.97.0 (2026-07-31)")
+    for c in COMPONENTS:
+        if "npm" in c:  # each at its pin, as `office tools` installs it
+            program(h, f"node/lib/node_modules/{c['npm']}/dist/bin/{c['command']}.js", c["pin"])
     program(h, "claude/versions/claude.2.1", "2.1.287 (Claude Code)")
     program(h, "brew/Caskroom/codex/0.159.2/bin/codex", "codex-cli 0.159.2")
     os.symlink(shutil.which("git"), h.home / "fakebin" / "git")
@@ -279,10 +286,9 @@ h = Home()
 rev = office_kit(h)
 manifest = h.root / "components.toml"
 manifest.write_text((REPO / "config" / "components.toml").read_text()
-                    .replace('tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run\n\n'
-                             '[[component]]\nname = "jq"', 'tested = ["3.1.0"]\n\n[[component]]\nname = "jq"')
+                    .replace('tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run\n'
+                             'pin = "3.1.0"', 'tested = ["3.1.0"]\npin = "3.1.0"')
                     .replace("[firstmate]\ntested = []", f'[firstmate]\ntested = ["{rev}"]'))
-sys.path.insert(0, str(REPO / "lib"))
 from agent_office import doctor  # noqa: E402
 out, err = io.StringIO(), io.StringIO()
 code = doctor.run([], env=h.env(PATH=str(h.home / "fakebin")), out=out, err=err, manifest=manifest)
@@ -292,11 +298,14 @@ rows = {r[1]: r[2:] for r in (re.split(r"\s{2,}", l.strip()) for l in said.split
 for name, want in (("herdr", ["0.9.1", "Homebrew (herdr)", "tested"]),
                    ("treehouse", ["3.1.0", "itself (treehouse update)", "tested"]),
                    ("jq", ["1.8.2", "Homebrew (jq)", "no version pinned"]),
-                   ("gh-axi", ["0.1.35", "npm, global (gh-axi)", "no version pinned"]),
+                   ("gh-axi", ["0.1.35", "npm, global (gh-axi)", "pinned"]),
+                   ("no-mistakes", ["1.84.0", "itself (no-mistakes update)", "pinned"]),
                    ("claude", ["2.1.287", "itself (claude update)", "no version pinned"]),
                    ("herdr claude integration", ["current (v10)", "herdr", "current"]),
                    ("firstmate", [rev[:12], "git, from firstmate.source", "tested"])):
     check(f"{name}: {', '.join(want)}", rows.get(name) == want, said)
+check("no workstation tool is missed (git is real)", "workstation tools  1 of " in said and "office tools --workstation" in said
+      and "ripgrep" not in said, said)
 h.done()
 
 print("office doctor: unknown is not healthy")
@@ -307,6 +316,10 @@ program(h, "fakebin/jq", "jq-1.8.2")                                  # owner un
 (h.home / "fakebin" / "gnhf").unlink()                                # missing
 lavish = next((h.home / "node").rglob("lavish-axi.js"))
 lavish.write_text("#!/bin/sh\nexit 1\n")                             # no version
+quota = next((h.home / "node").rglob("quota-axi.js"))
+quota.write_text('#!/bin/sh\necho 0.2.0\n')                         # not the pin
+program(h, "brew/Cellar/ripgrep/15.2.0/bin/rg", "ripgrep 15.2.0")     # a workstation tool you have
+program(h, "fakebin/eza", "eza - A modern replacement for ls\nv0.23.5 [+git]")  # yours, owner unknown
 h.cfg.parent.mkdir(parents=True)
 h.cfg.write_text('schema = 1\n[firstmate]\nharness = "codex"\nsource = "https://example.invalid/fork.git"\n'
                  'home = "~/no-such-home"\n[treehouse]\nroot = "~/no-such-pool"\n')
@@ -315,19 +328,190 @@ r = h.run("doctor", PATH=str(h.home / "fakebin"))
 check("exit 1", r.returncode == 1, r.stdout + r.stderr)
 for want in ("treehouse: 3.1.0 is not a version this release is tested with (tested: none yet)",
              "jq: nothing says how ~/fakebin/jq is updated (owner unknown)",
-             "gnhf: gnhf is not on PATH",
+             "gnhf: gnhf is not on PATH (`office tools` installs it)",
              "lavish-axi: `lavish-axi --version` gave no version",
+             "quota-axi: 0.2.0 is not the pinned version 0.1.55, the one read before it was trusted",
+             "eza: nothing says how ~/fakebin/eza is updated (owner unknown)",
              "herdr codex integration: outdated (v7): `herdr integration install codex` installs it",
              "firstmate: no remote of the checkout is the configured source https://example.invalid/fork.git",
              "firstmate: commit ",
              "firstmate home: no folder at ~/no-such-home (firstmate.home)",
              "treehouse root: no folder at ~/no-such-pool (treehouse.root)"):
     check(f"reports: {want}", want in r.stdout, r.stdout)
-check("9 problems, no more", "9 problem(s):" in r.stdout, r.stdout)
+check("11 problems, no more", "11 problem(s):" in r.stdout, r.stdout)
+check("a workstation tool's version from any line", re.search(r"ok +ripgrep +15\.2\.0 +Homebrew \(ripgrep\)", r.stdout)
+      and re.search(r"eza +0\.23\.5", r.stdout), r.stdout)
+check("and how many you have (git is real)", "workstation tools  3 of " in r.stdout, r.stdout)
 check("your home is never printed", str(h.home) not in r.stdout + r.stderr, r.stdout)
 check("it changed nothing", h.snapshot() == before)
 r = h.run("doctor", "--fix")
 check("an unknown option is refused", r.returncode == 2 and "unknown option --fix" in r.stderr, r.stderr)
+h.done()
+
+# --- office tools ----------------------------------------------------------------------------
+# Never the network and never this machine's npm or Homebrew: the downloads are local files and
+# npm, node and brew are fakes that write down how they were called.
+from agent_office import tools  # noqa: E402
+
+
+def fake(h, name, body):
+    p = h.home / "fakebin" / name
+    p.parent.mkdir(exist_ok=True)
+    p.write_text("#!/bin/sh\n" + body + "\n")
+    p.chmod(0o755)
+
+
+def asset(h, name, version, tar_as=None):
+    """A release asset: a program that says version, raw or in a .tar.gz under the name tar_as."""
+    prog = h.root / "assets" / (tar_as or name)
+    prog.parent.mkdir(exist_ok=True)
+    prog.write_text(f'#!/bin/sh\necho "{version}"\n')
+    if not tar_as:
+        return prog
+    out = h.root / "assets" / name
+    import tarfile
+    with tarfile.open(out, "w:gz") as tar:
+        tar.add(prog, arcname=tar_as)
+    return out
+
+
+def logged(log):
+    return log.read_text() if log.exists() else ""
+
+
+def sha(p):
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def toolkit(h, node="v24.1.0"):
+    """A manifest of one tool of each kind, the fakes, and a log of what they were asked."""
+    raw = asset(h, "herdr-test", "herdr 0.9.1")
+    tgz = asset(h, "nm-test.tar.gz", "no-mistakes version v1.84.0", tar_as="no-mistakes")
+    log = h.root / "calls.log"
+    # a fake npm/brew installs the command it was asked for, at the version after the @
+    fake(h, "npm", f'echo "npm $*" >> {log}\nfor a; do :; done\nn=${{a%@*}}; v=${{a#*@}}\n'
+         f'printf \'#!/bin/sh\\necho %s\\n\' "$v" > {h.home}/fakebin/$n; /bin/chmod +x {h.home}/fakebin/$n')
+    fake(h, "node", f'echo {node}')
+    fake(h, "brew", f'echo "brew $*" >> {log}\nfor a; do :; done\n'
+         f'printf \'#!/bin/sh\\necho 1.0\\n\' > {h.home}/fakebin/$a; /bin/chmod +x {h.home}/fakebin/$a')
+    m = h.root / "tools.toml"
+    m.write_text(f'''schema = 1
+[[component]]
+name = "herdr"
+command = "herdr"
+pin = "0.9.1"
+[component.release]
+url = "https://example.invalid/"
+dir = "~/.local/bin"
+test-plat = {{ asset = "herdr-test", sha256 = "{sha(raw)}" }}
+[[component]]
+name = "no-mistakes"
+command = "no-mistakes"
+pin = "1.84.0"
+[component.release]
+url = "https://example.invalid/"
+dir = "~/.no-mistakes/bin"
+link = "~/.local/bin"
+test-plat = {{ asset = "nm-test.tar.gz", sha256 = "{sha(tgz)}" }}
+[[component]]
+name = "gh-axi"
+command = "gh-axi"
+npm = "gh-axi"
+pin = "0.1.35"
+node = "22.19"
+[[component]]
+name = "jq"
+command = "jq"
+brew = "jq"
+[[component]]
+name = "ripgrep"
+command = "rg"
+brew = "rg"
+profile = "workstation"
+[[component]]
+name = "wezterm"
+command = "wezterm"
+cask = "wezterm"
+profile = "workstation"
+''')
+    return m, log
+
+
+def tools_run(h, m, *args, plat="test-plat", path=None):
+    fetched = []
+
+    def fetch(url, dest, env):  # the asset from the local folder, as curl would have saved it
+        fetched.append(url)
+        shutil.copy(h.root / "assets" / url.rsplit("/", 1)[1], dest)
+    real, tools.fetch = tools.fetch, fetch
+    out, err = io.StringIO(), io.StringIO()
+    env = h.env(PATH=path or f"{h.home / 'fakebin'}:{h.home / '.local' / 'bin'}")
+    try:
+        code = tools.run(list(args), env=env, out=out, err=err, manifest=m, plat=plat)
+    finally:
+        tools.fetch = real
+    return code, out.getvalue() + err.getvalue(), fetched
+
+
+print("office tools: installs what is missing, each through its owner")
+h = Home()
+m, log = toolkit(h)
+code, said, fetched = tools_run(h, m, "--check")
+check("--check lists four and installs nothing", code == 0 and fetched == [] and not log.exists()
+      and said.count("  install ") == 4 and not (h.home / ".local").exists(), said)
+check("the workstation tools only when asked", "ripgrep" not in said, said)
+code, said, fetched = tools_run(h, m)
+check("without a terminal or --yes it refuses", code == 1 and "not confirmed" in said and fetched == []
+      and not log.exists(), said)
+code, said, fetched = tools_run(h, m, "--yes")
+check("--yes installs them all", code == 0 and said.count("  ok ") == 4, said)
+herdr = h.home / ".local" / "bin" / "herdr"
+check("a release asset, where its owner puts it, runnable", herdr.read_text().endswith('"herdr 0.9.1"\n')
+      and os.access(herdr, os.X_OK), said)
+nm = h.home / ".no-mistakes" / "bin" / "no-mistakes"
+check("from inside its archive, linked like its own installer does",
+      nm.is_file() and os.readlink(h.home / ".local" / "bin" / "no-mistakes") == str(nm), said)
+calls = log.read_text().splitlines()
+check("npm at the pin with --ignore-scripts", "npm install -g --ignore-scripts gh-axi@0.1.35" in calls, calls)
+check("brew for the rest", "brew install jq" in calls, calls)
+check("never a shell line, never sudo", not any("sudo" in c or "|" in c for c in calls), calls)
+code, said, fetched = tools_run(h, m, "--yes")
+check("a second run installs nothing", code == 0 and "Nothing to install" in said and fetched == [], said)
+code, said, _ = tools_run(h, m, "--yes", "--workstation", plat="darwin-arm64")
+check("--workstation adds them, a cask too", code == 0 and "brew install --cask wezterm" in log.read_text()
+      and "brew install rg" in log.read_text(), said)
+h.done()
+
+print("office tools: what it refuses")
+h = Home()
+m, log = toolkit(h, node="v22.5.0")
+(h.root / "assets" / "herdr-test").write_text("#!/bin/sh\necho evil\n")    # not the file that was pinned
+fake(h, "jq", "echo jq-1.6")                                               # yours, an old version
+code, said, _ = tools_run(h, m, "--yes")
+check("an asset that is not the pinned file is refused", code == 1 and "herdr-test is not the pinned file" in said
+      and not (h.home / ".local" / "bin" / "herdr").exists(), said)
+check("a Node older than a package needs is left for you",
+      "needs Node 22.19 or newer; this Node is 22.5.0" in said and "gh-axi" not in logged(log), said)
+check("a tool you have is left as it is", "jq" not in logged(log) and "1 of 4 already installed" in said, said)
+check("the rest still installs", (h.home / ".no-mistakes" / "bin" / "no-mistakes").is_file(), said)
+code, said, _ = tools_run(h, m, "--check", plat="plan9-mips")
+check("no release for this platform: left for you", "no pinned release for plan9-mips" in said, said)
+(h.home / "fakebin" / "brew").unlink()
+code, said, _ = tools_run(h, m, "--check", "--workstation", plat="linux-amd64")
+check("no Homebrew: your package manager", "install `rg` with your package manager" in said, said)
+check("a macOS app on Linux: left for you", "a macOS app from Homebrew" in said, said)
+code, said, _ = tools_run(h, m, "--bogus")
+check("an unknown option is refused", code == 2 and "unknown option --bogus" in said, said)
+h.done()
+
+print("office tools: a wrong version after install is a failure")
+h = Home()
+m, log = toolkit(h)
+# npm answers with another version than the one asked for, as a moved dist-tag or a mirror might
+fake(h, "npm", f'printf \'#!/bin/sh\\necho 0.0.1\\n\' > {h.home}/fakebin/gh-axi; /bin/chmod +x {h.home}/fakebin/gh-axi')
+code, said, _ = tools_run(h, m, "--yes")
+check("it says so, exit 1", code == 1 and "FAILED   gh-axi 0.1.35" in said
+      and "`gh-axi --version` says 0.0.1, not 0.1.35" in said, said)
 h.done()
 
 print("PASS" if not fails else f"FAIL: {fails}")

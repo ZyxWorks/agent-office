@@ -7,7 +7,7 @@ import shutil
 import sys
 
 from . import config as C
-from . import doctor, install
+from . import doctor, install, tools
 from . import notify
 
 VERSION = "1.0.0-dev"
@@ -22,6 +22,9 @@ office: Agent Office, one command for the whole agent setup.
   office keys                        one screen of every office key (preset/keys.txt)
   office notify needs-you|pr-ready <message>
                                      push one line to your phone, if [notify] is on
+  office tools [--check] [--yes]     install the missing tools the office uses, at pinned
+               [--workstation]       versions, each through its owner; --workstation adds
+                                     generic command-line tools
   office doctor                      read-only: each component's version, who updates it, and
                                      whether this release is tested with it
   office help | version
@@ -82,6 +85,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return 0
     if verb == "install":
         return install.run(rest, out=out, err=err)
+    if verb == "tools":
+        return tools.run(rest, out=out, err=err)
     if verb == "doctor":
         return doctor.run(rest, out=out, err=err)
     if verb == "config":

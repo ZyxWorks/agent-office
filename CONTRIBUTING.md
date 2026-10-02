@@ -95,7 +95,7 @@ Run `bin/notify-probe`, and on macOS once more as `/usr/bin/python3 bin/notify-p
 It needs no herdr server and no network: it drives both against a fake ntfy
 on localhost.
 
-Touched `office install`, `office doctor` or the config (`bin/office`, `lib/`,
+Touched `office install`, `office tools`, `office doctor` or the config (`bin/office`, `lib/`,
 `config/`)? Run `bin/install-probe`. Every case runs in a throwaway `$HOME`; it needs `herdr` on
 your `PATH` but no herdr server. On macOS run it once more as
 `/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML
