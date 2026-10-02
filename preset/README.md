@@ -11,6 +11,7 @@ The daily look and keys of the office:
 |---|---|
 | [`herdr/config.toml`](herdr/config.toml) | herdr keys, sidebar rows, theme and sounds |
 | [`herdr/sounds/silent.mp3`](herdr/sounds/silent.mp3) | a tenth of a second of silence, the "agent finished" sound |
+| [`keys.txt`](keys.txt) | every office key on one screen; `office keys` prints it |
 | [`wezterm/wezterm.lua`](wezterm/wezterm.lua) | optional: WezTerm colours, Mac text keys, and a window that opens into herdr |
 | [`preset-probe`](preset-probe) | checks all of the above against herdr and WezTerm themselves |
 
@@ -83,6 +84,11 @@ These are the keys herdr really uses: the preset's, plus herdr's defaults for
 everything the preset leaves alone. `preset/preset-probe` checks this table
 against the herdr you have. `preset/preset-probe --list` prints every key.
 
+`office keys` prints [`keys.txt`](keys.txt): every herdr key the office has,
+herdr's defaults included, and the Mac text keys, on one 80 by 24 screen.
+`preset/preset-probe` checks that the sheet lists every key herdr really has
+and none it does not.
+
 ## Mac text keys
 
 WezTerm has no Mac text keys of its own (iTerm2 calls them "Natural Text
@@ -101,6 +107,10 @@ Claude Code, Codex and zsh all read:
 herdr only acts on keys it has a binding for. The preset binds none of these, so
 they go through herdr to the agent. `preset/preset-probe` checks both sides:
 what WezTerm sends, and that herdr leaves it alone.
+
+All six were tried in Claude Code 2.1.287 and Codex 0.159.2: each byte sent
+into the prompt of a real agent did what the table says. Option+Right moves to
+the end of the word, as readline does.
 
 Another terminal? Map the same keys to the same bytes there.
 

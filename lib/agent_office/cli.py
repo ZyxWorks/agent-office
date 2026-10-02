@@ -18,6 +18,7 @@ office: Agent Office, one command for the whole agent setup.
                                      showing every change and backing up what it replaces
   office config check                check your config, and the herdr config made from it
   office config show                 print the config in effect: defaults, your file, preset
+  office keys                        one screen of every office key (preset/keys.txt)
   office help | version
 
 Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, update,
@@ -78,4 +79,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return install.run(rest, out=out, err=err)
     if verb == "config":
         return _config(rest, out, err)
+    if verb == "keys":
+        # a text file, so changing a key means editing preset/keys.txt; preset-probe checks it
+        print((C.REPO / "preset" / "keys.txt").read_text(), end="", file=out)
+        return 0
     return _legacy(argv, err)

@@ -1194,6 +1194,7 @@ _office_help() {
   print -P "                 ${d}first, and collapsed panes are in the list too — they still${r}"
   print -P "                 ${d}cost RAM. One at a time: Ctrl-Space q on the pane itself.${r}"
   print -P "  ${g}office list${r}    Same as doctor."
+  print -P "  ${g}office keys${r}    One screen of every key in the herdr office (preset/)."
   print -P "  ${g}office update${r}  Pull the newest agent-office. Never happens on its own:"
   print -P "                 ${d}'office on' only tells you when you are behind.${r}"
   print -P "  ${g}office install${r} Move to Agent Office 1.0 (./install.sh). Shows every change"
@@ -1244,7 +1245,7 @@ office() {
   # a zoomed window does to the geometry underneath. The exemptions are the
   # verbs that only print, detach, or close the whole thing: those never read a
   # column, so taking the operator's zoom away for them would be rude.
-  [[ $cmd == (help|-h|--help|list|ls|status|doctor|check|install|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home|cd|goto|hop) ]] \
+  [[ $cmd == (help|-h|--help|keys|list|ls|status|doctor|check|install|update|upgrade|sweep|stale|break|pause|bg|away|brb|off|out|end|quit|stop|home|cd|goto|hop) ]] \
     || _office_unzoom "$(_office_here)"
   case $cmd in
     on|up|in|back|work|resume)
@@ -1484,6 +1485,11 @@ office() {
       # retired verbs, answered rather than fuzzy-matched as a repo name
       print -u2 "office: '$cmd' is gone — Ctrl-Space n picks what any pane is (or: office new --shell / --edit)"
       return 1 ;;
+    keys)
+      # The herdr office's keys, not this tmux office's (those are in `office help`):
+      # a text file, so changing a key means editing preset/keys.txt, which
+      # preset/preset-probe checks against herdr itself.
+      cat "$_OFFICE_HOME/preset/keys.txt" ;;
     help|-h|--help)
       _office_help ;;
     *)

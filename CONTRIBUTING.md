@@ -98,8 +98,8 @@ reader, so it proves the vendored one in `lib/vendor/`.
 
 Touched the preset (`preset/`)? Run `preset/preset-probe`. It needs `herdr`
 on your `PATH` but no herdr server: it asks herdr for its defaults and checks
-the effective keys, the key table in `preset/README.md`, the Mac text keys and
-the files for private paths.
+the effective keys, the key table in `preset/README.md`, the `office keys`
+sheet in `preset/keys.txt`, the Mac text keys and the files for private paths.
 
 Lifecycle commands that start, stop or update herdr, Firstmate or treehouse
 need an isolated lab run: a herdr session and Firstmate home made for the test,

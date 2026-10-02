@@ -200,6 +200,7 @@ jobs:
         run: herdr/meter-probe
 
       # the herdr preset against herdr's own check and defaults: no clash, the documented keys are
-      # the real ones, the Mac text keys pass through, nothing private. Needs no herdr server.
+      # the real ones, the `office keys` sheet matches them, the Mac text keys pass through, nothing
+      # private. Needs no herdr server.
       - name: preset-probe
         run: preset/preset-probe

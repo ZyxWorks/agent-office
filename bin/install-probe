@@ -220,6 +220,9 @@ print("the tmux office (0.x) still answers its own verbs")
 h = Home()
 r = h.run("--version")
 check("office --version", r.returncode == 0 and r.stdout.startswith("office "), r.stdout + r.stderr)
+r = h.run("keys")
+check("office keys prints the key sheet", r.returncode == 0
+      and r.stdout == (REPO / "preset" / "keys.txt").read_text(), r.stdout + r.stderr)
 r = h.run("install", "--theme")
 check("--theme points to bin/install-tmux", r.returncode == 2 and "bin/install-tmux" in r.stderr, r.stderr)
 if shutil.which("zsh"):
