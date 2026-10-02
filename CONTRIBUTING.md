@@ -90,8 +90,8 @@ something must prove it stopped only its own targets.
 Touched the meter (`herdr/`)? Run `herdr/meter-probe`. It needs no herdr
 server: it drives the meter against a fake herdr and fake transcripts.
 
-Touched `office install` or the config (`bin/office`, `lib/`, `config/`)? Run
-`bin/install-probe`. Every case runs in a throwaway `$HOME`; it needs `herdr` on
+Touched `office install`, `office doctor` or the config (`bin/office`, `lib/`,
+`config/`)? Run `bin/install-probe`. Every case runs in a throwaway `$HOME`; it needs `herdr` on
 your `PATH` but no herdr server. On macOS run it once more as
 `/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML
 reader, so it proves the vendored one in `lib/vendor/`.
@@ -111,5 +111,5 @@ CI runs on macOS and Ubuntu. Keep both green; they catch different bugs.
 ## Reporting a bug
 
 Include your OS, `herdr --version`, and for the meter the sidebar row and what
-you expected it to show. Once it exists (planned), paste `office doctor`
-output: it redacts local paths by default. Check it before posting anyway.
+you expected it to show. Paste `office doctor` output: it shows your home
+folder as `~`. Check it before posting anyway.

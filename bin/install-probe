@@ -11,7 +11,9 @@ touched. Each case below is a promise the README or CONTRIBUTING makes.
 """
 
 import hashlib
+import io
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -39,10 +41,14 @@ class Home:
         self.gen = self.state / "herdr" / "config.toml"
         self.link = self.home / ".local" / "bin" / "office"
 
-    def run(self, *args, cmd=None):
+    def env(self, **extra):
         env = {k: v for k, v in os.environ.items()
                if not k.startswith("XDG_") and k not in ("ZDOTDIR", "HERDR_CONFIG_PATH")}
-        env.update(HOME=str(self.home), PYTHONDONTWRITEBYTECODE="1")
+        env.update(HOME=str(self.home), PYTHONDONTWRITEBYTECODE="1", **extra)
+        return env
+
+    def run(self, *args, cmd=None, **extra):
+        env = self.env(**extra)
         # start_new_session: no controlling terminal, so a question can never block the probe
         # this probe's own Python runs office too, so `/usr/bin/python3 bin/install-probe` on macOS
         # (3.9, no tomllib) tests the vendored TOML reader
@@ -229,6 +235,99 @@ if shutil.which("zsh"):
     r = subprocess.run([str(REPO / "bin" / "office-tmux"), "help"], capture_output=True, text=True,
                        env=dict(os.environ, HOME=str(h.home)), stdin=subprocess.DEVNULL)
     check("bin/office-tmux help is the tmux office", r.returncode == 0 and "office on" in r.stdout, r.stderr)
+h.done()
+
+# --- office doctor ---------------------------------------------------------------------------
+# Fake programs on a PATH of their own, each where its owner would put it: a doctor run must never
+# depend on, or reach, what this machine has installed. Only git is real.
+
+
+def program(h, path, version, extra=""):
+    """A fake program at path under the throwaway home, linked from its PATH folder like an install."""
+    real = h.home / path
+    real.parent.mkdir(parents=True, exist_ok=True)
+    real.write_text(f'#!/bin/sh\n{extra}\n[ "$1" = --version ] && {{ echo "{version}"; exit 0; }}\nexit 1\n')
+    real.chmod(0o755)
+    link = h.home / "fakebin" / real.name.split(".")[0]
+    link.parent.mkdir(exist_ok=True)
+    if link != real:
+        os.symlink(real, link)
+
+
+def office_kit(h, integration="claude: current (v10) (/x)\ncodex: not installed (/y)"):
+    program(h, "brew/Cellar/herdr/0.9.1/bin/herdr", "herdr 0.9.1",
+            f'[ "$1 $2" = "integration status" ] && {{ printf "{integration}\\n"; exit 0; }}')
+    program(h, "fakebin/treehouse", "v3.1.0")
+    program(h, "brew/Cellar/jq/1.8.2/bin/jq", "jq-1.8.2")
+    program(h, "nm/bin/no-mistakes", "no-mistakes version v1.84.0 (4822244) 2026-09-26T08:31:07Z")
+    for tool in ("gh-axi", "chrome-devtools-axi", "lavish-axi", "quota-axi", "tasks-axi", "gnhf"):
+        program(h, f"node/lib/node_modules/{tool}/dist/bin/{tool}.js", "0.1.35")
+    program(h, "claude/versions/claude.2.1", "2.1.287 (Claude Code)")
+    program(h, "brew/Caskroom/codex/0.159.2/bin/codex", "codex-cli 0.159.2")
+    os.symlink(shutil.which("git"), h.home / "fakebin" / "git")
+    fm = h.home / "firstmate"
+    fm.mkdir()
+    git = ["git", "-C", str(fm), "-c", "user.name=probe", "-c", "user.email=probe@example.invalid"]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "probe"], check=True)
+    subprocess.run([*git, "remote", "add", "origin", "https://github.com/kunchenguid/firstmate.git"], check=True)
+    return subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+
+
+print("office doctor: a healthy office")
+h = Home()
+rev = office_kit(h)
+manifest = h.root / "components.toml"
+manifest.write_text((REPO / "config" / "components.toml").read_text()
+                    .replace('tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run\n\n'
+                             '[[component]]\nname = "jq"', 'tested = ["3.1.0"]\n\n[[component]]\nname = "jq"')
+                    .replace("[firstmate]\ntested = []", f'[firstmate]\ntested = ["{rev}"]'))
+sys.path.insert(0, str(REPO / "lib"))
+from agent_office import doctor  # noqa: E402
+out, err = io.StringIO(), io.StringIO()
+code = doctor.run([], env=h.env(PATH=str(h.home / "fakebin")), out=out, err=err, manifest=manifest)
+said = out.getvalue()
+check("exit 0 and no problems", code == 0 and said.rstrip().endswith("No problems."), said + err.getvalue())
+rows = {r[1]: r[2:] for r in (re.split(r"\s{2,}", l.strip()) for l in said.splitlines()) if r[0] in ("ok", "PROBLEM")}
+for name, want in (("herdr", ["0.9.1", "Homebrew (herdr)", "tested"]),
+                   ("treehouse", ["3.1.0", "itself (treehouse update)", "tested"]),
+                   ("jq", ["1.8.2", "Homebrew (jq)", "no version pinned"]),
+                   ("gh-axi", ["0.1.35", "npm, global (gh-axi)", "no version pinned"]),
+                   ("claude", ["2.1.287", "itself (claude update)", "no version pinned"]),
+                   ("herdr claude integration", ["current (v10)", "herdr", "current"]),
+                   ("firstmate", [rev[:12], "git, from firstmate.source", "tested"])):
+    check(f"{name}: {', '.join(want)}", rows.get(name) == want, said)
+h.done()
+
+print("office doctor: unknown is not healthy")
+h = Home()
+office_kit(h, integration="claude: current (v10) (/x)\ncodex: outdated (v7) (/y)")
+(h.home / "fakebin" / "jq").unlink()
+program(h, "fakebin/jq", "jq-1.8.2")                                  # owner unknown
+(h.home / "fakebin" / "gnhf").unlink()                                # missing
+lavish = next((h.home / "node").rglob("lavish-axi.js"))
+lavish.write_text("#!/bin/sh\nexit 1\n")                             # no version
+h.cfg.parent.mkdir(parents=True)
+h.cfg.write_text('schema = 1\n[firstmate]\nharness = "codex"\nsource = "https://example.invalid/fork.git"\n'
+                 'home = "~/no-such-home"\n[treehouse]\nroot = "~/no-such-pool"\n')
+before = h.snapshot()
+r = h.run("doctor", PATH=str(h.home / "fakebin"))
+check("exit 1", r.returncode == 1, r.stdout + r.stderr)
+for want in ("treehouse: 3.1.0 is not a version this release is tested with (tested: none yet)",
+             "jq: nothing says how ~/fakebin/jq is updated (owner unknown)",
+             "gnhf: gnhf is not on PATH",
+             "lavish-axi: `lavish-axi --version` gave no version",
+             "herdr codex integration: outdated (v7): `herdr integration install codex` installs it",
+             "firstmate: no remote of the checkout is the configured source https://example.invalid/fork.git",
+             "firstmate: commit ",
+             "firstmate home: no folder at ~/no-such-home (firstmate.home)",
+             "treehouse root: no folder at ~/no-such-pool (treehouse.root)"):
+    check(f"reports: {want}", want in r.stdout, r.stdout)
+check("9 problems, no more", "9 problem(s):" in r.stdout, r.stdout)
+check("your home is never printed", str(h.home) not in r.stdout + r.stderr, r.stdout)
+check("it changed nothing", h.snapshot() == before)
+r = h.run("doctor", "--fix")
+check("an unknown option is refused", r.returncode == 2 and "unknown option --fix" in r.stderr, r.stderr)
 h.done()
 
 print("PASS" if not fails else f"FAIL: {fails}")

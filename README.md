@@ -17,8 +17,9 @@ One `office` command to install, start, stop and update the lot.
 > the herdr-first version. Most of it is **planned** and does not exist yet.
 > Every command below is marked `planned` or `works today`, and only the
 > second kind is real. What is real today: the herdr meter plugin, the herdr
-> preset, the config file and `office install`, which writes it all in place
-> but starts nothing. Every other `office` verb is still the tmux office (0.x).
+> preset, the config file, `office install`, which writes it all in place
+> but starts nothing, and `office doctor`, which reports what is installed.
+> Every other `office` verb is still the tmux office (0.x).
 > See [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
 
 [The product page](https://zyxworks.github.io/agent-office/) ·
@@ -119,7 +120,7 @@ What each part does today:
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
-| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error), but nothing uses them yet: `office on`, `fm` and the meter wiring are planned |
+| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office doctor` reports `[firstmate]` and `treehouse.root`. Nothing else uses them yet: `office on`, `fm` and the meter wiring are planned |
 
 The generated herdr config is written to
 `~/.local/state/agent-office/herdr/config.toml`, next to the preset's sound. It
@@ -151,15 +152,29 @@ The rules the config follows:
 | `office off` | stop this office: show what will stop, let Firstmate persist and drain its workers, then stop the owned session and its meter. Repos and worktree pools are kept. | planned |
 | `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. | planned |
 | `office update` | update every component (the CLI, preset, meter, config, herdr, treehouse, Firstmate and the kunchenguid tools) to a tested set, each through its own updater. `--check` only plans. | planned |
-| `office status` / `office doctor` | read-only: installed and running versions, what the office owns, meter and integration health, Firstmate readiness, pending updates. Unknown is never reported as healthy. | planned |
+| `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home. Talks to no herdr server. Unknown is never reported as healthy: it exits 1 on any problem. | works today |
+| `office status` | read-only: what is running, what the office owns, meter health, pending updates and restarts. | planned |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. | planned |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. | planned |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
 
-Today, `office install`, `office config`, `office keys`, `office help` and
+Today, `office install`, `office config`, `office keys`, `office doctor`, `office help` and
 `office version` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
-1.0 commands replace them; they are not additions to them.
+1.0 commands replace them; they are not additions to them. The tmux office's own
+`doctor`, what runs and its RAM, is still there as `office list`.
+
+### What `office doctor` checks
+
+The components and the versions this release is tested with are data, in
+[`config/components.toml`](config/components.toml). A version is listed there
+only with the run that verified it. Today that is herdr 0.9.1, which CI pins.
+No treehouse version or Firstmate revision is verified yet, so `office doctor`
+reports both as not tested and exits 1 until a lab run adds them.
+
+Who updates a program is read from where it is installed: Homebrew, npm,
+Nix or the system's packages, or the tool itself when it has its own update
+command. Anything else is reported as an unknown owner, which is a problem.
 
 ### What `office install` writes
 
@@ -211,8 +226,9 @@ The public package holds nothing personal. These live only in your own
 - private apps and personal automation.
 
 Examples in this repo use placeholders, never a real machine's output.
-`office doctor` (planned) output is meant to be pasted into an issue, so it
-redacts local paths and identities by default.
+`office doctor` output is meant to be pasted into an issue, so it shows your
+home folder as `~`. It does print your configured Firstmate source and any
+path outside your home: read it before you post it.
 
 ## Platforms
 
@@ -223,7 +239,7 @@ tested there, so it is not claimed.
 
 ## What works today
 
-Four things are real right now:
+Five things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
    context size, and how long it has waited on you, in herdr's sidebar next to
@@ -243,7 +259,9 @@ Four things are real right now:
    herdr config generated from it, written without overwriting anything you
    made. See [What `office install` writes](#what-office-install-writes).
    `bin/install-probe` tests it in throwaway homes.
-4. **The tmux office (0.x)**, documented in
+4. **`office doctor`**: what is installed, who updates it and whether this
+   release is tested with it. See [What `office doctor` checks](#what-office-doctor-checks).
+5. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).
 
 ## The tmux office (legacy)
