@@ -8,6 +8,7 @@ import sys
 
 from . import config as C
 from . import install
+from . import notify
 
 VERSION = "1.0.0-dev"
 
@@ -19,6 +20,8 @@ office: Agent Office, one command for the whole agent setup.
   office config check                check your config, and the herdr config made from it
   office config show                 print the config in effect: defaults, your file, preset
   office keys                        one screen of every office key (preset/keys.txt)
+  office notify needs-you|pr-ready <message>
+                                     push one line to your phone, if [notify] is on
   office help | version
 
 Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, update,
@@ -79,6 +82,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return install.run(rest, out=out, err=err)
     if verb == "config":
         return _config(rest, out, err)
+    if verb == "notify":
+        return notify.run(rest, out=out, err=err)
     if verb == "keys":
         # a text file, so changing a key means editing preset/keys.txt; preset-probe checks it
         print((C.REPO / "preset" / "keys.txt").read_text(), end="", file=out)

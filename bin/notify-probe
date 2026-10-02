@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""notify-probe: `office notify` and the herdr/notify hook, against a fake ntfy on localhost.
+
+Every case runs in a throwaway $HOME. No herdr server, no network: the fake ntfy is a local HTTP
+server in this process, and the hook gets herdr's event payload in its environment, the way herdr
+hands it over. Each case is a promise the README makes.
+
+  bin/notify-probe
+  /usr/bin/python3 bin/notify-probe      # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OFFICE = REPO / "bin" / "office"
+HOOK = REPO / "herdr" / "notify"
+fails = 0
+got = []  # what the fake ntfy received: (path, headers, body)
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+class Ntfy(BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
+        got.append((self.path, dict(self.headers), body))
+        self.send_response(500 if self.path.endswith("/broken") else 200)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+srv = HTTPServer(("127.0.0.1", 0), Ntfy)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+URL = f"http://127.0.0.1:{srv.server_port}/probe-topic"
+
+root = Path(tempfile.mkdtemp(prefix="office-notify-probe."))
+home = root / "home"
+cfg = home / ".config" / "agent-office" / "config.toml"
+cfg.parent.mkdir(parents=True)
+env = {k: v for k, v in os.environ.items() if not k.startswith(("XDG_", "HERDR_"))}
+env.update(HOME=str(home), PYTHONDONTWRITEBYTECODE="1")
+# the hook runs bin/office through its #!, which finds python3 on PATH: put this probe's first,
+# so `/usr/bin/python3 bin/notify-probe` tests 3.9 there too
+shim = root / "bin"
+shim.mkdir()
+(shim / "python3").symlink_to(sys.executable)
+env["PATH"] = f"{shim}:{env.get('PATH', '')}"
+
+
+def config(text):
+    cfg.write_text("schema = 1\n" + text)
+
+
+def office(*args):
+    del got[:]
+    return subprocess.run([sys.executable, str(OFFICE), "notify", *args], env=env, capture_output=True,
+                          text=True, stdin=subprocess.DEVNULL)
+
+
+def hook(status, context=None, **data):
+    del got[:]
+    payload = {"event": "pane.agent_status_changed",
+               "data": {"type": "pane_agent_status_changed", "pane_id": "w1:p1", "workspace_id": "w1",
+                        "agent_status": status, **data}}
+    e = dict(env, HERDR_PLUGIN_EVENT="pane.agent_status_changed", HERDR_PLUGIN_EVENT_JSON=json.dumps(payload))
+    if context is not None:
+        e["HERDR_PLUGIN_CONTEXT_JSON"] = json.dumps(context)
+    return subprocess.run(["sh", str(HOOK)], env=e, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+
+
+print("off by default")
+r = office("needs-you", "hello")
+check("no config file: nothing sent, exit 0", r.returncode == 0 and not got and "off" in r.stdout, r.stdout + r.stderr)
+config(f'[notify]\nurl = "{URL}"\n')
+r = office("needs-you", "hello")
+check("a url alone does not turn it on", r.returncode == 0 and not got, r.stdout + r.stderr)
+
+print("on")
+config(f'[notify]\nenabled = true\nurl = "{URL}"\n')
+r = office("needs-you", "claude is waiting on you")
+check("needs-you is sent", r.returncode == 0 and len(got) == 1 and got[0][2] == "claude is waiting on you",
+      r.stdout + r.stderr)
+check("to the configured topic, with a title and high priority",
+      got and got[0][0] == "/probe-topic" and got[0][1].get("Title") == "Agent Office: needs you"
+      and got[0][1].get("Priority") == "high", str(got))
+r = office("pr-ready", "https://example.invalid/pr/1")
+check("pr-ready is sent", r.returncode == 0 and len(got) == 1 and got[0][1].get("Title") == "Agent Office: PR ready",
+      r.stdout + r.stderr)
+r = office("needs-you", "ünïcode ✓")
+check("a UTF-8 message survives", r.returncode == 0 and got and got[0][2] == "ünïcode ✓", r.stdout + r.stderr)
+
+print("quiet")
+config(f'[notify]\nenabled = true\nquiet = true\nurl = "{URL}"\n')
+r = office("pr-ready", "x")
+check("quiet holds pr-ready", r.returncode == 0 and not got and "quiet" in r.stdout, r.stdout + r.stderr)
+r = office("needs-you", "x")
+check("quiet still lets needs-you through", r.returncode == 0 and len(got) == 1, r.stdout + r.stderr)
+
+print("failures are reported, and keep the URL private")
+config(f'[notify]\nenabled = true\nurl = "{URL[:-len("probe-topic")]}broken"\n')
+r = office("needs-you", "x")
+check("a provider error exits 1", r.returncode == 1 and "HTTP 500" in r.stderr, r.stdout + r.stderr)
+check("and does not print the URL", "broken" not in r.stdout + r.stderr, r.stderr)
+config('[notify]\nenabled = true\nurl = "http://127.0.0.1:1/x"\n')
+r = office("needs-you", "x")
+check("an unreachable provider exits 1", r.returncode == 1 and "not sent" in r.stderr, r.stdout + r.stderr)
+for text, says in [
+    ("[notify]\nenabled = true\n", "notify.url is required"),
+    ('[notify]\nurl = "ntfy.sh/x"\n', "notify.url must be an http"),
+    ('[notify]\nprovider = "pushover"\n', "notify.provider must be one of"),
+    ('[notify]\nquiet = "yes"\n', "notify.quiet must be true or false"),
+    ('[notify]\ntopic = "x"\n', "unknown key notify.topic"),
+]:
+    config(text)
+    r = office("needs-you", "x")
+    check(f"refused: {says}", r.returncode == 1 and says in r.stderr and not got, r.stdout + r.stderr)
+config(f'[notify]\nenabled = true\nurl = "{URL}"\n')
+for args in [(), ("needs-you",), ("bogus", "x"), ("needs-you", " ")]:
+    r = office(*args)
+    check(f"usage error: {' '.join(args) or '(none)'}", r.returncode == 2 and "usage" in r.stderr and not got,
+          r.stdout + r.stderr)
+
+print("the herdr hook")
+r = hook("blocked", display_agent="claude", title="fix the login bug")
+check("blocked pushes needs-you", r.returncode == 0 and len(got) == 1
+      and got[0][1].get("Title") == "Agent Office: needs you", r.stdout + r.stderr)
+check("naming the agent and the pane", got and got[0][2] == "claude is waiting on you in fix the login bug", str(got))
+r = hook("blocked", context={"workspace_label": "api"}, agent="codex")
+check("the workspace label wins when herdr gives one", got and got[0][2] == "codex is waiting on you in api", str(got))
+for status in ("working", "idle", "done", "unknown"):
+    r = hook(status, display_agent="claude")
+    check(f"{status} sends nothing", r.returncode == 0 and not got, r.stdout + r.stderr)
+r = subprocess.run(["sh", str(HOOK)], env=dict(env, HERDR_PLUGIN_EVENT_JSON="not json"), capture_output=True,
+                   text=True)
+check("a payload it cannot read sends nothing", r.returncode == 0 and not got, r.stdout + r.stderr)
+config(f'[notify]\nurl = "{URL}"\n')
+r = hook("blocked", display_agent="claude")
+check("off: blocked sends nothing", r.returncode == 0 and not got, r.stdout + r.stderr)
+
+print("nothing private in the package")
+leaks = [p for p in ("config/defaults.toml", "config/config.toml")
+         if "ntfy.sh/" in (REPO / p).read_text() and "<a-long-random-topic>" not in (REPO / p).read_text()]
+check("no real topic in the shipped config", not leaks, str(leaks))
+
+srv.shutdown()
+shutil.rmtree(root)
+print("notify-probe: " + ("all pass" if not fails else f"{fails} failed"))
+sys.exit(1 if fails else 0)

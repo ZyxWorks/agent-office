@@ -170,6 +170,33 @@ Verified on Herdr 0.9.1 in a named isolated session: refresh retained the PID,
 kill plus the start hook produced a new PID, the server stayed running, and
 teardown verified that the default session was unchanged.
 
+## Today: phone notifications
+
+`works today`, off by default. With the meter plugin linked (above), herdr runs
+`herdr/notify` on every agent status change. When an agent turns blocked,
+herdr's "needs you", it pushes one line through [ntfy](https://ntfy.sh):
+
+```
+Agent Office: needs you
+claude is waiting on you in api
+```
+
+Install the ntfy app on your phone and subscribe to a topic. On ntfy.sh anyone
+who knows a topic can read it, so make it long and random, or use your own
+server. Then turn it on in `~/.config/agent-office/config.toml`:
+
+```toml
+[notify]
+enabled = true
+url = "https://ntfy.sh/<a-long-random-topic>"
+quiet = false                         # true: only "needs you" gets through
+```
+
+Try it with `office notify needs-you "hello"`. A PR is not a herdr event, so
+whatever knows a PR is ready calls `office notify pr-ready <url>` itself;
+quiet mode holds those. The URL stays in your file: no default ships, and a
+failed send never prints it.
+
 ## Today: the preset by hand
 
 `works today`. The office's herdr keys, sidebar, theme and silent "done"

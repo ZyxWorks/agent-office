@@ -88,7 +88,8 @@ jobs:
           sh -n bin/office-ctx
           sh -n bin/office-cwd
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
-            bin/office bin/install-probe lib/agent_office/*.py
+            bin/office bin/install-probe bin/notify-probe lib/agent_office/*.py
+          sh -n herdr/notify
 
       # tmux refuses to parse a config it cannot read, and a broken one would
       # otherwise only surface as "the keys do nothing" inside a probe.
@@ -129,6 +130,14 @@ jobs:
       - name: install-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
         run: /usr/bin/python3 bin/install-probe
+
+      # `office notify` and the herdr hook, against a fake ntfy on localhost. No server, no network.
+      - name: notify-probe
+        run: bin/notify-probe
+
+      - name: notify-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        run: /usr/bin/python3 bin/notify-probe
 
       # The tmux office's (0.x) installer, until its last release is tagged.
       # A fresh HOME, so the installer is tested the way a stranger meets it:

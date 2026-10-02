@@ -1,0 +1,16 @@
+#!/bin/sh
+# notify - herdr's pane.agent_status_changed hook: when an agent turns blocked (waiting on a
+# permission prompt or a question, herdr's "needs you"), push it through `office notify`.
+# Every other status change exits here, before any Python starts, so a busy office pays nothing.
+# Whether anything is sent, and where, is [notify] in your config.toml: off by default.
+command -v jq >/dev/null || exit 0
+# The payload's nesting is herdr's to change; find the one object that carries the status.
+ev=$(printf '%s' "${HERDR_PLUGIN_EVENT_JSON:-}" | jq -c 'first(.. | objects | select(has("agent_status")))' 2>/dev/null)
+[ "$(printf '%s' "$ev" | jq -r '.agent_status // empty' 2>/dev/null)" = blocked ] || exit 0
+agent=$(printf '%s' "$ev" | jq -r '.display_agent // .agent // "an agent"')
+where=$(printf '%s' "${HERDR_PLUGIN_CONTEXT_JSON:-}" | jq -r '.workspace_label // empty' 2>/dev/null)
+[ -n "$where" ] || where=$(printf '%s' "$ev" | jq -r '.title // empty')
+msg="$agent is waiting on you${where:+ in $where}"
+office=$(cd "$(dirname "$0")/.." && pwd)/bin/office
+[ -x "$office" ] || office=office
+exec "$office" notify needs-you "$msg" </dev/null

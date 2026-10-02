@@ -17,8 +17,8 @@ One `office` command to install, start, stop and update the lot.
 > the herdr-first version. Most of it is **planned** and does not exist yet.
 > Every command below is marked `planned` or `works today`, and only the
 > second kind is real. What is real today: the herdr meter plugin, the herdr
-> preset, the config file and `office install`, which writes it all in place
-> but starts nothing. Every other `office` verb is still the tmux office (0.x).
+> preset, opt-in phone notifications, the config file and `office install`,
+> which writes it all in place but starts nothing. Every other `office` verb is still the tmux office (0.x).
 > See [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
 
 [The product page](https://zyxworks.github.io/agent-office/) ·
@@ -119,6 +119,7 @@ What each part does today:
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
+| `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error), but nothing uses them yet: `office on`, `fm` and the meter wiring are planned |
 
 The generated herdr config is written to
@@ -155,8 +156,9 @@ The rules the config follows:
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. | planned |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. | planned |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
+| `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. | works today |
 
-Today, `office install`, `office config`, `office keys`, `office help` and
+Today, `office install`, `office config`, `office keys`, `office notify`, `office help` and
 `office version` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them.
@@ -223,7 +225,7 @@ tested there, so it is not claimed.
 
 ## What works today
 
-Four things are real right now:
+Five things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
    context size, and how long it has waited on you, in herdr's sidebar next to
@@ -243,7 +245,11 @@ Four things are real right now:
    herdr config generated from it, written without overwriting anything you
    made. See [What `office install` writes](#what-office-install-writes).
    `bin/install-probe` tests it in throwaway homes.
-4. **The tmux office (0.x)**, documented in
+4. **Phone notifications**, opt-in: `office notify` and the meter plugin's
+   hook push "needs you" when an agent turns blocked. See
+   [Getting started](GETTING-STARTED.md#today-phone-notifications).
+   `bin/notify-probe` tests both against a fake ntfy.
+5. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).
 
 ## The tmux office (legacy)
