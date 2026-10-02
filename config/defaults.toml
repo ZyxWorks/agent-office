@@ -23,3 +23,11 @@ enabled = true
 interval_seconds = 30
 warn_tokens = 200000
 alarm_tokens = 600000
+
+# Phone notifications: off until you turn them on. The push URL is yours and private, so it has
+# no default: set it in your own config.toml, never in a repo.
+[notify]
+enabled = false
+provider = "ntfy"
+# url: where to push, for ntfy the server and topic. Unset means nothing can be sent.
+quiet = false                         # true: only "needs you" gets through

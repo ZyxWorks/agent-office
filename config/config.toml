@@ -26,6 +26,12 @@ schema = 1
 # warn_tokens = 200000
 # alarm_tokens = 600000
 
+# [notify]                            # phone notifications, off by default
+# enabled = true
+# provider = "ntfy"
+# url = "https://ntfy.sh/<a-long-random-topic>"   # anyone who knows a ntfy.sh topic can read it
+# quiet = false                       # true: only "needs you" gets through
+
 # Anything herdr's own config.toml takes goes under [herdr], unchanged. It is merged over the
 # Agent Office preset: a table merges key by key, any other value replaces the preset's.
 # [herdr.ui]

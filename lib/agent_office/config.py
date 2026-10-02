@@ -111,6 +111,15 @@ def _boolean(v):
     return None if isinstance(v, bool) else "must be true or false"
 
 
+def _url(v):
+    err = _text(v)
+    if err:
+        return err
+    if not re.fullmatch(r"https?://[^\s/]+(/\S*)?", v):
+        return "must be an http:// or https:// URL, with no spaces"
+    return None
+
+
 def _int_in(lo, hi):
     def check(v):
         # bool is an int in Python; `true` is not a number of seconds
@@ -134,6 +143,12 @@ KEYS = {
         "interval_seconds": _int_in(5, 3600),
         "warn_tokens": _int_in(1000, 100_000_000),
         "alarm_tokens": _int_in(1000, 100_000_000),
+    },
+    "notify": {
+        "enabled": _boolean,
+        "provider": _one_of("ntfy"),
+        "url": _url,
+        "quiet": _boolean,
     },
 }
 
@@ -194,6 +209,9 @@ def effective(user: dict | None, where: str) -> dict:
     meter = out.get("meter", {})
     if not problems and meter.get("warn_tokens", 0) >= meter.get("alarm_tokens", 0):
         problems.append(f"{where}: meter.warn_tokens must be below meter.alarm_tokens")
+    notify = out.get("notify", {})
+    if not problems and notify.get("enabled") and not notify.get("url"):
+        problems.append(f"{where}: notify.url is required when notify.enabled is true")
     if problems:
         raise ConfigError(problems)
     out["herdr"] = merge(read_toml(PRESET, str(PRESET)), (user or {}).get("herdr", {}))

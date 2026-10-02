@@ -2,7 +2,7 @@ id = "agent-office.meter"
 name = "Agent Office meter"
 version = "0.2.0"
 min_herdr_version = "0.9.0"
-description = "Context size, model and transcript age for Claude Code and Codex panes, on the sidebar"
+description = "Context size, model and transcript age for Claude Code and Codex panes, on the sidebar, and an opt-in phone push when an agent needs you"
 platforms = ["linux", "macos"]
 
 [[startup]]
@@ -13,3 +13,8 @@ id = "refresh"
 title = "Refresh meter now"
 contexts = ["workspace"]
 command = ["sh", "meter", "once"]
+
+# off unless [notify] is on in your Agent Office config.toml; see herdr/notify
+[[events]]
+on = "pane.agent_status_changed"
+command = ["sh", "notify"]

@@ -17,10 +17,10 @@ One `office` command to install, start, stop and update the lot.
 > the herdr-first version. Most of it is **planned** and does not exist yet.
 > Every command below is marked `planned` or `works today`, and only the
 > second kind is real. What is real today: the herdr meter plugin, the herdr
-> preset, the config file, `office install`, which writes it all in place
-> but starts nothing, `office tools`, which installs the tools that are
-> missing, `office doctor`, which reports what is installed, and `fm` and
-> `fm restart`. Every other `office` verb is still the tmux office (0.x).
+> preset, opt-in phone notifications, the config file, `office install`, which
+> writes it all in place but starts nothing, `office tools`, which installs the
+> tools that are missing, `office doctor`, which reports what is installed, and
+> `fm` and `fm restart`. Every other `office` verb is still the tmux office (0.x).
 > See [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
 
 [The product page](https://zyxworks.github.io/agent-office/) ·
@@ -128,6 +128,7 @@ What each part does today:
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
+| `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm` uses `office.session` and `[firstmate]` except `source`. Nothing else uses them yet: `office on` is planned |
 
 The generated herdr config is written to
@@ -165,8 +166,9 @@ The rules the config follows:
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` (planned) will start it. | works today |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. | works today |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
+| `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. | works today |
 
-Today, `office install`, `office config`, `office keys`, `office tools`, `office doctor`, `office help`,
+Today, `office install`, `office config`, `office keys`, `office notify`, `office tools`, `office doctor`, `office help`,
 `office version`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
@@ -314,7 +316,7 @@ tested there, so it is not claimed.
 
 ## What works today
 
-Seven things are real right now:
+Eight things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
    context size, and its transcript age, in herdr's sidebar next to herdr's
@@ -335,15 +337,19 @@ Seven things are real right now:
    herdr config generated from it, written without overwriting anything you
    made. See [What `office install` writes](#what-office-install-writes).
    `bin/install-probe` tests it in throwaway homes.
-4. **`office doctor`**: what is installed, who updates it and whether this
+4. **Phone notifications**, opt-in: `office notify` and the meter plugin's
+   hook push "needs you" when an agent turns blocked. See
+   [Getting started](GETTING-STARTED.md#today-phone-notifications).
+   `bin/notify-probe` tests both against a fake ntfy.
+5. **`office doctor`**: what is installed, who updates it and whether this
    release is tested with it. See [What `office doctor` checks](#what-office-doctor-checks).
-5. **`office tools`**: every tool of the office that is missing, installed at
+6. **`office tools`**: every tool of the office that is missing, installed at
    a pinned version through its owner. See
    [What `office tools` installs](#what-office-tools-installs).
-6. **`fm` and `fm restart`**: open the office's Firstmate, and restart it
+7. **`fm` and `fm restart`**: open the office's Firstmate, and restart it
    only after it has saved its work. See [How `fm` finds Firstmate](#how-fm-finds-firstmate).
    `bin/fm-probe` tests it against a throwaway herdr session.
-7. **The tmux office (0.x)**, documented in
+8. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).
 
 ## The tmux office (legacy)
