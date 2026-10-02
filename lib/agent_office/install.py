@@ -4,6 +4,8 @@ What it writes, and nothing else:
 
 - your config, ~/.config/agent-office/config.toml, from a starter, only when there is none,
 - herdr's config, generated from the preset and your [herdr] keys, under the state folder,
+- the meter's settings, your [meter] keys, under the state folder, where the meter plugin reads
+  them on every pass,
 - the `office` command, a link in ~/.local/bin,
 - and it removes the line that loads the tmux office's (0.x) `office` function from your zsh
   startup files: zsh finds a function before any command on PATH, so while it is loaded the
@@ -224,7 +226,7 @@ class Installer:
 
     # --- plan, ask, apply ---------------------------------------------------------------------
 
-    def plan(self, cfg_text: Optional[bytes], herdr_text: str) -> list:
+    def plan(self, cfg_text: Optional[bytes], herdr_text: str, meter_text: str) -> list:
         steps = []
         cfg = C.config_path(self.env)
         if cfg_text is not None:
@@ -236,6 +238,8 @@ class Installer:
                                     "herdr config, generated from the preset and your [herdr] keys"))
         for f in sorted(C.PRESET_SOUNDS.iterdir()):
             steps.append(self.want_file(herdr / "sounds" / f.name, f.read_bytes(), "the preset's sound"))
+        steps.append(self.want_file(C.meter_path(self.env), meter_text.encode(),
+                                    "meter settings, your [meter] keys, read by the meter plugin"))
         steps.append(self.want_link(self.home / ".local" / "bin" / "office",
                                     str(C.REPO / "bin" / "office"), "the office command"))
         # zsh reads ~/.zshenv first, and that is where ZDOTDIR is usually set for the rest
@@ -309,6 +313,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
             starter = C.STARTER.read_bytes()
             cfg = C.effective(C.tomllib.loads(starter.decode()), str(C.STARTER))
         herdr_text = C.herdr_config(cfg)
+        meter_text = C.meter_settings(cfg)
     except C.ConfigError as e:
         print("office install: the config has problems. Nothing was changed.", file=err)
         for p in e.problems:
@@ -326,7 +331,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
             print(f"  Look at the [herdr] keys in {inst.show(cfg_path)}.", file=err)
         return 1
 
-    steps = inst.plan(starter, herdr_text)
+    steps = inst.plan(starter, herdr_text, meter_text)
     inst.say(f"office install{' --check' if check_only else ''}: config {inst.show(cfg_path)}")
     inst.print_plan(steps)
     asks = [s for s in steps if s.asks]
@@ -360,9 +365,11 @@ usage: office install [--check] [--yes]
 
 Check your config, then write what the office needs, showing every change first:
 your config (a starter, only if there is none), herdr's config generated from the preset and
-your [herdr] keys, the office command in ~/.local/bin, and the line that loads the tmux
-office's (0.x) function removed from your zsh startup files. Anything it replaces or edits is
-backed up first. It starts nothing and never touches ~/.config/herdr or ~/.tmux.conf.
+your [herdr] keys, the meter's settings from your [meter] keys, the office command in
+~/.local/bin, and the line that loads the tmux office's (0.x) function removed from your zsh
+startup files. Anything it replaces or edits is backed up first. It starts nothing and never
+touches ~/.config/herdr or ~/.tmux.conf. A running meter reads its new settings on its next
+pass; a running herdr needs a restart (or `herdr server reload-config`) to load its new config.
 
   --check   show what it would do, change nothing
   --yes     do not ask before replacing or editing (backups are still made)"""

@@ -57,7 +57,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 |---|---|---|
 | [herdr](https://herdr.dev) | terminal sessions, panes, tabs, and each agent's native state (working, idle, done, blocked) | herdr upstream |
 | Agent Office herdr preset | keys, sidebar, theme and a silent "done" sound, so the daily look is the default look, plus an optional WezTerm example with Mac text keys | this repo ([`preset/`](preset), works today by hand) |
-| Agent Office meter | a herdr plugin that shows how full each agent's context window is, and how long it has waited on you, in the sidebar | this repo ([`herdr/`](herdr), works today) |
+| Agent Office meter | a herdr plugin that shows how full each agent's context window is, and its transcript age, in the sidebar | this repo ([`herdr/`](herdr), works today) |
 | [Firstmate](https://github.com/kunchenguid/firstmate) | supervises coding agents: dispatch, status, review, cleanup | Firstmate upstream |
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf`, `backpass` | [their upstreams](https://github.com/kunchenguid) |
@@ -128,7 +128,7 @@ What each part does today:
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
-| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office doctor` reports `[firstmate]` and `treehouse.root`. Nothing else uses them yet: `office on`, `fm` and the meter wiring are planned |
+| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. Nothing else uses them yet: `office on` and `fm` are planned |
 
 The generated herdr config is written to
 `~/.local/state/agent-office/herdr/config.toml`, next to the preset's sound. It
@@ -160,7 +160,7 @@ The rules the config follows:
 | `office off` | stop this office: show what will stop, let Firstmate persist and drain its workers, then stop the owned session and its meter. Repos and worktree pools are kept. | planned |
 | `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. | planned |
 | `office update` | update every component (the CLI, preset, meter, config, herdr, treehouse, Firstmate and the kunchenguid tools) to a tested set, each through its own updater. `--check` only plans. | planned |
-| `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home. Talks to no herdr server. Unknown is never reported as healthy: it exits 1 on any problem. | works today |
+| `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. | works today |
 | `office status` | read-only: what is running, what the office owns, meter health, pending updates and restarts. | planned |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. | planned |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. | planned |
@@ -189,6 +189,19 @@ Who updates a program is read from where it is installed: Homebrew, npm,
 Nix or the system's packages, or the tool itself when it has its own update
 command. Anything else is reported as an unknown owner, which is a problem.
 
+Installed is not active, so for the herdr config and the meter it shows both:
+
+- **installed**: whether the generated herdr config and the meter settings
+  still match your config (if not, run `office install`), and which meter
+  folder herdr links.
+- **active**, only while the office's herdr session (`office.session`) runs:
+  the config that session started with, and the version, settings and last
+  pass of the meter running in it. herdr reports neither, so they come from
+  the meter plugin's own records in herdr's plugin state folder. A generated
+  config that changed after the session started counts as not active: herdr
+  does not report a `herdr server reload-config`, so only a restart is proof.
+  The one thing it asks herdr is whether that session's server runs.
+
 ### What `office tools` installs
 
 The same list, [`config/components.toml`](config/components.toml), says how
@@ -214,6 +227,7 @@ Codex) or Firstmate, and it starts nothing.
 |---|---|---|
 | `~/.config/agent-office/config.toml` | your config, from a starter | never touched again: it is yours |
 | `~/.local/state/agent-office/herdr/` | the generated herdr config and the preset's sound | updated if Agent Office wrote it and nobody changed it since; otherwise shown, backed up, asked |
+| `~/.local/state/agent-office/meter.json` | your `[meter]` keys, which the meter plugin reads on every pass | the same |
 | `~/.local/bin/office` | a link to `bin/office` in your checkout | the same: replaced only after a backup and a yes |
 | `~/.zshrc` and the other zsh startup files | the line that loads the tmux office's `office` function removed: zsh finds a function before any command, so it would hide the 1.0 one | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove |
 
@@ -274,12 +288,13 @@ tested there, so it is not claimed.
 Five things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
-   context size, and how long it has waited on you, in herdr's sidebar next to
-   herdr's own state. Setup by hand is in [Getting started](GETTING-STARTED.md#today-the-meter-by-hand).
+   context size, and its transcript age, in herdr's sidebar next to herdr's
+   own state. Setup by hand is in [Getting started](GETTING-STARTED.md#today-the-meter-by-hand).
    It supports Claude Code, Codex, and Claude Code run against a local Ollama
-   model; any agent it cannot identify stays blank rather than guessing. Two
-   Codex agents in the same directory can show the same number, because Codex
-   is matched by directory. `herdr/meter-probe` tests it without a herdr
+   model; any agent it cannot identify stays blank rather than guessing. Codex
+   is matched by the session id herdr's Codex integration reports; without it,
+   by directory, and two Codex agents in one directory show `?` rather than a
+   number that may be the other's. `herdr/meter-probe` tests it without a herdr
    server.
 2. **The herdr preset**, in [`preset/`](preset): the office's keys, sidebar,
    theme and silent "done" sound as a herdr `config.toml`, and an optional
