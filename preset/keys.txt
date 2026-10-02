@@ -1,0 +1,23 @@
+AGENT OFFICE KEYS    prefix = ctrl+space: press it, let go, then the key
+
+PANES                                     TABS
+shift+arrow          jump to a pane       prefix+c          new tab
+prefix+arrow         jump to a pane       prefix+space      next tab
+prefix+shift+arrow   swap with that pane  prefix+p          previous tab
+prefix+tab           next pane            prefix+1..9       tab by number
+prefix+shift+tab     previous pane        prefix+shift+t    rename tab
+prefix+n             new pane right       prefix+shift+x    close tab
+prefix+minus         new pane below
+prefix+q             close pane           WORKSPACES
+prefix+z             zoom, and back       prefix+w          pick a workspace
+prefix+r             resize mode          prefix+shift+n    new workspace
+prefix+shift+p       rename pane          prefix+shift+g    new worktree
+prefix+enter         copy mode            prefix+shift+w    rename workspace
+prefix+e             edit scrollback      prefix+shift+d    close workspace
+HERDR
+prefix+g   navigator       prefix+b   sidebar         prefix+s         settings
+prefix+o   notification    prefix+?   all keys        prefix+shift+r   reload
+prefix+d   leave herdr, everything keeps running      ctrl+v   image (remote)
+TEXT  in Claude, Codex and the shell, with the WezTerm example
+cmd+left   line start      opt+left   word back       cmd+backspace    del line
+cmd+right  line end        opt+right  word forward    opt+backspace    del word
