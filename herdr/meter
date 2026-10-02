@@ -6,24 +6,37 @@
 #
 # $ctx is what the model was last handed: input + cache-creation + cache-read on
 # the newest usage record, the same number office-ctx shows and /context uses.
-# One ▲ (amber) past min(METER_WARN, 50% of window), two ▲▲ (red) past
-# min(METER_ALARM, 75% of window). Defaults: 200k / 600k; unmarked is green.
+# One ▲ (amber) past min(warn, 50% of window), two ▲▲ (red) past
+# min(alarm, 75% of window). Defaults: 200k / 600k; unmarked is green.
 # $model is the latest session model, shortened for the sidebar. Window sizes
 # live in model-windows.tsv; unknown models use its 1M fallback.
 #
-# $turn is how long a desk has waited on you (idle, done, or blocked on a
-# permission prompt), read from the transcript's mtime. Together with $ctx it says
-# what waking the desk costs: past an hour the provider has dropped its cache, so
-# the next prompt is charged as a new conversation, and that cost grows with the
-# context. So past an hour the clock shows whole hours only (the sidebar turns it
-# red on the "h"): the minutes no longer matter, and "blocked · 12h · 612k▲▲"
-# still fits the sidebar's 26 columns.
+# $turn is transcript age: how long since the agent's transcript was last
+# written, shown while herdr says the pane is idle, done or blocked on a
+# permission prompt. It is a hint for how long a desk has sat, not a measure of
+# how long it has waited on you, and it knows nothing about a provider's prompt
+# cache or billing. Past an hour it shows whole hours only, so
+# "blocked · 12h · 612k▲▲" still fits the sidebar's 26 columns.
+#
+# Settings: `office install` writes the [meter] keys of the Agent Office config
+# to $SETTINGS below, and every pass reads it again, so a change reaches a
+# running meter without a restart. When that file exists it wins over the
+# METER_EVERY, METER_WARN and METER_ALARM environment variables: a herdr server
+# keeps the environment it started with, so a variable exported later never
+# reaches it. A file that does not check out is not used, and the status says so.
+#
+# Status: each pass of the loop writes what it runs with (version, settings and
+# their source, last pass) to meter.<socket key>.json next to its pid file, for
+# `office doctor`. A status that stops changing means the meter stopped.
 #
 # Herdr already knows which session lives in a Claude pane (its integration
 # reports the id on SessionStart, and again after /clear, /compact, --resume),
 # so there is no process-group hunt: the id names the transcript directly.
-# Codex has no pane session id, but its rollout metadata records the launch cwd;
-# the pane's foreground_cwd chooses among the newest rollouts for that desk.
+# Its Codex integration reports Codex's session id the same way, and the
+# rollout file is named after it. Without that id, the rollout is chosen by the
+# launch cwd its metadata records, which is a guess: two Codex panes in one
+# directory cannot be told apart, so each shows ctx "?" instead of a number
+# that may be the other's.
 # A local model launched through `ollama launch claude` uses Claude Code's
 # transcript shape and is covered by the Claude reader; a direct local runtime
 # without that pane-owned transcript is intentionally left blank.
@@ -34,16 +47,51 @@
 # boundary newer than any usage means the old number is a lie: show nothing
 # until the next reply brings a real one.
 #
+# Every token is reported with a time to live of four passes, so whatever the
+# meter stops reporting (a closed pane, a meter that was disabled or stopped)
+# expires from the sidebar instead of staying there stale.
+#
 # `meter` loops; `meter once` does one pass. The loop exits after the herdr
 # server has been stopped for three passes; the plugin's startup hook starts it again.
 
 H=${HERDR_BIN_PATH:-herdr}
 P=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects
 CP=${CODEX_HOME:-$HOME/.codex}/sessions
-EVERY=${METER_EVERY:-30}
-WARN=${METER_WARN:-200000}
-ALARM=${METER_ALARM:-600000}
-MODELS=$(cd "$(dirname "$0")" && pwd)/model-windows.tsv
+ROOT=$(cd "$(dirname "$0")" && pwd)
+MODELS=$ROOT/model-windows.tsv
+VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$ROOT/herdr-plugin.toml")
+# XDG says a relative value is invalid and must be ignored, as office install does
+case ${XDG_STATE_HOME:-} in /*) SETTINGS=$XDG_STATE_HOME ;; *) SETTINGS=$HOME/.local/state ;; esac
+SETTINGS=$SETTINGS/agent-office/meter.json
+STATUS=${HERDR_PLUGIN_STATE_DIR:-${TMPDIR:-/tmp}}/meter.$(printf %s "${HERDR_SOCKET_PATH:-default}" | cksum | cut -d' ' -f1).json
+
+settings() { # -> ON EVERY WARN ALARM SOURCE, from the settings file, else the environment, else defaults
+  ON=true EVERY=${METER_EVERY:-30} WARN=${METER_WARN:-200000} ALARM=${METER_ALARM:-600000} SOURCE=defaults
+  [ -n "${METER_EVERY:-}${METER_WARN:-}${METER_ALARM:-}" ] && SOURCE=environment
+  [ -e "$SETTINGS" ] || return 0
+  # the same limits office install checks; a number jq prints as 1e+08 fails the case below
+  got=$(jq -r 'select(.schema == 1 and (.enabled | type) == "boolean"
+      and ([.interval_seconds, .warn_tokens, .alarm_tokens] | all(type == "number" and . == floor))
+      and .interval_seconds >= 5 and .interval_seconds <= 3600 and .warn_tokens >= 1000
+      and .alarm_tokens <= 100000000 and .warn_tokens < .alarm_tokens)
+    | "\(.enabled) \(.interval_seconds) \(.warn_tokens) \(.alarm_tokens)"' "$SETTINGS" 2>/dev/null)
+  case $got in
+    true\ [0-9]*\ [0-9]*\ [0-9]*|false\ [0-9]*\ [0-9]*\ [0-9]*)
+      # shellcheck disable=SC2086 # four checked words
+      set -- $got; ON=$1 EVERY=$2 WARN=$3 ALARM=$4 SOURCE=$SETTINGS ;;
+    *) SOURCE="$SOURCE ($SETTINGS is not valid, so it is not used)" ;;
+  esac
+}
+
+status() { # what this loop runs with, for office doctor; written whole, then renamed over the old one
+  jq -n --arg version "$VERSION" --arg root "$ROOT" --argjson pid "$$" --arg socket "${HERDR_SOCKET_PATH:-}" \
+    --argjson started "$STARTED" --argjson pass "$(date +%s)" --arg source "$SOURCE" --argjson enabled "$ON" \
+    --argjson every "$EVERY" --argjson warn "$WARN" --argjson alarm "$ALARM" '
+    { schema: 1, version: $version, root: $root, pid: $pid, socket: $socket, started: $started,
+      last_pass: $pass, settings: { source: $source, enabled: $enabled, interval_seconds: $every,
+      warn_tokens: $warn, alarm_tokens: $alarm } }' >"$STATUS.tmp" 2>/dev/null &&
+    mv "$STATUS.tmp" "$STATUS" 2>/dev/null
+}
 
 model_of() { # agent transcript -> latest real model, even outside the usage tail
   grep '"model"' "$2" 2>/dev/null | jq -rR --arg agent "$1" '
@@ -115,13 +163,22 @@ codex_ctx_of() { # rollout -> "412k▲" or nothing
 }
 
 pass() {
+  settings
+  [ "$ON" = true ] || return 0 # disabled: report nothing, and what was reported expires
   list=$("$H" pane list 2>/dev/null) && echo "$list" | jq -e '.result.panes' >/dev/null 2>&1 || return 1
   now=$(date +%s)
-  echo "$list" | jq -r '.result.panes[]
-    | select((.agent_session.agent == "claude" and .agent_session.kind == "id") or .agent == "codex")
-    | [ .pane_id, .agent_status, (.agent_session.agent // .agent // "-"),
-        (.foreground_cwd // .cwd // "-"), (.agent_session.value // "-") ] | @tsv' |
-  while IFS="$(printf '\t')" read -r pane status agent cwd sid; do
+  # a pane where Claude ran before Codex still carries Claude's session: herdr's agent wins
+  echo "$list" | jq -r '.result.panes as $all
+    | [$all[] | select(.agent == "codex") | (.foreground_cwd // .cwd // "-") | select(. != "-")] as $codex_cwds
+    | $all[] | (.agent_session // {}) as $s | (.foreground_cwd // .cwd // "-") as $cwd
+    | if .agent == "codex" then
+        [ .pane_id, .agent_status, "codex", $cwd,
+          (if $s.agent == "codex" and $s.kind == "id" then $s.value else "-" end),
+          ([$codex_cwds[] | select(. == $cwd)] | length) ]
+      elif $s.agent == "claude" and $s.kind == "id" then [ .pane_id, .agent_status, "claude", $cwd, $s.value, 1 ]
+      else empty end
+    | map(tostring) | @tsv' |
+  while IFS="$(printf '\t')" read -r pane status agent cwd sid same; do
     ctx='' turn='' model='' f=''
     case $agent in
       claude)
@@ -134,7 +191,14 @@ pass() {
         fi
         ;;
       codex)
-        f=$(codex_file "$cwd")
+        if [ "$sid" != - ]; then
+          case $sid in *[!0-9a-zA-Z-]*|'') continue ;; esac
+          f=$(find "$CP" -type f -name "rollout-*-$sid.jsonl" 2>/dev/null | sort -r | head -1)
+        elif [ "$same" -gt 1 ]; then
+          ctx='?' # matched by directory, shared with another Codex pane: it could be either's
+        else
+          f=$(codex_file "$cwd")
+        fi
         if [ -n "$f" ]; then
           model=$(model_of codex "$f")
           ctx=$(codex_ctx_of "$f" "$model")
@@ -165,8 +229,11 @@ command -v jq >/dev/null || { echo "meter: needs jq" >&2; exit 1; }
 # Three passes with the server stopped means it is gone; the next server's startup
 # hook starts a fresh meter, so this one must not poll a dead socket forever.
 up() { "$H" status server 2>/dev/null | grep -q '^status: running'; }
+STARTED=$(date +%s)
 miss=0
 while [ "$miss" -lt 3 ]; do
-  if pass || up; then miss=0; else miss=$(( miss + 1 )); fi
+  if pass; then miss=0; status
+  elif up; then miss=0
+  else miss=$(( miss + 1 )); fi
   sleep "$EVERY"
 done

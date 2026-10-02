@@ -11,6 +11,7 @@ is the only expansion; "$HOME" or "$(...)" stay literal characters.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
@@ -60,6 +61,12 @@ def config_path(env=None) -> Path:
 def state_dir(env=None) -> Path:
     env = os.environ if env is None else env
     return _xdg(env, "XDG_STATE_HOME", ".local/state") / "agent-office"
+
+
+def herdr_dirs(env=None) -> tuple[Path, Path]:
+    """herdr's own config and state folders: its plugins.json, and each plugin's state folder."""
+    env = os.environ if env is None else env
+    return _xdg(env, "XDG_CONFIG_HOME", ".config") / "herdr", _xdg(env, "XDG_STATE_HOME", ".local/state") / "herdr"
 
 
 def expand(p: str, env=None) -> Path:
@@ -270,6 +277,18 @@ HEADER = """\
 
 def herdr_config(cfg: dict) -> str:
     return HEADER + dumps(cfg["herdr"])
+
+
+def meter_path(env=None) -> Path:
+    """Where the meter plugin reads its settings: herdr/meter looks in the same place."""
+    return state_dir(env) / "meter.json"
+
+
+def meter_settings(cfg: dict) -> str:
+    """[meter] as the meter reads it. JSON, because the meter is sh and jq has no TOML."""
+    m = cfg["meter"]
+    keys = ("enabled", "interval_seconds", "warn_tokens", "alarm_tokens")
+    return json.dumps({"schema": 1, **{k: m[k] for k in keys}}, indent=2) + "\n"
 
 
 def herdr_check(text: str) -> tuple[bool, str]:

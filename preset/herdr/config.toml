@@ -46,14 +46,15 @@ enabled = true
 done_path = "sounds/silent.mp3"
 
 # Row 1 is herdr's state icon and the space name. Row 2 reads "claude · 412k▲ · 47m · idle":
-# the agent, its context size and how long it has waited on you (the two numbers that say what
-# waking it costs), then herdr's own state word. The state goes last because row 1's icon already
+# the agent, its context size and its transcript age (how long since it last wrote anything), then
+# herdr's own state word. The state goes last because row 1's icon already
 # shows it, so a long row trims only that word in the 26-column sidebar.
 #
 # $ctx and $turn come from the Agent Office meter (herdr/); without it they stay blank.
 # Context: green, amber once the meter adds ▲, red with ▲▲ (the meter decides when, per model).
-# Clock: green under 30m, amber 30-44m, red from 45m and on every whole hour ("2h"): the prompt
-# cache lasts an hour. herdr rules have no regex, so the minutes are matched as text, and the
+# Transcript age: green under 30m, amber 30-44m, red from 45m and on every whole hour ("2h"): a
+# desk idle that long is worth a look. It says nothing about a provider's cache or billing, which
+# the meter cannot see. herdr rules have no regex, so the minutes are matched as text, and the
 # bare "3m" / "4m" / "5m" rules stop a few minutes from matching the 30s-50s rules below them.
 [ui.sidebar.agents]
 rows = [

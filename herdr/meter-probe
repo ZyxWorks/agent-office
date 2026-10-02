@@ -9,6 +9,10 @@ mkdir -p "$T/codex/sessions/2026/09/28"
 A=$T/cfg/projects/-proj-a B=$T/cfg/projects/-proj-b
 C=$T/codex/sessions/2026/09/28
 fail=0
+# never this machine's meter settings, plugin state or herdr server
+export XDG_STATE_HOME="$T/xs" HERDR_PLUGIN_STATE_DIR="$T/state"
+unset HERDR_SOCKET_PATH HERDR_CONFIG_PATH METER_EVERY METER_WARN METER_ALARM
+mkdir -p "$T/state"
 
 # fake herdr: `pane list` prints $T/panes.json (or fails when it is missing),
 # `pane report-metadata` appends its argv to $T/reports.
@@ -30,6 +34,11 @@ u() { # usage record: total split as input/cache-read
 }
 pane() { printf '{"pane_id":"%s","agent_status":"%s","agent_session":{"agent":"%s","kind":"id","value":"%s"}}' "$@"; }
 codexpane() { printf '{"pane_id":"%s","agent_status":"%s","agent":"codex","cwd":"%s","foreground_cwd":"%s"}' "$1" "$2" "$3" "$3"; }
+codexid() { # pane status cwd session-id: herdr's Codex integration reported the session
+  printf '{"pane_id":"%s","agent_status":"%s","agent":"codex","cwd":"%s","foreground_cwd":"%s","agent_session":{"agent":"codex","kind":"id","value":"%s"}}' "$1" "$2" "$3" "$3" "$4"; }
+rollout() { # file cwd input-tokens [id]
+  { printf '{"type":"session_meta","payload":{"cwd":"%s","id":"%s"}}\n' "$2" "${4:-}"
+    printf '{"type":"token_usage_record","payload":{"usage":{"input_tokens":%s}}}\n' "$3"; } >"$C/$1"; }
 run() { # panes... ; runs one pass
   printf '{"result":{"panes":[%s]}}' "$(IFS=,; echo "$*")" >"$T/panes.json"
   : >"$T/reports"
@@ -76,6 +85,16 @@ CODEX_WT=$T/codex-worktree
   printf '%s\n' '{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":123456},"model_context_window":258400}}}'
 } >"$C/rollout-2026-09-28T00-00-00-codex.jsonl"
 ago 300 "$C/rollout-2026-09-28T00-00-00-codex.jsonl"
+# 15b a working Codex desk in a directory of its own: number, no clock
+rollout rollout-2026-09-28T00-00-01-work.jsonl "$T/codex-work" 64000
+# 18 two Codex panes in one directory, no session ids: a match by directory could be either's
+rollout rollout-2026-09-28T00-00-02-shared.jsonl "$T/codex-shared" 99000
+# 19 with herdr's session id the rollout is exact, even in a shared directory; the newest
+# rollout there (the shared one above, written later) must not win
+rollout rollout-2026-09-28T00-00-00-0190aaaa-1111-7222-8333-444455556666.jsonl "$T/codex-shared" 41000 \
+  0190aaaa-1111-7222-8333-444455556666
+# 20 a Codex pane where Claude ran before still carries Claude's session: Codex is read, never s1
+rollout rollout-2026-09-28T00-00-03-was-claude.jsonl "$T/codex-was-claude" 77000
 # 16 A local model launched through Claude Code keeps the Claude transcript shape.
 printf '%s\n' '{"type":"assistant","message":{"model":"gemma4:12b","usage":{"input_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":29999}}}' >"$A/s17.jsonl"
 # 17 A local/unsupported agent has no reader, so it must not inherit another desk's number.
@@ -85,7 +104,12 @@ run "$(pane w:p1 idle claude s1)" "$(pane w:p2 working claude s2)" "$(pane w:p3 
     "$(pane w:p7 idle claude s7)" "$(pane w:p8 idle claude s8)" "$(pane w:p9 idle claude s9)" \
     "$(pane w:p10 idle claude s10)" "$(pane w:p11 idle claude s11)" "$(pane w:p12 idle claude s12)" \
     "$(pane w:p13 idle claude s13)" "$(pane w:p14 idle claude s14)" \
-    "$(codexpane w:p15 idle "$CODEX_WT")" "$(codexpane w:p16 working "$CODEX_WT")" \
+    "$(codexpane w:p15 idle "$CODEX_WT")" "$(codexpane w:p16 working "$T/codex-work")" \
+    "$(codexpane w:p18 idle "$T/codex-shared")" "$(codexpane w:p18b idle "$T/codex-shared")" \
+    "$(codexid w:p19 idle "$T/codex-shared" 0190aaaa-1111-7222-8333-444455556666)" \
+    "$(codexid w:p19b idle "$T/codex-gone" 0190ffff-1111-7222-8333-444455556666)" \
+    "$(codexid w:x5 idle "$T/codex-shared" '*')" \
+    '{"pane_id":"w:p20","agent_status":"idle","agent":"codex","cwd":"'"$T"'/codex-was-claude","agent_session":{"agent":"claude","kind":"id","value":"s1"}}' \
     "$(pane w:p17 idle claude s17)" \
     "$(codexpane w:x1 idle "$T/no-such-worktree")" "$(pane w:x2 idle claude '../s1')" "$(pane w:x3 idle claude '*')" \
     '{"pane_id":"w:local","agent":"local-model","agent_status":"idle"}' \
@@ -106,7 +130,13 @@ expect w:p12 "--token ctx=5k " broken-line
 expect w:p13 "turn=0m" future-clock
 expect w:p14 "--token ctx= " subagent-file
 expect w:p15 "--token ctx=123k --token turn=5m" codex
-expect w:p16 "--token ctx=123k --token turn= " codex-working
+expect w:p16 "--token ctx=64k --token turn= " codex-working
+expect w:p18 "--token ctx=? --token turn= --token model= " codex-shared-dir
+expect w:p18b "--token ctx=? --token turn= --token model= " codex-shared-dir-2
+expect w:p19 "--token ctx=41k " codex-session-id
+expect w:p19b "--token ctx= --token turn= " codex-session-id-no-rollout
+never w:x5 codex-glob-id
+expect w:p20 "--token ctx=77k " codex-after-claude
 expect w:p17 "--token ctx=30k" local-claude
 expect w:x1 "--token ctx= --token turn= " codex-no-session
 never w:x2 path-id
@@ -174,6 +204,29 @@ printf '{"type":"session_meta","payload":{"cwd":"%s","model":"gpt-5.2-codex"}}\n
 run "$(codexpane w:model idle "$T/model")"
 expect w:model '--token model=gpt-5.2-codex ' codex-meta-fallback
 
+# office install's settings file reaches the meter, wins over the environment, and is read
+# again on every pass; one that does not check out is not used
+S=$XDG_STATE_HOME/agent-office/meter.json; mkdir -p "$(dirname "$S")"
+settings() { printf '{"schema":1,"enabled":%s,"interval_seconds":%s,"warn_tokens":%s,"alarm_tokens":%s}\n' "$@" >"$S"; }
+u 150000 >"$A/model.jsonl"
+settings true 60 100000 140000
+(METER_WARN=300000 METER_ALARM=400000 run "$(pane w:model idle claude model)")
+expect w:model '--token ctx=150k▲▲ ' settings-file-limits
+expect w:model '--ttl-ms 240000' settings-file-ttl
+settings true 30 120000 600000
+run "$(pane w:model idle claude model)"
+expect w:model '--token ctx=150k▲ ' settings-file-reread
+settings true 30 600000 100000 # warn above alarm: not valid
+(METER_WARN=300000 METER_ALARM=400000 run "$(pane w:model idle claude model)")
+expect w:model '--token ctx=150k ' settings-file-invalid
+printf 'not json\n' >"$S"
+run "$(pane w:model idle claude model)"
+expect w:model '--token ctx=150k --token turn' settings-file-broken
+settings false 30 200000 600000
+run "$(pane w:model idle claude model)"
+never w:model settings-disabled
+rm -f "$S"
+
 # a pane that closes mid-pass (its report fails) is not a dead server, even when it is listed last
 if ! run "$(pane w:p1 idle claude s1)" "$(pane w:gone idle claude s2)"; then echo "FAIL [pane-gone] pass reported a miss"; fail=1; fi
 expect w:p1 "ctx=58k" pane-gone
@@ -196,6 +249,14 @@ until_n() { i=0; while [ "$(lines "$1")" -lt "$2" ] && [ $i -lt 100 ]; do sleep 
 printf '{"result":{"panes":[%s]}}' "$(pane w:p1 idle claude s1)" >"$T/panes.json"; : >"$T/reports"; : >"$T/misses"; touch "$T/up"
 HERDR_BIN_PATH=$T/herdr METER_EVERY=1 CLAUDE_CONFIG_DIR=$T/cfg sh "$here/meter" & lp=$!
 until_n "$T/reports" 1 || { echo "FAIL [outage] no first report"; fail=1; }
+# the loop's status, for office doctor: what it runs and with which settings, after each pass
+i=0; while [ ! -s "$T/state/meter.$(printf default | cksum | cut -d' ' -f1).json" ] && [ $i -lt 30 ]; do sleep 0.1; i=$(( i + 1 )); done
+stat=$(cat "$T/state/meter.$(printf default | cksum | cut -d' ' -f1).json" 2>/dev/null)
+want=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$here/herdr-plugin.toml")
+printf '%s' "$stat" | jq -e --arg v "$want" --arg root "$here" --argjson pid "$lp" '.version == $v and .root == $root
+  and .pid == $pid and .settings == {source: "environment", enabled: true, interval_seconds: 1,
+  warn_tokens: 200000, alarm_tokens: 600000} and (.last_pass | type) == "number"' >/dev/null ||
+  { echo "FAIL [status] $stat"; fail=1; }
 mv "$T/panes.json" "$T/panes.off"
 until_n "$T/misses" 4 || { echo "FAIL [outage] never retried"; fail=1; }
 kill -0 "$lp" 2>/dev/null || { echo "FAIL [outage] loop died during an outage"; fail=1; }
@@ -216,7 +277,7 @@ settle() { # want: wait up to 3s for the meter count to reach it (a busy machine
   i=0; while [ "$(count)" != "$1" ] && [ $i -lt 30 ]; do sleep 0.1; i=$(( i + 1 )); done; [ "$(count)" = "$1" ]; }
 st() { HERDR_BIN_PATH=$T/herdr METER_EVERY=1 CLAUDE_CONFIG_DIR=$T/cfg HERDR_PLUGIN_STATE_DIR=$T/state \
   HERDR_SOCKET_PATH=$1 sh "$here/start"; }
-mkdir -p "$T/state"; before=$(count)
+before=$(count)
 st /s/one; st /s/one; st /s/one
 settle $(( before + 1 )) || { echo "FAIL [start-once] $(( $(count) - before )) meters"; fail=1; }
 first=$(cat "$T"/state/meter.*.pid)
@@ -225,6 +286,14 @@ st /s/one
 settle $(( before + 2 )) || { echo "FAIL [recycled-pid] did not start a new meter"; fail=1; }
 st /s/two
 settle $(( before + 3 )) || { echo "FAIL [second-socket] shares a meter"; fail=1; }
+# each start records the herdr config the server started with, even when a meter already runs
+printf 'x = 1\n' >"$T/herdr.toml"
+HERDR_CONFIG_PATH=$T/herdr.toml st /s/one
+rec=$(cat "$T/state/meter.$(printf /s/one | cksum | cut -d' ' -f1).server.json" 2>/dev/null)
+sum=$({ sha256sum "$T/herdr.toml" 2>/dev/null || shasum -a 256 "$T/herdr.toml"; } | cut -d' ' -f1)
+printf '%s' "$rec" | jq -e --arg c "$T/herdr.toml" --arg s "$sum" \
+  '.socket == "/s/one" and .herdr_config == $c and .sha256 == $s' >/dev/null ||
+  { echo "FAIL [start-record] $rec"; fail=1; }
 { kill "$decoy"; wait "$decoy"; } 2>/dev/null; kill "$first" 2>/dev/null; for f in "$T"/state/meter.*.pid; do kill "$(cat "$f")" 2>/dev/null; done
 
 [ "$fail" = 0 ] && echo "meter-probe: all cases pass"
