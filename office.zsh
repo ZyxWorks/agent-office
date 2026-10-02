@@ -22,7 +22,7 @@
 #   office clean      pick panes to close and reclaim their RAM
 #   office sweep      close offices you walked away from, and all they run
 #   office update     pull the newest agent-office (never happens on its own)
-#   office install    wire office into zsh + tmux again: ./install.sh [--theme]
+#   office install    move to Agent Office 1.0: ./install.sh (the tmux wiring: bin/install-tmux)
 #
 # Bare `office` prints this. `ao` and `o` are the short aliases.
 # Key bindings live in office.tmux.conf; `office help` lists every one of them.
@@ -1196,8 +1196,8 @@ _office_help() {
   print -P "  ${g}office list${r}    Same as doctor."
   print -P "  ${g}office update${r}  Pull the newest agent-office. Never happens on its own:"
   print -P "                 ${d}'office on' only tells you when you are behind.${r}"
-  print -P "  ${g}office install${r} Wire office into zsh and tmux again. Safe to re-run;"
-  print -P "                 ${d}starts nothing. Same as ./install.sh, and --theme works.${r}"
+  print -P "  ${g}office install${r} Move to Agent Office 1.0 (./install.sh). Shows every change"
+  print -P "                 ${d}first. The tmux wiring again: bin/install-tmux [--theme].${r}"
   print -P "  ${g}office cd${r} ${d}[x]${r}  Walk the shell into another worktree — yours, or the one an"
   print -P "                 ${d}agent is working in. Checks nothing out, so nothing collides;${r}"
   print -P "                 ${d}the file editor follows. 'office cd develop' when git says that${r}"
@@ -1270,9 +1270,10 @@ office() {
       _office_add_pane "$OFFICE_SESSION_LABEL · $*" "$OFFICE_SESSION_CMD ${(q)*}$_OFFICE_DESK_END" "$(_office_root "$PWD")" CLAUDE ;;
     install)
       # The verb every tool here shares (zyx, murmurflow): set it up, start nothing.
-      # Here that is install.sh, which is idempotent. Without this arm the word fell
-      # through to the fuzzy repo match below and looked for a repo called "install".
-      zsh "$_OFFICE_HOME/install.sh" "${@[2,-1]}" ;;
+      # Here that is install.sh, which is now the 1.0 installer: it is how a shell that still
+      # has this function loaded reaches it. Without this arm the word fell through to the
+      # fuzzy repo match below and looked for a repo called "install".
+      "$_OFFICE_HOME/install.sh" "${@[2,-1]}" ;;
     update|upgrade)
       [[ -d $_OFFICE_HOME/.git ]] || { print -u2 "office: $_OFFICE_HOME is not a git checkout"; return 1 }
       if [[ -n $(git -C "$_OFFICE_HOME" status --porcelain) ]]; then

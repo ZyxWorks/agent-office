@@ -75,18 +75,20 @@ jobs:
       - name: syntax
         run: |
           zsh -n office.zsh
-          zsh -n bin/office
+          zsh -n bin/office-tmux
           zsh -n bin/attn-probe
           zsh -n bin/off-probe
           zsh -n bin/root-probe
           zsh -n bin/ctx-probe
           zsh -n bin/grid-probe
           zsh -n bin/agent-probe
-          zsh -n install.sh
+          zsh -n bin/install-tmux
+          sh -n install.sh
           sh -n bin/office-attn
           sh -n bin/office-ctx
           sh -n bin/office-cwd
-          python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe
+          python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
+            bin/office bin/install-probe lib/agent_office/*.py
 
       # tmux refuses to parse a config it cannot read, and a broken one would
       # otherwise only surface as "the keys do nothing" inside a probe.
@@ -119,15 +121,24 @@ jobs:
           fi
           tmux -L cfg kill-server
 
+      # The 1.0 installer and config, each case in its own throwaway HOME. Needs herdr, not a server.
+      - name: install-probe
+        run: bin/install-probe
+
+      # macOS's own python3 is 3.9, which has no tomllib: the vendored reader has to carry it.
+      - name: install-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        run: /usr/bin/python3 bin/install-probe
+
+      # The tmux office's (0.x) installer, until its last release is tagged.
       # A fresh HOME, so the installer is tested the way a stranger meets it:
       # nothing sourced yet, no ~/.tmux.conf, and it has to be safe to run twice.
-      # The second run goes through `office install`, so the verb is proven to reach the script.
-      - name: install.sh on a fresh HOME, twice
+      - name: install-tmux on a fresh HOME, twice
         run: |
           export HOME="$RUNNER_TEMP/fresh"
           mkdir -p "$HOME"
-          ./install.sh
-          zsh -f -c 'bin/office install'
+          bin/install-tmux
+          bin/install-tmux
           test "$(grep -c 'office.zsh' "$HOME/.zshrc")" = 1
           test "$(grep -c 'source-file' "$HOME/.tmux.conf")" = 1
           test -L "$HOME/.local/bin/office"
@@ -137,14 +148,14 @@ jobs:
       # machine that prompted this had been through two folder renames and was still sourcing
       # office.tmux.conf from a path retired months earlier -- so tmux used its own defaults, and
       # nothing said why. One line, pointing where the checkout actually is.
-      - name: install.sh after the checkout moves
+      - name: install-tmux after the checkout moves
         run: |
           export HOME="$RUNNER_TEMP/moved"
           mkdir -p "$HOME" "$RUNNER_TEMP/before"
           cp -R . "$RUNNER_TEMP/before/agent-office"
-          (cd "$RUNNER_TEMP/before/agent-office" && ./install.sh)
+          (cd "$RUNNER_TEMP/before/agent-office" && bin/install-tmux)
           mv "$RUNNER_TEMP/before/agent-office" "$RUNNER_TEMP/after"
-          (cd "$RUNNER_TEMP/after" && ./install.sh)
+          (cd "$RUNNER_TEMP/after" && bin/install-tmux)
           test "$(grep -c 'source-file' "$HOME/.tmux.conf")" = 1
           test "$(grep -c 'office.zsh' "$HOME/.zshrc")" = 1
           grep -q "$RUNNER_TEMP/after/office.tmux.conf" "$HOME/.tmux.conf"

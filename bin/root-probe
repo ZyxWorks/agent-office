@@ -94,13 +94,13 @@ if [[ -n $said ]]; then print "  ok   and the rename is said out loud"
 else print -u2 "  FAIL the office was renamed in silence"; fail=1; fi
 
 # 6. the launcher on PATH has to RUN, not just parse. CI syntax-checks
-# `bin/office` and nothing ever executed it -- and a file that parses can still
+# `bin/office-tmux` and nothing ever executed it -- and a file that parses can still
 # fail to find the package (its `${0:A:h:h}` walk) and answer "command not
 # found" to the one shell that needs it: the one without the function.
-said_help=$("$here/office" help 2>/dev/null)     # no pipe: `pipe_fail` above   # no pipe: `pipe_fail` above
+said_help=$("$here/office-tmux" help 2>/dev/null)     # no pipe: `pipe_fail` above   # no pipe: `pipe_fail` above
 if [[ $said_help == *"office on"* ]]; then       # would read grep -q's SIGPIPE as a failure
   print "  ok   the PATH launcher loads the package and runs"
-else print -u2 "  FAIL bin/office parses but does not run"; fail=1; fi
+else print -u2 "  FAIL bin/office-tmux parses but does not run"; fail=1; fi
 
 # 7. `office cd` walks you INTO a worktree instead of trying to check its branch
 # out. `git checkout develop` in the main checkout answers "already used by

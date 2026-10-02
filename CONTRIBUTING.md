@@ -90,6 +90,12 @@ something must prove it stopped only its own targets.
 Touched the meter (`herdr/`)? Run `herdr/meter-probe`. It needs no herdr
 server: it drives the meter against a fake herdr and fake transcripts.
 
+Touched `office install` or the config (`bin/office`, `lib/`, `config/`)? Run
+`bin/install-probe`. Every case runs in a throwaway `$HOME`; it needs `herdr` on
+your `PATH` but no herdr server. On macOS run it once more as
+`/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML
+reader, so it proves the vendored one in `lib/vendor/`.
+
 Touched the preset (`preset/`)? Run `preset/preset-probe`. It needs `herdr`
 on your `PATH` but no herdr server: it asks herdr for its defaults and checks
 the effective keys, the key table in `preset/README.md`, the Mac text keys and

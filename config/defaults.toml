@@ -1,0 +1,25 @@
+# Agent Office defaults. They ship with the release; your own
+# ~/.config/agent-office/config.toml overrides any key below.
+#
+# [herdr] is not in this file: its defaults are the preset, preset/herdr/config.toml.
+
+schema = 1
+
+[office]
+session = "office"                    # the herdr session this office owns
+
+[firstmate]
+source = "https://github.com/kunchenguid/firstmate.git"
+code = "~/firstmate"                  # where the Firstmate code checkout lives
+# home: Firstmate's private operational home. Unset means the code checkout, as in Firstmate.
+harness = "claude"
+
+[treehouse]
+# root: the worktree pool root. Unset means treehouse picks its own.
+
+# The meter's own defaults, in herdr/meter: METER_EVERY, METER_WARN, METER_ALARM.
+[meter]
+enabled = true
+interval_seconds = 30
+warn_tokens = 200000
+alarm_tokens = 600000

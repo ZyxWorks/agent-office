@@ -1,0 +1,32 @@
+# Agent Office config. It is yours and private: it may name your paths, so keep it out of
+# public repos. `office install` wrote this starter once and never overwrites it.
+#
+# Every key is optional except schema. Leave a key out and the release default applies
+# (config/defaults.toml in your agent-office checkout). An unknown key is an error.
+# After a change run `office install`: it checks this file and regenerates herdr's config.
+# Values are data. Nothing here is ever run as shell code; only a leading ~/ is expanded.
+
+schema = 1
+
+# [office]
+# session = "office"                  # the herdr session this office owns
+
+# [firstmate]
+# source = "https://github.com/kunchenguid/firstmate.git"
+# code = "~/firstmate"                # the Firstmate code checkout
+# home = "~/firstmate-home"           # its private operational home; unset: the checkout
+# harness = "claude"                  # or "codex"
+
+# [treehouse]
+# root = "~/worktrees"                # the worktree pool root; unset: treehouse's own
+
+# [meter]
+# enabled = true
+# interval_seconds = 30
+# warn_tokens = 200000
+# alarm_tokens = 600000
+
+# Anything herdr's own config.toml takes goes under [herdr], unchanged. It is merged over the
+# Agent Office preset: a table merges key by key, any other value replaces the preset's.
+# [herdr.ui]
+# agent_panel_sort = "priority"

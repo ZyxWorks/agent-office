@@ -25,19 +25,28 @@
 
 Everything else is what `office install` is for.
 
-## 3. The 1.0 flow (planned)
+## 3. The 1.0 flow
 
-None of these commands exist yet. This is what they will do.
+`office install` works today, in part. `office on` is planned.
 
 ```sh
-office install      # planned: check, install what is missing, write the config
-office on           # planned: open the office and its Firstmate
+git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
+~/agent-office/install.sh   # works today: the config, herdr's config, the office command
+office on                   # planned: open the office and its Firstmate
 ```
 
-`office install` looks at what you already have, installs the rest of the
-[core profile](README.md#core-profile) through each tool's own installer, and
-writes `~/.config/agent-office/config.toml`. It shows every file it will
-change and backs it up first. It starts nothing.
+`office install` checks `~/.config/agent-office/config.toml` (and writes a
+starter the first time), generates herdr's config from the preset and your
+`[herdr]` keys, puts `office` on your `PATH` in `~/.local/bin`, and removes the
+tmux office's lines from your startup files if you had it. It shows every
+change first, backs up anything it replaces and asks before it does. `--check`
+shows the plan and changes nothing. It starts nothing, and it never touches
+`~/.config/herdr`. [The README](README.md#what-office-install-writes) lists
+every file.
+
+Planned for `office install`: looking at what you already have and installing
+the rest of the [core profile](README.md#core-profile) through each tool's own
+installer. Until then, install herdr, Firstmate and treehouse yourself (below).
 
 Ask it for the workstation profile too (planned) and it also offers the
 optional [workstation tools](README.md#workstation-profile-optional).
