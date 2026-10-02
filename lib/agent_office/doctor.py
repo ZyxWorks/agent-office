@@ -20,7 +20,8 @@ from pathlib import Path
 from . import config as C
 
 MANIFEST = C.REPO / "config" / "components.toml"
-_VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.]+)?")
+# a dotted version, or a dated build such as WezTerm's 20240203-110809-5046fc22
+_VERSION = re.compile(r"\d{8}-\d{6}-[0-9a-f]{8}|\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.]+)?")
 _SYSTEM = ("/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/")
 
 
@@ -34,10 +35,11 @@ def _run(argv, env, cwd=None):
     return r.stdout if r.returncode == 0 else None
 
 
-def version(cmd: str, env) -> str | None:
-    out = _run([cmd, "--version"], env)
-    lines = (out or "").strip().splitlines()
-    m = _VERSION.search(lines[0]) if lines else None
+def version(cmd: str, env, args=None) -> str | None:
+    """The first version in what the program says, on whichever line: eza and ShellCheck put
+    their name on the first."""
+    out = _run([cmd, *(args or ["--version"])], env)
+    m = _VERSION.search(out or "")
     return m.group(0) if m else None
 
 
@@ -91,16 +93,26 @@ class Report:
         name, cmd = c["name"], c["command"]
         found = shutil.which(cmd, path=self.env.get("PATH", ""))
         if not found:
-            self.row(name, "-", "-", "-", problems=[f"{cmd} is not on PATH"])
+            how = " (`office tools` installs it)" if {"release", "npm", "brew", "cask"} & c.keys() else ""
+            self.row(name, "-", "-", "-", problems=[f"{cmd} is not on PATH{how}"])
             return
         real = Path(found).resolve()
-        ver, own, problems = version(found, self.env), owner(real, c.get("update")), []
+        ver, own, problems = version(found, self.env, c.get("version_args")), owner(real, c.get("update")), []
+        cask = Path(found).parent.parent / "Caskroom" / c.get("cask", "")
+        if own is None and "cask" in c and cask.is_dir():
+            # a cask's app lives in /Applications; Homebrew's link to it is what says who owns it
+            own = f"Homebrew cask ({c['cask']})"
         if ver is None:
             problems.append(f"`{cmd} --version` gave no version")
         if own is None:
             problems.append(f"nothing says how {self.show(real)} is updated (owner unknown)")
-        tested = c.get("tested")
-        if tested is None:
+        tested, pin = c.get("tested"), c.get("pin")
+        if tested is None and pin:
+            compat = "pinned" if ver == pin else "not the pin" if ver else "-"
+            if ver and ver != pin:
+                problems.append(f"{ver or 'an unknown version'} is not the pinned version {pin}, the one"
+                                " read before it was trusted")
+        elif tested is None:
             compat = "no version pinned"
         elif ver in tested:
             compat = "tested"
@@ -211,7 +223,13 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     print(f"Agent Office {_office_version()} at {rep.show(C.REPO)}, "
           f"config {rep.show(path)}{'' if path.exists() else ' (not there: the defaults)'}", file=out)
     print(file=out)
+    extra = [c for c in comps.get("component", []) if c.get("profile") == "workstation"]
     for c in comps.get("component", []):
+        if c not in extra:
+            rep.component(c)
+    # the workstation tools are optional: the ones you have are checked, the rest not missed
+    have = [c for c in extra if shutil.which(c["command"], path=env.get("PATH", ""))]
+    for c in have:
         rep.component(c)
     harness = cfg["firstmate"]["harness"]
     for h in comps.get("harness", []):
@@ -220,6 +238,9 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     rep.integration(harness)
     rep.firstmate(cfg["firstmate"], comps.get("firstmate", {}).get("tested", []))
     rep.treehouse_root(cfg.get("treehouse", {}))
+    if extra:
+        rep.fact("workstation tools", f"{len(have)} of {len(extra)} installed"
+                 + ("" if len(have) == len(extra) else " (optional: `office tools --workstation`)"))
     rep.print(out)
     return 1 if rep.problems else 0
 
@@ -233,7 +254,8 @@ USAGE = """\
 usage: office doctor
 
 Read-only. For each component: the installed version, who updates it (a package manager or the
-tool itself) and whether this release is tested with that version (config/components.toml).
+tool itself) and whether this release is tested with that version, or it is the pinned one
+(config/components.toml). Of the optional workstation tools, the ones you have.
 Also herdr's integration for your harness, and your Firstmate source, checkout and home.
 It starts nothing and talks to no herdr server. Exit 0 only when it finds no problem: a version
 or owner it cannot find out counts as a problem."""
