@@ -96,6 +96,11 @@ your `PATH` but no herdr server. On macOS run it once more as
 `/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML
 reader, so it proves the vendored one in `lib/vendor/`.
 
+Touched `fm` (`bin/fm`, `lib/agent_office/fm.py`)? Run `bin/fm-probe`. It needs
+`herdr` on your `PATH` and starts a herdr server of its own, in a throwaway
+`$HOME` under `/tmp`, with a stand-in for Firstmate; it stops that server at
+the end.
+
 Touched the preset (`preset/`)? Run `preset/preset-probe`. It needs `herdr`
 on your `PATH` but no herdr server: it asks herdr for its defaults and checks
 the effective keys, the key table in `preset/README.md`, the `office keys`

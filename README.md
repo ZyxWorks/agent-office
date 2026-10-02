@@ -19,8 +19,8 @@ One `office` command to install, start, stop and update the lot.
 > second kind is real. What is real today: the herdr meter plugin, the herdr
 > preset, the config file, `office install`, which writes it all in place
 > but starts nothing, `office tools`, which installs the tools that are
-> missing, and `office doctor`, which reports what is installed.
-> Every other `office` verb is still the tmux office (0.x).
+> missing, `office doctor`, which reports what is installed, and `fm` and
+> `fm restart`. Every other `office` verb is still the tmux office (0.x).
 > See [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
 
 [The product page](https://zyxworks.github.io/agent-office/) ·
@@ -128,7 +128,7 @@ What each part does today:
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
-| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. Nothing else uses them yet: `office on` and `fm` are planned |
+| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm` uses `office.session` and `[firstmate]` except `source`. Nothing else uses them yet: `office on` is planned |
 
 The generated herdr config is written to
 `~/.local/state/agent-office/herdr/config.toml`, next to the preset's sound. It
@@ -162,12 +162,12 @@ The rules the config follows:
 | `office update` | update every component (the CLI, preset, meter, config, herdr, treehouse, Firstmate and the kunchenguid tools) to a tested set, each through its own updater. `--check` only plans. | planned |
 | `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. | works today |
 | `office status` | read-only: what is running, what the office owns, meter health, pending updates and restarts. | planned |
-| `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. | planned |
-| `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. | planned |
+| `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` (planned) will start it. | works today |
+| `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. | works today |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
 
-Today, `office install`, `office config`, `office keys`, `office tools`, `office doctor`, `office help` and
-`office version` are 1.0. Every other verb still runs the tmux office, documented in the
+Today, `office install`, `office config`, `office keys`, `office tools`, `office doctor`, `office help`,
+`office version`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
 `doctor`, what runs and its RAM, is still there as `office list`.
@@ -221,6 +221,35 @@ install it checks the tool reports the pinned version, and it exits 1 if one
 failed or is left for you. It does not install Node, a harness (Claude Code,
 Codex) or Firstmate, and it starts nothing.
 
+### How `fm` finds Firstmate
+
+The office's Firstmate is the herdr agent named `firstmate` in the herdr
+session `office.session`. herdr never gives two live agents one name, so `fm`
+cannot pick the wrong one of two. Before it touches that agent, `fm` checks it
+runs your `firstmate.harness` in your `firstmate.code`; anything else is
+refused and left alone. `fm` also never adopts an agent in that checkout that
+is not named `firstmate`: it prints the one `herdr agent rename` command that
+adopts it, for you to run.
+
+- **`fm [args]`** focuses that agent, or starts it in a new tab of the session,
+  in `firstmate.code` with `FM_HOME` set to `firstmate.home` when you set one.
+  Your arguments go to the harness unchanged, as separate arguments. A running
+  Firstmate never gets them silently dropped: `fm` refuses instead. `fm --
+  restart` passes the word `restart` itself. In a terminal outside herdr, `fm`
+  then attaches to the session; inside another herdr session it prints the
+  attach command instead of nesting.
+- **`fm restart`** waits for Firstmate's turn to end, asks it to `/stow` and to
+  end its receipt with a result line, and reads that line back. Only a
+  "safe to reset" answer is followed by `/clear`. A missing line, a "not safe",
+  a question on screen, a timeout (`--timeout MINUTES`, 30 by default) or
+  Ctrl-C resets nothing, says so and exits non-zero. It runs in the foreground,
+  so you see every outcome. `/clear` resets the conversation; Firstmate's
+  launch-time wiring (hooks, model, flags) is read again only when it starts
+  again: quit it, then run `fm`.
+
+One `fm` runs at a time per office: a second one, a start or a restart, is
+refused while the first runs.
+
 ### What `office install` writes
 
 | path | what | when it exists already |
@@ -228,8 +257,8 @@ Codex) or Firstmate, and it starts nothing.
 | `~/.config/agent-office/config.toml` | your config, from a starter | never touched again: it is yours |
 | `~/.local/state/agent-office/herdr/` | the generated herdr config and the preset's sound | updated if Agent Office wrote it and nobody changed it since; otherwise shown, backed up, asked |
 | `~/.local/state/agent-office/meter.json` | your `[meter]` keys, which the meter plugin reads on every pass | the same |
-| `~/.local/bin/office` | a link to `bin/office` in your checkout | the same: replaced only after a backup and a yes |
-| `~/.zshrc` and the other zsh startup files | the line that loads the tmux office's `office` function removed: zsh finds a function before any command, so it would hide the 1.0 one | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove |
+| `~/.local/bin/office`, `~/.local/bin/fm` | links to `bin/office` and `bin/fm` in your checkout | the same: replaced only after a backup and a yes |
+| `~/.zshrc` and the other zsh startup files | the line that loads the tmux office's `office` function removed: zsh finds a function before any command, so it would hide the 1.0 one | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove. A function or alias of your own named `fm` hides `fm` the same way: it is pointed out, never removed |
 
 `~/.tmux.conf` keeps its tmux office lines for now: the verbs 1.0 has not built
 yet still run the tmux office, which needs them. Run that way, from
@@ -285,7 +314,7 @@ tested there, so it is not claimed.
 
 ## What works today
 
-Five things are real right now:
+Seven things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
    context size, and its transcript age, in herdr's sidebar next to herdr's
@@ -311,7 +340,10 @@ Five things are real right now:
 5. **`office tools`**: every tool of the office that is missing, installed at
    a pinned version through its owner. See
    [What `office tools` installs](#what-office-tools-installs).
-6. **The tmux office (0.x)**, documented in
+6. **`fm` and `fm restart`**: open the office's Firstmate, and restart it
+   only after it has saved its work. See [How `fm` finds Firstmate](#how-fm-finds-firstmate).
+   `bin/fm-probe` tests it against a throwaway herdr session.
+7. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).
 
 ## The tmux office (legacy)
