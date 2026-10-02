@@ -1,7 +1,9 @@
 # The Agent Office preset
 
-`works today`, set up by hand. The planned `office install` will write it for
-you.
+`works today`, set up by hand. `office install` also writes it, merged with
+the `[herdr]` keys of your config, as a separate generated file; nothing starts
+herdr against that file until `office on` (planned). Until then, copy it by
+hand as below.
 
 The daily look and keys of the office:
 

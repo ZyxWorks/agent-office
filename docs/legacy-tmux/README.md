@@ -84,7 +84,7 @@ one `git fetch` you can switch off.
 ```sh
 brew install tmux fzf fd micro bat          # needs Homebrew: https://brew.sh
 git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-~/agent-office/install.sh
+~/agent-office/bin/install-tmux
 exec zsh && office on
 ```
 
@@ -101,7 +101,7 @@ either `Shift+arrow` or the `Ctrl-Space` prefix, and every terminal on every OS
 already sends both.
 
 It changes no colours. If you want the look as well, that is
-`./install.sh --theme`, which writes an iTerm2 profile — see
+`bin/install-tmux --theme`, which writes an iTerm2 profile — see
 [the theme](#the-theme-if-you-want-it) below.
 
 **Any terminal works.** iTerm2, Terminal.app, Ghostty, WezTerm, Alacritty: the
@@ -123,7 +123,7 @@ Then, inside WSL:
 sudo apt update && sudo apt install -y tmux zsh git fzf fd-find micro bat
 mkdir -p ~/.local/bin && ln -sf "$(which fdfind)" ~/.local/bin/fd   # Debian calls it fdfind
 git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-~/agent-office/install.sh
+~/agent-office/bin/install-tmux
 exec zsh && office on
 ```
 
@@ -455,7 +455,7 @@ live ones for exactly that reason.
 | `office clean` | pick panes to close, heaviest first (rarely needed) |
 | `office sweep [h]` | close offices you walked away from, and everything in them |
 | `office update` | pull the newest agent-office |
-| `office install [--theme]` | wire office into zsh and tmux again — the same as `./install.sh`, safe to re-run, starts nothing |
+| `office install` | moves you to Agent Office 1.0: it runs `./install.sh`, the 1.0 installer, which shows every change and asks before it stops your zsh loading the office function. Wiring the tmux office again is `bin/install-tmux [--theme]`, safe to re-run, starts nothing |
 | `office clean --idle [h]` | no picker: close anything idle over `h` hours |
 | `office help` | all of the above, with the diagram |
 
@@ -807,7 +807,7 @@ background, the ANSI sixteen, the cursor, the glass — still set by your termin
 On iTerm2 you can take that too:
 
 ```sh
-~/agent-office/install.sh --theme      # or: OFFICE_ITERM_THEME=1 ~/agent-office/install.sh
+~/agent-office/bin/install-tmux --theme      # or: OFFICE_ITERM_THEME=1 ~/agent-office/bin/install-tmux
 ```
 
 It writes `theme/iterm-office-theme.json` into an `office` dynamic profile,

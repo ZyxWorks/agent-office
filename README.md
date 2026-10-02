@@ -16,9 +16,10 @@ One `office` command to install, start, stop and update the lot.
 > **Status: in transition.** This README is the contract for Agent Office 1.0,
 > the herdr-first version. Most of it is **planned** and does not exist yet.
 > Every command below is marked `planned` or `works today`, and only the
-> second kind is real. The code in this repository today is still the tmux
-> office (0.x) plus the herdr meter plugin. See
-> [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
+> second kind is real. What is real today: the herdr meter plugin, the herdr
+> preset, the config file and `office install`, which writes it all in place
+> but starts nothing. Every other `office` verb is still the tmux office (0.x).
+> See [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
 
 [The product page](https://zyxworks.github.io/agent-office/) ·
 [Getting started](GETTING-STARTED.md) ·
@@ -60,7 +61,8 @@ Two profiles. `core` is the office. `workstation` is optional.
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf` | [their upstreams](https://github.com/kunchenguid) |
 | agent integrations | the skills the setup uses, herdr's Claude Code and Codex integrations, and a pinned Node version for the Node-based tools | upstream tools; this repo wires them (planned) |
 
-`jq` is also required: the meter reads transcripts with it.
+`jq` is also required: the meter reads transcripts with it. The `office`
+command needs `python3`, 3.8 or newer; the one macOS ships is enough.
 
 ### Workstation profile (optional)
 
@@ -82,8 +84,9 @@ All of it is driven by one private file:
 ~/.config/agent-office/config.toml
 ```
 
-**Planned.** It does not exist yet. The shape, as a contract and not as keys
-you can use today:
+`works today`: `office install` writes a starter the first time and checks the
+file on every run. The keys, with the release defaults
+([`config/defaults.toml`](config/defaults.toml)):
 
 ```toml
 schema = 1
@@ -110,6 +113,20 @@ alarm_tokens = 600000
 agent_panel_sort = "spaces"
 ```
 
+What each part does today:
+
+| keys | today |
+|---|---|
+| `schema` | required, must be `1` |
+| `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
+| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error), but nothing uses them yet: `office on`, `fm` and the meter wiring are planned |
+
+The generated herdr config is written to
+`~/.local/state/agent-office/herdr/config.toml`, next to the preset's sound. It
+is not `~/.config/herdr/config.toml`, which `office install` never touches: a
+herdr you start yourself keeps your own config. `office on` (planned) is what
+will start herdr against the generated one.
+
 The rules the config follows:
 
 - **Defaults ship with the release; your file only overrides.** An unknown
@@ -126,7 +143,9 @@ The rules the config follows:
 
 | command | what it does | status |
 |---|---|---|
-| `office install` | check what is installed, install what is missing through each tool's own installer, write the config, show every change and backup. Starts nothing. | planned |
+| `office install` | check the config, write the generated herdr config and the `office` command, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. | works today |
+| `office install`, the rest | check what is installed and install what is missing through each tool's own installer | planned |
+| `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect | works today |
 | `office on` | attach to or create the configured herdr session, and make sure one Firstmate is running for the configured home. Running it again focuses what is there. | planned |
 | `office break` | detach only. Firstmate, the workers and the terminals keep running. | planned |
 | `office off` | stop this office: show what will stop, let Firstmate persist and drain its workers, then stop the owned session and its meter. Repos and worktree pools are kept. | planned |
@@ -137,10 +156,30 @@ The rules the config follows:
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. | planned |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
 
-Today, `office` on your `PATH` is still the tmux office, and its commands are
-documented in the [legacy README](docs/legacy-tmux/README.md). The 1.0
-commands above replace them; they are not additions to them. `office keys` is
-the one 1.0 command it already has.
+Today, `office install`, `office config`, `office keys`, `office help` and
+`office version` are 1.0. Every other verb still runs the tmux office, documented in the
+[legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
+1.0 commands replace them; they are not additions to them.
+
+### What `office install` writes
+
+| path | what | when it exists already |
+|---|---|---|
+| `~/.config/agent-office/config.toml` | your config, from a starter | never touched again: it is yours |
+| `~/.local/state/agent-office/herdr/` | the generated herdr config and the preset's sound | updated if Agent Office wrote it and nobody changed it since; otherwise shown, backed up, asked |
+| `~/.local/bin/office` | a link to `bin/office` in your checkout | the same: replaced only after a backup and a yes |
+| `~/.zshrc` and the other zsh startup files | the line that loads the tmux office's `office` function removed: zsh finds a function before any command, so it would hide the 1.0 one | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove |
+
+`~/.tmux.conf` keeps its tmux office lines for now: the verbs 1.0 has not built
+yet still run the tmux office, which needs them. Run that way, from
+`bin/office-tmux`, it is a separate process, so `office cd` cannot move your
+shell.
+
+Backups go to `~/.local/state/agent-office/backups/<time>/`, and
+`~/.local/state/agent-office/manifest.json` lists every file Agent Office
+owns. `--yes` skips the question, never the backup. Without a terminal to
+ask on and without `--yes`, it changes nothing. `./install.sh` in the checkout
+is the same as `office install`.
 
 ### What the commands promise
 
@@ -184,7 +223,7 @@ tested there, so it is not claimed.
 
 ## What works today
 
-Three things are real right now:
+Four things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
    context size, and how long it has waited on you, in herdr's sidebar next to
@@ -200,7 +239,11 @@ Three things are real right now:
    by hand; [its README](preset/README.md) lists every key, and `office keys`
    prints them on one screen.
    `preset/preset-probe` checks it against herdr itself.
-3. **The tmux office (0.x)**, documented in
+3. **The config and `office install`**: one `config.toml`, checked, and the
+   herdr config generated from it, written without overwriting anything you
+   made. See [What `office install` writes](#what-office-install-writes).
+   `bin/install-probe` tests it in throwaway homes.
+4. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).
 
 ## The tmux office (legacy)
@@ -218,11 +261,16 @@ version change, not deleted.
   [Contributing](docs/legacy-tmux/CONTRIBUTING.md).
 - **Staying on tmux.** Check out that tag in your clone. The tmux
   `office update` pulls the branch you are on, so on `main` it would pull 1.0.
-  On the tag it refuses to update, which is what you want.
-- **Moving to 1.0.** `office install` (planned) finds the old `office` shell
-  function and the old `.zshrc` and `.tmux.conf` lines, shows them, backs them
-  up and replaces them. It never overwrites a config it did not write without
-  showing the difference first. Your tmux sessions are not touched.
+  On the tag it refuses to update, which is what you want. Until the tag
+  exists, the tmux installer on `main` is `bin/install-tmux [--theme]`;
+  `./install.sh` is now the 1.0 installer.
+- **Moving to 1.0.** `office install` (works today) finds the line that loads
+  the old `office` shell function and the old `office` link, shows them, backs
+  them up and replaces them, after you say yes. It never overwrites a file it
+  did not write without showing the difference first. Your tmux sessions and
+  `.tmux.conf` are not touched; the `.tmux.conf` lines go when the tmux office
+  is retired. A zsh that is already open keeps the old function until you open
+  a new one.
 
 The legacy tmux office gets no new features. Fixes are unlikely.
 
