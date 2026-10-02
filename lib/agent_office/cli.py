@@ -59,7 +59,9 @@ def _legacy(args, err) -> int:
     if not (C.REPO / "office.zsh").exists() or not shutil.which("zsh"):
         print(f"office: '{args[0]}' is not built in Agent Office 1.0 yet. See `office help`.", file=err)
         return 2
-    os.execv(str(shim), [str(shim), *args])
+    # zsh from PATH, not the shim's #!/bin/zsh: not every Linux has zsh in /bin.
+    # -i as in the shim, so the tmux office reads your OFFICE_* settings from your rc
+    os.execvp("zsh", ["zsh", "-i", str(shim), *args])
     return 1  # not reached
 
 
