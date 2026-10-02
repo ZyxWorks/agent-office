@@ -90,7 +90,7 @@ something must prove it stopped only its own targets.
 Touched the meter (`herdr/`)? Run `herdr/meter-probe`. It needs no herdr
 server: it drives the meter against a fake herdr and fake transcripts.
 
-Touched `office install`, `office doctor` or the config (`bin/office`, `lib/`,
+Touched `office install`, `office tools`, `office doctor` or the config (`bin/office`, `lib/`,
 `config/`)? Run `bin/install-probe`. Every case runs in a throwaway `$HOME`; it needs `herdr` on
 your `PATH` but no herdr server. On macOS run it once more as
 `/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML

@@ -22,18 +22,27 @@
 - A coding agent you have installed and signed in to yourself, such as Claude
   Code or Codex. Agent Office never installs or signs in to one for you.
 - git.
+- Node 22.19 or newer with npm, for the Node-based agent tools.
 
-Everything else is what `office install` is for.
+Everything else is what `office tools` and `office install` are for.
 
 ## 3. The 1.0 flow
 
-`office install` works today, in part. `office on` is planned.
+`office tools` and `office install` work today. `office on` is planned.
 
 ```sh
 git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-~/agent-office/install.sh   # works today: the config, herdr's config, the office command
-office on                   # planned: open the office and its Firstmate
+~/agent-office/bin/office tools   # works today: herdr, treehouse and the agent tools you lack
+~/agent-office/install.sh         # works today: the config, herdr's config, the office command
+office on                         # planned: open the office and its Firstmate
 ```
+
+`office tools` installs each missing tool at a pinned version through its
+owner: herdr, treehouse and no-mistakes from their GitHub releases, checked
+against a pinned SHA-256; the Node-based tools with `npm install -g
+--ignore-scripts`; `jq` and `gh` with Homebrew. It lists them and asks first,
+and leaves every tool you already have as it is.
+[The README](README.md#what-office-tools-installs) has the details.
 
 `office install` checks `~/.config/agent-office/config.toml` (and writes a
 starter the first time), generates herdr's config from the preset and your
@@ -44,12 +53,10 @@ shows the plan and changes nothing. It starts nothing, and it never touches
 `~/.config/herdr`. [The README](README.md#what-office-install-writes) lists
 every file.
 
-Planned for `office install`: looking at what you already have and installing
-the rest of the [core profile](README.md#core-profile) through each tool's own
-installer. Until then, install herdr, Firstmate and treehouse yourself (below).
+Firstmate is not installed by either: [clone it yourself](#today-firstmate).
 
-Ask it for the workstation profile too (planned) and it also offers the
-optional [workstation tools](README.md#workstation-profile-optional).
+`office tools --workstation` also installs the optional
+[workstation tools](README.md#workstation-profile-optional) you lack.
 
 `office on` opens the office herdr session and one Firstmate inside it. Talk to
 Firstmate like any agent: say what you want done. It starts workers, each in a
@@ -178,9 +185,10 @@ sound, and an optional WezTerm example with Mac text keys, are in
 [`preset/`](preset). [Its README](preset/README.md) has the copy steps and
 every key. `office keys` prints them all on one screen.
 
-## Today: Firstmate and treehouse
+## Today: Firstmate
 
-Firstmate and treehouse install from their own repos today:
-[Firstmate](https://github.com/kunchenguid/firstmate),
-[treehouse](https://github.com/kunchenguid/treehouse). Follow their READMEs.
-Wiring them into one office is what 1.0 adds.
+`office tools` installs treehouse. Firstmate is a git checkout you clone
+yourself, from [its repo](https://github.com/kunchenguid/firstmate): follow its
+README, and set `firstmate.code` in your config to where you cloned it.
+`office doctor` checks the checkout. Wiring them into one office is what 1.0
+adds.

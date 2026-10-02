@@ -1,62 +1,291 @@
-# What `office doctor` checks, and the versions this release is tested with.
+# The components of the office: what `office doctor` checks, the versions this release is tested
+# with, and how `office tools` installs one that is missing.
 #
-# command:  the program looked up on PATH. Its `--version` gives the installed version.
+# command:  the program looked up on PATH. Its `--version` gives the installed version
+#           (`version_args` when a program takes something else, as tmux takes -V).
 # update:   the command a component updates itself with, when it is not installed by a package
 #           manager. Shown as who owns updates; office doctor never runs it.
 # tested:   the versions verified with this release. Any other version is reported as a problem.
 #           [] means none verified yet. No `tested` key means no version is pinned.
+# pin:      the version `office tools` installs: one that was read before it was trusted. Without
+#           `tested`, office doctor reports any other installed version as a problem.
+# profile:  "workstation" is the optional set, `office tools --workstation`: generic command-line
+#           tools. office doctor lists the ones you have and does not miss the rest.
 #
-# A version goes into `tested` only with the run that verified it, named in a comment.
+# How `office tools` installs one, always through the tool's own owner, so the owner updates it:
+#   release = the owner's GitHub release asset at `pin`, checked against its SHA-256 before it is
+#             unpacked, into the folder the owner's own installer uses. Never a script from the
+#             internet piped into a shell.
+#   npm     = `npm install -g --ignore-scripts <npm>@<pin>`: no package's install scripts run.
+#             `node` is the oldest Node the package says it runs on.
+#   brew    = `brew install <brew>` (or `brew install --cask`): Homebrew owns the version.
+#
+# A version goes into `tested` only with the run that verified it, named in a comment. A `pin`
+# moves only after the new release was read; its hashes come from the release's own checksums.
 
 schema = 1
+
+# --- the agent toolkit: `office tools` -------------------------------------------------------
 
 [[component]]
 name = "herdr"
 command = "herdr"
 update = "herdr update"
 tested = ["0.9.1"]            # CI pins it: install-probe, preset-probe and meter-probe
+pin = "0.9.1"
+
+[component.release]
+url = "https://github.com/herdrdev/herdr/releases/download/v0.9.1/"
+dir = "~/.local/bin"
+darwin-arm64 = { asset = "herdr-macos-aarch64", sha256 = "5fc7a7e7adfaca56fa80aa89dcb025693357268dab8285b9ce2d08a2313c89de" }
+darwin-amd64 = { asset = "herdr-macos-x86_64", sha256 = "053be0639935fe54ab5efbdb46651054e4f6a753a5b43153c88bd6912bce1e94" }
+linux-arm64 = { asset = "herdr-linux-aarch64", sha256 = "f4ccf4de745f2cb9a39a983e9ba3703dad50ec2a58dea83026ceab721bbd8d9e" }
+linux-amd64 = { asset = "herdr-linux-x86_64", sha256 = "2a02fed16beb651ef006e1d43f048f652ca4dc58ad053cd2d44450563d5c54b7" }
 
 [[component]]
 name = "treehouse"
 command = "treehouse"
 update = "treehouse update"
 tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run
+pin = "3.1.0"
 
-[[component]]
-name = "jq"
-command = "jq"
+[component.release]
+url = "https://github.com/kunchenguid/treehouse/releases/download/v3.1.0/"
+dir = "~/.local/bin"
+darwin-arm64 = { asset = "treehouse-v3.1.0-darwin-arm64.tar.gz", sha256 = "e78f52f078d90ffa8589da164fc87306020c5524776273ad040af04127dd91df" }
+darwin-amd64 = { asset = "treehouse-v3.1.0-darwin-amd64.tar.gz", sha256 = "95a6f5cf582f767a8b102a749a53ea397bf28d20df10467c367927f26073e131" }
+linux-arm64 = { asset = "treehouse-v3.1.0-linux-arm64.tar.gz", sha256 = "385061511fef62a3cb4f377ac48f3dc022a54c7e1198c10477f1306454a379dc" }
+linux-amd64 = { asset = "treehouse-v3.1.0-linux-amd64.tar.gz", sha256 = "d783b1fdc1e0d2669c0042634850d795e1d12220e586782d82858e70a1a93c25" }
 
 [[component]]
 name = "no-mistakes"
 command = "no-mistakes"
 update = "no-mistakes update"
+pin = "1.84.0"
+
+# where its own installer puts it: the program in ~/.no-mistakes/bin, a link in ~/.local/bin
+[component.release]
+url = "https://github.com/kunchenguid/no-mistakes/releases/download/v1.84.0/"
+dir = "~/.no-mistakes/bin"
+link = "~/.local/bin"
+darwin-arm64 = { asset = "no-mistakes-v1.84.0-darwin-arm64.tar.gz", sha256 = "2e5f838303ab727edccd1a60a4834068024606c68ae7d97fdc0fdeecd7bd4d90" }
+darwin-amd64 = { asset = "no-mistakes-v1.84.0-darwin-amd64.tar.gz", sha256 = "88b1a481924488f55456b3f96070f739b109e19555232e4f8be0a7ebae7c08ac" }
+linux-arm64 = { asset = "no-mistakes-v1.84.0-linux-arm64.tar.gz", sha256 = "8d8cefd927b7f921c207e4dd6c575081dc255dc068f0205f74b52e482bf2f7ab" }
+linux-amd64 = { asset = "no-mistakes-v1.84.0-linux-amd64.tar.gz", sha256 = "b0fb8a9df412c5fa1fb92a3584ffa1d4d5b4d6e0d1738efa2f8b88320f8bf1c2" }
+
+[[component]]
+name = "jq"
+command = "jq"
+brew = "jq"
+
+# gh-axi drives GitHub through it
+[[component]]
+name = "gh"
+command = "gh"
+brew = "gh"
 
 [[component]]
 name = "gh-axi"
 command = "gh-axi"
+npm = "gh-axi"
+pin = "0.1.35"
+node = "20"
 
 [[component]]
 name = "chrome-devtools-axi"
 command = "chrome-devtools-axi"
+npm = "chrome-devtools-axi"
+pin = "0.1.35"
+node = "20"
+
+[[component]]
+name = "chrome-devtools-mcp"
+command = "chrome-devtools-mcp"
+npm = "chrome-devtools-mcp"
+pin = "1.10.1"
+node = "22.12"           # its engines: ^20.19 || ^22.12 || >=23; the newer floor
 
 [[component]]
 name = "lavish-axi"
 command = "lavish-axi"
+npm = "lavish-axi"
+pin = "0.1.79"
+node = "22"
 
 [[component]]
 name = "quota-axi"
 command = "quota-axi"
+npm = "quota-axi"
+pin = "0.1.55"
+node = "22.19"
 
 [[component]]
 name = "tasks-axi"
 command = "tasks-axi"
+npm = "tasks-axi"
+pin = "0.2.6"
+node = "20"
 
 [[component]]
 name = "gnhf"
 command = "gnhf"
+npm = "gnhf"
+pin = "0.1.50"
+node = "20"
+
+[[component]]
+name = "backpass"
+command = "backpass"
+npm = "backpass"
+pin = "0.1.28"
+node = "22.5"
+
+[[component]]
+name = "acpx"
+command = "acpx"
+npm = "acpx"
+pin = "0.1.15"
+node = "18"
+
+# --- the workstation profile: `office tools --workstation` -----------------------------------
+# Generic command-line tools, from Homebrew. Nothing personal: no apps, accounts or fonts.
+
+[[component]]
+name = "fnm"
+command = "fnm"
+brew = "fnm"
+profile = "workstation"
+
+[[component]]
+name = "git"
+command = "git"
+brew = "git"
+profile = "workstation"
+
+[[component]]
+name = "git-delta"
+command = "delta"
+brew = "git-delta"
+profile = "workstation"
+
+[[component]]
+name = "lazygit"
+command = "lazygit"
+brew = "lazygit"
+profile = "workstation"
+
+[[component]]
+name = "ripgrep"
+command = "rg"
+brew = "ripgrep"
+profile = "workstation"
+
+[[component]]
+name = "fd"
+command = "fd"
+brew = "fd"
+profile = "workstation"
+
+[[component]]
+name = "fzf"
+command = "fzf"
+brew = "fzf"
+profile = "workstation"
+
+[[component]]
+name = "bat"
+command = "bat"
+brew = "bat"
+profile = "workstation"
+
+[[component]]
+name = "eza"
+command = "eza"
+brew = "eza"
+profile = "workstation"
+
+[[component]]
+name = "tree"
+command = "tree"
+brew = "tree"
+profile = "workstation"
+
+[[component]]
+name = "zoxide"
+command = "zoxide"
+brew = "zoxide"
+profile = "workstation"
+
+[[component]]
+name = "starship"
+command = "starship"
+brew = "starship"
+profile = "workstation"
+
+[[component]]
+name = "micro"
+command = "micro"
+brew = "micro"
+profile = "workstation"
+
+[[component]]
+name = "neovim"
+command = "nvim"
+brew = "neovim"
+profile = "workstation"
+
+[[component]]
+name = "btop"
+command = "btop"
+brew = "btop"
+profile = "workstation"
+
+[[component]]
+name = "htop"
+command = "htop"
+brew = "htop"
+profile = "workstation"
+
+[[component]]
+name = "shellcheck"
+command = "shellcheck"
+brew = "shellcheck"
+profile = "workstation"
+
+[[component]]
+name = "shfmt"
+command = "shfmt"
+brew = "shfmt"
+profile = "workstation"
+
+[[component]]
+name = "uv"
+command = "uv"
+update = "uv self update"     # when it came from uv's own installer, not Homebrew
+brew = "uv"
+profile = "workstation"
+
+[[component]]
+name = "wget"
+command = "wget"
+brew = "wget"
+profile = "workstation"
+
+[[component]]
+name = "tmux"
+command = "tmux"
+version_args = ["-V"]
+brew = "tmux"
+profile = "workstation"
+
+[[component]]
+name = "wezterm"
+command = "wezterm"
+cask = "wezterm"
+profile = "workstation"
 
 # Only the harness named by firstmate.harness in your config is checked, with herdr's
-# integration for it.
+# integration for it. Signing in to one is yours to do, so `office tools` installs none.
 [[harness]]
 name = "claude"
 command = "claude"
