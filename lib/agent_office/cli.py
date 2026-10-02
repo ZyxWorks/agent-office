@@ -7,7 +7,7 @@ import shutil
 import sys
 
 from . import config as C
-from . import install
+from . import doctor, install
 from . import notify
 
 VERSION = "1.0.0-dev"
@@ -22,10 +22,12 @@ office: Agent Office, one command for the whole agent setup.
   office keys                        one screen of every office key (preset/keys.txt)
   office notify needs-you|pr-ready <message>
                                      push one line to your phone, if [notify] is on
+  office doctor                      read-only: each component's version, who updates it, and
+                                     whether this release is tested with it
   office help | version
 
 Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, update,
-status, doctor) is planned. Until each one lands, any other verb runs the tmux office (0.x)
+status) is planned. Until each one lands, any other verb runs the tmux office (0.x)
 from bin/office-tmux: see docs/legacy-tmux/README.md. Run that way it is a separate process,
 so `office cd` cannot move your shell."""
 
@@ -80,6 +82,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return 0
     if verb == "install":
         return install.run(rest, out=out, err=err)
+    if verb == "doctor":
+        return doctor.run(rest, out=out, err=err)
     if verb == "config":
         return _config(rest, out, err)
     if verb == "notify":

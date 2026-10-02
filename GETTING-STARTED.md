@@ -64,7 +64,8 @@ The rest of the day:
 | come back | `office on` | planned |
 | jump to Firstmate | `fm` | planned |
 | give Firstmate a fresh conversation, work saved first | `fm restart` | planned |
-| see what is installed, running and healthy | `office status` | planned |
+| see what is installed, who updates it and whether it is tested | `office doctor` | works today |
+| see what is running | `office status` | planned |
 | update everything to a tested set | `office update` | planned |
 | go home, office stops | `office off` | planned |
 | stop every office on this machine that Agent Office owns | `office off --all` | planned |
