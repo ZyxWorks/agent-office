@@ -1,0 +1,71 @@
+# What `office doctor` checks, and the versions this release is tested with.
+#
+# command:  the program looked up on PATH. Its `--version` gives the installed version.
+# update:   the command a component updates itself with, when it is not installed by a package
+#           manager. Shown as who owns updates; office doctor never runs it.
+# tested:   the versions verified with this release. Any other version is reported as a problem.
+#           [] means none verified yet. No `tested` key means no version is pinned.
+#
+# A version goes into `tested` only with the run that verified it, named in a comment.
+
+schema = 1
+
+[[component]]
+name = "herdr"
+command = "herdr"
+update = "herdr update"
+tested = ["0.9.1"]            # CI pins it: install-probe, preset-probe and meter-probe
+
+[[component]]
+name = "treehouse"
+command = "treehouse"
+update = "treehouse update"
+tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run
+
+[[component]]
+name = "jq"
+command = "jq"
+
+[[component]]
+name = "no-mistakes"
+command = "no-mistakes"
+update = "no-mistakes update"
+
+[[component]]
+name = "gh-axi"
+command = "gh-axi"
+
+[[component]]
+name = "chrome-devtools-axi"
+command = "chrome-devtools-axi"
+
+[[component]]
+name = "lavish-axi"
+command = "lavish-axi"
+
+[[component]]
+name = "quota-axi"
+command = "quota-axi"
+
+[[component]]
+name = "tasks-axi"
+command = "tasks-axi"
+
+[[component]]
+name = "gnhf"
+command = "gnhf"
+
+# Only the harness named by firstmate.harness in your config is checked, with herdr's
+# integration for it.
+[[harness]]
+name = "claude"
+command = "claude"
+update = "claude update"
+
+[[harness]]
+name = "codex"
+command = "codex"
+
+# Firstmate is a git checkout: tested holds full commit hashes.
+[firstmate]
+tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run
