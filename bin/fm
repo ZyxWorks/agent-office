@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+# fm: open the office's Firstmate, or restart it without losing its work (lib/agent_office/fm.py).
+# A link to this file in ~/.local/bin is how every shell finds it.
+import os
+import sys
+
+if sys.version_info < (3, 8):
+    sys.exit("fm: needs Python 3.8 or newer; this is " + sys.version.split()[0])
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+from agent_office import fm  # noqa: E402
+
+sys.exit(fm.main(sys.argv[1:]))

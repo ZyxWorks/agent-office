@@ -33,7 +33,7 @@ Everything else is what `office tools` and `office install` are for.
 ```sh
 git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
 ~/agent-office/bin/office tools   # works today: herdr, treehouse and the agent tools you lack
-~/agent-office/install.sh         # works today: the config, herdr's config, the office command
+~/agent-office/install.sh         # works today: the config, herdr's config, the office and fm commands
 office on                         # planned: open the office and its Firstmate
 ```
 
@@ -46,7 +46,7 @@ and leaves every tool you already have as it is.
 
 `office install` checks `~/.config/agent-office/config.toml` (and writes a
 starter the first time), generates herdr's config from the preset and your
-`[herdr]` keys, puts `office` on your `PATH` in `~/.local/bin`, and stops your
+`[herdr]` keys, puts `office` and `fm` on your `PATH` in `~/.local/bin`, and stops your
 zsh loading the tmux office's `office` function if you had it. It shows every
 change first, backs up anything it replaces and asks before it does. `--check`
 shows the plan and changes nothing. It starts nothing, and it never touches
@@ -69,8 +69,8 @@ The rest of the day:
 |---|---|---|
 | walk away, leave it all running | `office break` | planned |
 | come back | `office on` | planned |
-| jump to Firstmate | `fm` | planned |
-| give Firstmate a fresh conversation, work saved first | `fm restart` | planned |
+| jump to Firstmate | `fm` | works today, once the herdr session runs |
+| give Firstmate a fresh conversation, work saved first | `fm restart` | works today |
 | see what is installed, who updates it and whether it is tested | `office doctor` | works today |
 | see what is running | `office status` | planned |
 | update everything to a tested set | `office update` | planned |
