@@ -160,7 +160,7 @@ jobs:
           test "$(grep -c 'office.zsh' "$HOME/.zshrc")" = 1
           grep -q "$RUNNER_TEMP/after/office.tmux.conf" "$HOME/.tmux.conf"
           grep -q "$RUNNER_TEMP/after/office.zsh" "$HOME/.zshrc"
-          test "$(readlink "$HOME/.local/bin/office")" = "$RUNNER_TEMP/after/bin/office"
+          test "$(readlink "$HOME/.local/bin/office")" = "$RUNNER_TEMP/after/bin/office-tmux"
 
       # First, and needs no tmux server: it decides WHICH repo an office opens on, so a
       # break here makes every probe below open the right office on the wrong directory.

@@ -143,7 +143,7 @@ The rules the config follows:
 
 | command | what it does | status |
 |---|---|---|
-| `office install` | check the config, write the generated herdr config and the `office` command, move off the tmux office's startup lines; show every change first and back up what it replaces. Starts nothing. `--check` only plans. | works today |
+| `office install` | check the config, write the generated herdr config and the `office` command, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. | works today |
 | `office install`, the rest | check what is installed and install what is missing through each tool's own installer | planned |
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect | works today |
 | `office on` | attach to or create the configured herdr session, and make sure one Firstmate is running for the configured home. Running it again focuses what is there. | planned |
@@ -167,7 +167,12 @@ are 1.0. Every other verb still runs the tmux office, documented in the
 | `~/.config/agent-office/config.toml` | your config, from a starter | never touched again: it is yours |
 | `~/.local/state/agent-office/herdr/` | the generated herdr config and the preset's sound | updated if Agent Office wrote it and nobody changed it since; otherwise shown, backed up, asked |
 | `~/.local/bin/office` | a link to `bin/office` in your checkout | the same: replaced only after a backup and a yes |
-| `~/.zshrc` and the other zsh startup files, `~/.tmux.conf` | the tmux office's lines removed | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove |
+| `~/.zshrc` and the other zsh startup files | the line that loads the tmux office's `office` function removed: zsh finds a function before any command, so it would hide the 1.0 one | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove |
+
+`~/.tmux.conf` keeps its tmux office lines for now: the verbs 1.0 has not built
+yet still run the tmux office, which needs them. Run that way, from
+`bin/office-tmux`, it is a separate process, so `office cd` cannot move your
+shell.
 
 Backups go to `~/.local/state/agent-office/backups/<time>/`, and
 `~/.local/state/agent-office/manifest.json` lists every file Agent Office
@@ -257,12 +262,13 @@ version change, not deleted.
   On the tag it refuses to update, which is what you want. Until the tag
   exists, the tmux installer on `main` is `bin/install-tmux [--theme]`;
   `./install.sh` is now the 1.0 installer.
-- **Moving to 1.0.** `office install` (works today) finds the lines that load
-  the old `office` shell function and the old `.tmux.conf` lines, shows them,
-  backs them up and removes them, after you say yes. It never overwrites a
-  file it did not write without showing the difference first. Your tmux
-  sessions are not touched. A zsh that is already open keeps the old function
-  until you open a new one.
+- **Moving to 1.0.** `office install` (works today) finds the line that loads
+  the old `office` shell function and the old `office` link, shows them, backs
+  them up and replaces them, after you say yes. It never overwrites a file it
+  did not write without showing the difference first. Your tmux sessions and
+  `.tmux.conf` are not touched; the `.tmux.conf` lines go when the tmux office
+  is retired. A zsh that is already open keeps the old function until you open
+  a new one.
 
 The legacy tmux office gets no new features. Fixes are unlikely.
 

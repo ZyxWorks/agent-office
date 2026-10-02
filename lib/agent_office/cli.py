@@ -21,8 +21,9 @@ office: Agent Office, one command for the whole agent setup.
   office help | version
 
 Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, update,
-status, doctor) is planned. Until each one lands, any other verb runs the tmux office (0.x),
-as it did before: see docs/legacy-tmux/README.md."""
+status, doctor) is planned. Until each one lands, any other verb runs the tmux office (0.x)
+from bin/office-tmux: see docs/legacy-tmux/README.md. Run that way it is a separate process,
+so `office cd` cannot move your shell."""
 
 
 def _config(args, out, err) -> int:

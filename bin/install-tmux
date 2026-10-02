@@ -107,7 +107,7 @@ fi
 # A symlink is found by all of them, now.
 BIN=$HOME/.local/bin
 mkdir -p $BIN
-ln -sf $HERE/bin/office $BIN/office
+ln -sf $HERE/bin/office-tmux $BIN/office
 say "office is a command now: $BIN/office"
 # Both checks, because a re-run usually happens in the SAME shell: its $PATH
 # still lacks the line the last run wrote (new shells only), so testing $PATH

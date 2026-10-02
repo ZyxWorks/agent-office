@@ -5,7 +5,12 @@ What it writes, and nothing else:
 - your config, ~/.config/agent-office/config.toml, from a starter, only when there is none,
 - herdr's config, generated from the preset and your [herdr] keys, under the state folder,
 - the `office` command, a link in ~/.local/bin,
-- and it removes the tmux office's (0.x) lines from your zsh and tmux startup files.
+- and it removes the line that loads the tmux office's (0.x) `office` function from your zsh
+  startup files: zsh finds a function before any command on PATH, so while it is loaded the
+  1.0 command is never reached.
+
+~/.tmux.conf keeps its tmux office lines: every verb 1.0 has not built yet still runs the tmux
+office, and without them its tmux has no prefix, keys or borders.
 
 It starts nothing and never touches ~/.config/herdr: the generated config is a separate file,
 and herdr only uses it once the office starts herdr against it.
@@ -38,10 +43,6 @@ from . import config as C
 LEGACY_ZSH = (
     re.compile(r"^\s*(source|\.)\s+.*/office\.zsh\s*$"),
     "# office — one command for a multi-agent tmux cockpit",
-)
-LEGACY_TMUX = (
-    re.compile(r"^\s*source(-file)?\s+.*/office(-theme)?\.tmux\.conf\s*$"),
-    "# office — bindings and pane borders (colours stay yours)",
 )
 ZSH_STARTUP = (".zshenv", ".zprofile", ".zshrc", ".zlogin")
 
@@ -211,7 +212,7 @@ class Installer:
             return None
         found = [f"line {i + 1}: {lines[i].rstrip()}" for i in sorted(drop)]
         if p.is_symlink():
-            return Step("manual", p, f"tmux office (0.x) lines, in a link to {os.path.realpath(p)}. "
+            return Step("manual", p, f"the tmux office (0.x) function, loaded from a link to {os.path.realpath(p)}. "
                         "Links are never written through: remove these lines yourself", diff=found)
         keep = b"".join(l.encode() for i, l in enumerate(lines) if i not in drop)
         mode = p.stat().st_mode & 0o7777
@@ -219,7 +220,7 @@ class Installer:
         def go():
             self._backup(p)
             self._write(p, keep, mode)
-        return Step("edit", p, "remove the tmux office (0.x) lines", go, self._diff(raw, keep, p.name))
+        return Step("edit", p, "stop loading the tmux office (0.x) function", go, self._diff(raw, keep, p.name))
 
     # --- plan, ask, apply ---------------------------------------------------------------------
 
@@ -241,7 +242,6 @@ class Installer:
         dirs = [self.home, Path(self.env.get("ZDOTDIR") or self.home)]
         for path in dict.fromkeys(d / n for d in dirs for n in ZSH_STARTUP):
             steps.append(self.legacy(path, *LEGACY_ZSH))
-        steps.append(self.legacy(self.home / ".tmux.conf", *LEGACY_TMUX))
         return [s for s in steps if s is not None]
 
     def print_plan(self, steps):
@@ -360,9 +360,9 @@ usage: office install [--check] [--yes]
 
 Check your config, then write what the office needs, showing every change first:
 your config (a starter, only if there is none), herdr's config generated from the preset and
-your [herdr] keys, the office command in ~/.local/bin, and the tmux office's (0.x) lines
-removed from your zsh and tmux startup files. Anything it replaces or edits is backed up
-first. It starts nothing and never touches ~/.config/herdr.
+your [herdr] keys, the office command in ~/.local/bin, and the line that loads the tmux
+office's (0.x) function removed from your zsh startup files. Anything it replaces or edits is
+backed up first. It starts nothing and never touches ~/.config/herdr or ~/.tmux.conf.
 
   --check   show what it would do, change nothing
   --yes     do not ask before replacing or editing (backups are still made)"""

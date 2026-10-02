@@ -37,8 +37,8 @@ office on                   # planned: open the office and its Firstmate
 
 `office install` checks `~/.config/agent-office/config.toml` (and writes a
 starter the first time), generates herdr's config from the preset and your
-`[herdr]` keys, puts `office` on your `PATH` in `~/.local/bin`, and removes the
-tmux office's lines from your startup files if you had it. It shows every
+`[herdr]` keys, puts `office` on your `PATH` in `~/.local/bin`, and stops your
+zsh loading the tmux office's `office` function if you had it. It shows every
 change first, backs up anything it replaces and asks before it does. `--check`
 shows the plan and changes nothing. It starts nothing, and it never touches
 `~/.config/herdr`. [The README](README.md#what-office-install-writes) lists

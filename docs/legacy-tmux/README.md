@@ -455,7 +455,7 @@ live ones for exactly that reason.
 | `office clean` | pick panes to close, heaviest first (rarely needed) |
 | `office sweep [h]` | close offices you walked away from, and everything in them |
 | `office update` | pull the newest agent-office |
-| `office install` | moves you to Agent Office 1.0: it runs `./install.sh`, the 1.0 installer, which shows every change and asks before it removes these tmux lines. Wiring the tmux office again is `bin/install-tmux [--theme]`, safe to re-run, starts nothing |
+| `office install` | moves you to Agent Office 1.0: it runs `./install.sh`, the 1.0 installer, which shows every change and asks before it stops your zsh loading the office function. Wiring the tmux office again is `bin/install-tmux [--theme]`, safe to re-run, starts nothing |
 | `office clean --idle [h]` | no picker: close anything idle over `h` hours |
 | `office help` | all of the above, with the diagram |
 
