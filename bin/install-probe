@@ -155,6 +155,16 @@ r = h.run("install", "--yes")
 check("a foreign ~/.local/bin/office is backed up, then linked",
       r.returncode == 0 and os.readlink(h.link) == str(OFFICE)
       and any(p.name == "office" and "mine" in p.read_text() for p in h.backups()), r.stdout + r.stderr)
+n = len(h.backups())
+for _ in range(2):  # usually within one second, so both land in one backup folder
+    h.gen.write_text(h.gen.read_text() + "# again\n")
+    h.run("install", "--yes")
+check("two backups of one file keep both", len(h.backups()) == n + 2, str(h.backups()))
+h.cfg.unlink()
+os.symlink(h.root / "gone.toml", h.cfg)
+r = h.run("install", "--yes")
+check("a config that is a broken link is an error, not replaced",
+      r.returncode == 1 and "cannot read" in r.stderr and h.cfg.is_symlink(), r.stdout + r.stderr)
 h.done()
 
 print("moving from the tmux office (0.x)")

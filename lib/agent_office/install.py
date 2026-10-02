@@ -99,6 +99,10 @@ class Installer:
         rel = os.path.relpath(p, self.home) if str(p).startswith(str(self.home) + "/") else str(p).lstrip("/")
         dst = self.state / "backups" / self.stamp / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
+        n = 1
+        while dst.exists() or dst.is_symlink():  # two runs in one second must not share a backup
+            dst = dst.with_name(f"{Path(rel).name}.{n}")
+            n += 1
         if p.is_symlink():
             os.symlink(os.readlink(p), dst)
         else:
@@ -299,7 +303,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
     cfg_path = C.config_path(inst.env)
     starter = None
     try:
-        if cfg_path.exists():
+        if cfg_path.exists() or cfg_path.is_symlink():  # a broken link is an error, not "no config"
             cfg = C.load(cfg_path)
         else:
             starter = C.STARTER.read_bytes()

@@ -195,7 +195,7 @@ def effective(user: dict | None, where: str) -> dict:
 
 def load(path: Path) -> dict:
     """The effective config for the file at path; a missing file means the defaults."""
-    if not path.exists():
+    if not path.exists() and not path.is_symlink():
         return effective(None, str(path))
     return effective(read_toml(path, str(path)), str(path))
 
