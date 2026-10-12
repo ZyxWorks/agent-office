@@ -499,7 +499,7 @@ The prefix is `ctrl+space`: press it, let go, then the key.
 |---|---|
 | `shift+arrow` (no prefix) | left and right: the pane on that side, then the tab before or after. Up and down: the pane on that side, then the space above or below |
 | `ctrl+space` `n` / `shift+n` | new space / new tab. For a tab herdr asks for a name: type one, or press Enter |
-| `ctrl+space` `c` / `shift+c` | close space / close tab |
+| `ctrl+space` `c` / `shift+c` | close space / close tab (both ask first) |
 | `ctrl+space` `r` / `shift+r` | rename space / rename tab |
 | `ctrl+space` `v` / `minus` | new pane on the right / below |
 | `ctrl+space` `g` | go to an agent |

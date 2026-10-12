@@ -80,6 +80,11 @@ is `herdr plugin link ~/agent-office/herdr`.
 Without the plugin, use `prefix+arrow` for panes, `prefix+space` for tabs and
 `prefix+w` for spaces.
 
+Closing a tab with `prefix+shift+c` opens a herdr popup. Type `y` and Enter to
+close that tab and all its panes; Enter alone or any other answer cancels.
+The popup uses the tab selected when you pressed the shortcut.
+Herdr's own tab context menu and CLI still close directly.
+
 Three things on the sidebar have no key in herdr 0.9.1: the `menu` button, the
 `grouped` switch and `update ready`. Everything they do has another way:
 settings is `prefix+s`, the sort order is `agent_panel_sort` in the config, and
@@ -100,7 +105,7 @@ Shortcuts, Input Sources.
 | rename the space | `prefix+r` | `rename_workspace` |
 | pick a space from a list | `prefix+w` | `workspace_picker` |
 | new tab (asks for a name: type one or press Enter) | `prefix+shift+n` | `new_tab` |
-| close the tab | `prefix+shift+c` | `close_tab` |
+| close the tab (asks first) | `prefix+shift+c` | `Close tab (asks first)` |
 | rename the tab | `prefix+shift+r` | `rename_tab` |
 | next tab | `prefix+space` | `next_tab` |
 | previous tab | `prefix+p` | `previous_tab` |

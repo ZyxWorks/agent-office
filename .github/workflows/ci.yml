@@ -241,6 +241,9 @@ jobs:
       # the herdr preset against herdr's own check and defaults: no clash, the documented keys are
       # the real ones, the `office keys` sheet matches them, the Mac text keys pass through, nothing
       # private. Needs no herdr server.
+      - name: close-tab-probe
+        run: python3 preset/close-tab-probe
+
       - name: preset-probe
         run: preset/preset-probe
 

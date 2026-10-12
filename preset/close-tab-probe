@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Drive the tab-close shortcut on a real TUI, in a throwaway HOME/session."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import pty
+import re
+import select
+import shutil
+import signal
+import struct
+import subprocess
+import tempfile
+import termios
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+HERDR = shutil.which("herdr")
+assert HERDR, "close-tab-probe needs herdr"
+
+with tempfile.TemporaryDirectory(prefix="aoct.", dir="/tmp") as tmp:
+    home = Path(tmp)
+    config = home / "config.toml"
+    config.write_text('onboarding = false\n' + (ROOT / "preset/herdr/config.toml").read_text())
+    session = "close-probe"
+    env = {"HOME": tmp, "XDG_CONFIG_HOME": tmp + "/.config", "PATH": os.environ["PATH"],
+           "SHELL": "/bin/sh", "TERM": "xterm-256color", "LANG": "C.UTF-8",
+           "HERDR_CONFIG_PATH": str(config), "HERDR_SESSION": session}
+    args = [HERDR, "--session", session]
+
+    def api(*command):
+        r = subprocess.run(args + list(command), env=env, capture_output=True, text=True, timeout=10)
+        assert r.returncode == 0, r.stderr or r.stdout
+        return json.loads(r.stdout)["result"]
+
+    server = subprocess.Popen(args + ["server"], env=env, cwd=tmp, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    client = fd = None
+    try:
+        for _ in range(50):
+            try:
+                api("workspace", "list")
+                break
+            except (AssertionError, ValueError):
+                time.sleep(.1)
+        else:
+            raise AssertionError("isolated herdr server did not start")
+        workspace = api("workspace", "create", "--cwd", tmp, "--label", "probe", "--focus")
+        ws = workspace["workspace"]["workspace_id"]
+        first = workspace["tab"]["tab_id"]
+        second = api("tab", "create", "--workspace", ws, "--cwd", tmp, "--label", "target", "--focus")["tab"]["tab_id"]
+        client, fd = pty.fork()
+        if client == 0:
+            os.chdir(tmp)
+            os.execve(HERDR, args, env)
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+
+        def read_for(seconds):
+            output = b""
+            end = time.monotonic() + seconds
+            while time.monotonic() < end:
+                if select.select([fd], [], [], .05)[0]:
+                    data = os.read(fd, 65536)
+                    output += data
+                    if b"\x1b[6n" in data:
+                        os.write(fd, b"\x1b[1;1R")
+                    if b"\x1b[c" in data:
+                        os.write(fd, b"\x1b[?1;2c")
+            return re.sub(rb"\x1b\[[0-?]*[ -/]*[@-~]", b" ", output)
+
+        def tabs():
+            return {t["tab_id"] for t in api("tab", "list")["tabs"]}
+
+        def ask():
+            os.write(fd, b"\x00")  # Ctrl+Space, then Shift+C
+            read_for(.15)
+            os.write(fd, b"C")
+            drawn = read_for(.8)
+            assert re.search(rb"Close\s+this\s+tab", drawn), "tab close did not ask"
+            assert {first, second} <= tabs(), "tab closed before confirmation"
+
+        read_for(1)
+        ask()
+        os.write(fd, b"\n")
+        read_for(.5)
+        assert {first, second} <= tabs(), "default answer must cancel"
+        ask()
+        os.write(fd, b"n\n")
+        read_for(.5)
+        assert {first, second} <= tabs(), "No must cancel"
+        ask()
+        os.write(fd, b"y\n")
+        read_for(.8)
+        assert first in tabs() and second not in tabs(), "Yes must close only the captured tab"
+        os.write(fd, b"\x00")
+        read_for(.15)
+        os.write(fd, b"C")
+        drawn = read_for(.8)
+        assert re.search(rb"Close\s+this\s+tab", drawn) and first in tabs(), "last tab must also ask"
+        os.write(fd, b"n\n")
+        read_for(.5)
+        assert first in tabs(), "cancelling last tab must keep its space"
+        print("close-tab-probe: asks before closing; default/No cancel; Yes closes target tab only; last tab asks")
+    finally:
+        if client:
+            os.kill(client, signal.SIGKILL)
+            os.waitpid(client, 0)
+            os.close(fd)
+        server.terminate()
+        try:
+            server.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=3)

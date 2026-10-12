@@ -3,7 +3,7 @@ AGENT OFFICE KEYS    prefix = ctrl+space: press it, let go, then the key
 shift+arrow   no prefix. left/right: pane, then tab. up/down: pane, then space
 SPACES                                    TABS  the same letter, with shift
 prefix+n             new space            prefix+shift+n       new tab
-prefix+c             close space          prefix+shift+c       close tab
+prefix+c             close space (asks)   prefix+shift+c       close tab (asks)
 prefix+r             rename space         prefix+shift+r       rename tab
 prefix+w             pick a space         prefix+space         next tab
 prefix+shift+g       new worktree         prefix+p             previous tab
