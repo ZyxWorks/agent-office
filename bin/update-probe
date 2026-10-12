@@ -40,6 +40,14 @@ def check(name, ok, detail=""):
     fails += 0 if ok else 1
 
 
+LINK = (
+    'import json,os,re,sys;root=sys.argv[1];t=open(root+"/herdr-plugin.toml").read();'
+    'ids=re.findall(r"^id = \\"(.*)\\"$",t,re.M);v=re.search(r"^version = \\"(.*)\\"$",t,re.M).group(1);'
+    'd=os.path.expanduser("~/.config/herdr");os.makedirs(d,exist_ok=True);'
+    'json.dump([dict(plugin_id=ids[0],plugin_root=root,version=v,enabled=True,'
+    'actions=[dict(id=i) for i in ids[1:]])],open(d+"/plugins.json","w"))')
+
+
 def herdr_text(version, log):
     """A herdr that answers what office asks and writes down every call, so a test can prove
     that `herdr update` and `herdr server stop` were never among them."""
@@ -49,6 +57,8 @@ def herdr_text(version, log):
             '[ "$1 $3 $4" = "--session status server" ] && {  # no cat: PATH is only the fakes\n'
             '  read -r s <"$HOME/herdr-status.json" 2>/dev/null ||\n'
             '  s=\'{"status":"not_running","running":false,"socket":"/x/herdr.sock"}\'; echo "$s"; exit 0; }\n'
+            # `plugin link <folder>`: what herdr records in its plugins.json, from the manifest
+            f'[ "$1 $2" = "plugin link" ] && exec {sys.executable} -c \'{LINK}\' "$3"\n'
             'exit 1\n')
 
 
@@ -349,7 +359,7 @@ for name, want in (("agent-office", rf"update: \w{{12}} +{tip[:12]} +git, origin
                    ("gh-axi", r"update: 0\.1\.30 +0\.1\.35 +npm, global \(gh-axi\)"),
                    ("quota-axi", r"ok: 0\.1\.55 +0\.1\.55 +npm, global \(quota-axi\)"),
                    ("firstmate", rf"update: {fm_old[:12]} +{fm_new[:12]} +git, origin \(firstmate\.source\)"),
-                   ("config", r"update: 6 file\(s\) behind +this release +office install")):
+                   ("config", r"update: 7 file\(s\) behind +this release +office install")):
     check(f"{name}: installed, target, owner", re.fullmatch(want, plan.get(name, "")), said)
 for name, want in (
         ("agent-office", f"runs: git fetch origin refs/heads/main, then git merge --ff-only {tip[:12]}, in ~/agent-office"),
@@ -405,7 +415,8 @@ check("the rest ran from the new release: npm got its pin, not the old one",
 check("Homebrew was asked what it has, then upgraded", [c for c in calls if c.startswith("brew")] == [
     "brew info --json=v2 --formula treehouse", "brew upgrade --formula treehouse"], str(calls))
 check("a self-updater is never run next to its owner, and herdr is never stopped or reloaded",
-      not any(re.search(r"^(herdr|treehouse|no-mistakes) .*\b(update|stop|reload-config)\b", c) for c in calls), str(calls))
+      not any(re.search(r"^(herdr|treehouse|no-mistakes) .*\b(update|stop|reload-config)\b", c) for c in calls
+              if not c.startswith("herdr plugin link ")), str(calls))  # its path may hold any word
 check("the release assets came through curl, and only those", [c.rsplit("/", 1)[1] for c in calls if c.startswith("curl")]
       == ["herdr-test", "nm-test.tar.gz"], str(calls))
 check("Firstmate was fast-forwarded to the tested revision", h.git(h.fm, "rev-parse", "HEAD") == fm_new)
@@ -537,7 +548,7 @@ check("herdr is updated on disk while the session runs the old one: pending, exi
 check("the config it just wrote is not what the session started with: pending too",
       got.get("config", "").startswith("pending: written by office install on disk, not yet active: "), r.stdout)
 check("it restarted nothing itself", not any(re.search(r"\b(stop|reload-config|update)\b", c) for c in h.calls()
-                                              if c.startswith("herdr")), str(h.calls()))
+                                              if c.startswith("herdr") and not c.startswith("herdr plugin link ")), str(h.calls()))
 r = h.run("--yes")
 check("a later run still says so: nothing to update, herdr still pending, exit 1", r.returncode == 1
       and rows(r.stdout.split("Results:")[-1]).get("herdr", "").startswith("pending: on disk, not yet active: the session "

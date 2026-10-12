@@ -35,7 +35,9 @@ def check(name, ok, detail=""):
 
 class Home:
     def __init__(self):
-        self.root = Path(tempfile.mkdtemp(prefix="office-install-probe."))
+        # under /tmp: herdr refuses a socket path longer than a Unix socket allows, and macOS's own
+        # temp folder is that long
+        self.root = Path(tempfile.mkdtemp(prefix="aoip.", dir="/tmp"))
         self.home = self.root / "home"
         self.home.mkdir()
         self.cfg = self.home / ".config" / "agent-office" / "config.toml"
@@ -45,7 +47,7 @@ class Home:
 
     def env(self, **extra):
         env = {k: v for k, v in os.environ.items()
-               if not k.startswith("XDG_") and k not in ("ZDOTDIR", "HERDR_CONFIG_PATH")}
+               if not k.startswith(("XDG_", "HERDR_")) and k != "ZDOTDIR"}  # never this machine's herdr
         env.update(HOME=str(self.home), PYTHONDONTWRITEBYTECODE="1", **extra)
         return env
 
@@ -93,7 +95,11 @@ check("the fm command, linked", os.readlink(h.link.parent / "fm") == str(REPO / 
 check("the meter's settings, the defaults", json.loads((h.state / "meter.json").read_text()) == {
     "schema": 1, "enabled": True, "interval_seconds": 30, "warn_tokens": 200000, "alarm_tokens": 600000})
 check("a manifest of what it owns", '"sha256"' in (h.state / "manifest.json").read_text())
-check("never ~/.config/herdr", not (h.home / ".config" / "herdr").exists())
+reg = json.loads((h.home / ".config" / "herdr" / "plugins.json").read_text())
+check("the meter plugin, linked into herdr by herdr, with the Shift+arrow actions",
+      [p["plugin_root"] for p in reg] == [str((REPO / "herdr").resolve())] or [p["plugin_root"] for p in reg] == [str(REPO / "herdr")]
+      and {"nav-left", "nav-right", "nav-up", "nav-down"} <= {a["id"] for a in reg[0]["actions"]}, json.dumps(reg)[:300])
+check("never your own herdr config", not (h.home / ".config" / "herdr" / "config.toml").exists())
 before = h.snapshot()
 r = h.run("install")
 check("a second run changes nothing", r.returncode == 0 and "Nothing to change" in r.stdout
@@ -395,7 +401,7 @@ link_meter(h)
 sock = str(h.home / ".config" / "herdr" / "sessions" / "office" / "herdr.sock")
 (h.home / "herdr-status.json").write_text(json.dumps({"status": "running", "running": True, "socket": sock}) + "\n")
 pstate = h.home / ".local" / "state" / "herdr" / "plugins" / "agent-office.meter"
-pstate.mkdir(parents=True)
+pstate.mkdir(parents=True, exist_ok=True)  # `herdr plugin link`, which install ran, made it
 version = re.search(r'^version = "(.*)"$', (REPO / "herdr" / "herdr-plugin.toml").read_text(), re.M).group(1)
 settings = {"source": str(h.state / "meter.json"), "enabled": True, "interval_seconds": 30,
             "warn_tokens": 200000, "alarm_tokens": 600000}
