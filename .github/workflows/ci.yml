@@ -243,3 +243,56 @@ jobs:
       # private. Needs no herdr server.
       - name: preset-probe
         run: preset/preset-probe
+
+  # `office tools` for real, on a machine that has none of the pinned tools: the release assets
+  # from GitHub with their SHA-256, the npm packages with --ignore-scripts, Homebrew for the rest.
+  # The probes above feed it fake owners; this is the one run that proves the pins, the asset names
+  # and the hashes in config/components.toml still exist out there. office tools itself fails
+  # when a tool it installed is not on PATH or does not report the pinned version.
+  downloads:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # the newest floor among the npm tools is Node 22.19 (quota-axi)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: ~/.local/bin on PATH, where the release tools go
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: none of the pinned tools is here yet
+        run: |
+          for t in herdr treehouse no-mistakes gh-axi quota-axi acpx; do
+            if command -v "$t"; then echo "$t is already installed: this run would prove nothing"; exit 1; fi
+          done
+
+      - name: office tools --check installs nothing
+        run: |
+          bin/office tools --check
+          ! command -v herdr
+
+      - name: office tools
+        run: bin/office tools --yes
+
+      - name: every tool is installed, at its pin
+        run: |
+          bin/office tools --check | tee "$RUNNER_TEMP/check.txt"
+          grep -q '^Nothing to install' "$RUNNER_TEMP/check.txt"
+          herdr --version && treehouse --version && no-mistakes --version
+          bin/office install --yes
+          bin/office doctor | tee "$RUNNER_TEMP/doctor.txt" || true
+          if grep -q 'not the pinned version' "$RUNNER_TEMP/doctor.txt"; then
+            echo "office tools left a tool at another version than its pin"; exit 1
+          fi

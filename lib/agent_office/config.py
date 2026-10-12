@@ -350,3 +350,19 @@ def herdr_check(text: str) -> tuple[bool, str]:
             return False, "herdr is not installed, so its config cannot be checked (https://herdr.dev)"
         out = (got.stdout + got.stderr).strip()
         return got.returncode == 0, out.replace(str(cfg), "<generated config>")
+
+
+def write_json(path: Path, data: dict):
+    # beside the target and renamed over it: a crash leaves the old record or the new one
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    os.replace(tmp, path)
+
+
+def read_json(path: Path) -> dict | None:
+    try:
+        d = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) and d.get("schema") == 1 else None

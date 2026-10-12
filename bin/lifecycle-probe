@@ -415,6 +415,29 @@ try:
     check("with nothing left it says so, exit 0", r.returncode == 0 and "Nothing to stop" in r.stdout
           and running(F), r.stdout + r.stderr)
 
+    print("an office off that recorded no result")
+    OPEN = "recorded no result: check what still runs"
+
+    def no_result(at):
+        (state / "last-off.json").write_text(json.dumps({"schema": 1, "at": at, "all": False, "targets": [
+            {"session": A, "result": "stopping", "detail": "the stop began and recorded no result"}]}))
+
+    no_result(int(time.time()))
+    r = office("status")
+    check("nothing runs under the name any more: office status shows it, and it is no problem",
+          "stopping" in r.stdout and OPEN not in r.stdout, r.stdout + r.stderr)
+    office("on")
+    rec = record(A)
+    no_result(rec["at"] + 60)
+    r = office("status")
+    check("the office it began to stop still runs: a problem, exit 1", r.returncode == 1 and OPEN in r.stdout,
+          r.stdout + r.stderr)
+    no_result(rec["at"] - 60)
+    r = office("status")
+    check("office on started it again since: no problem", OPEN not in r.stdout, r.stdout + r.stderr)
+    r = office("off", "--yes")
+    check("and office off stops it", r.returncode == 0 and not running(A), r.stdout + r.stderr)
+
     print("a record whose server is gone, and a stranger under its name")
     office("on")
     rec = record(A)

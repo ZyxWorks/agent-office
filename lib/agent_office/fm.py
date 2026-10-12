@@ -188,22 +188,6 @@ def born(pid) -> str | None:
     return None if stat.startswith("Z") else " ".join(when) or None
 
 
-def write_json(path: Path, data: dict):
-    # beside the target and renamed over it: a crash leaves the old record or the new one
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(data, indent=2) + "\n")
-    os.replace(tmp, path)
-
-
-def read_json(path: Path) -> dict | None:
-    try:
-        d = json.loads(path.read_text())
-    except (OSError, ValueError):
-        return None
-    return d if isinstance(d, dict) and d.get("schema") == 1 else None
-
-
 def clients_path(session: str, env) -> Path:
     # a folder of its own: offices/ holds one ownership record per session name, and nothing else
     return C.state_dir(env) / "clients" / f"{session}.json"
@@ -211,7 +195,7 @@ def clients_path(session: str, env) -> Path:
 
 def clients(session: str, env) -> list:
     """The herdr clients fm and office on attached that still run: each a pid and its start."""
-    got = (read_json(clients_path(session, env)) or {}).get("clients", [])
+    got = (C.read_json(clients_path(session, env)) or {}).get("clients", [])
     return [c for c in got if isinstance(c, dict) and c.get("started") and born(c.get("pid")) == c["started"]]
 
 
@@ -294,7 +278,7 @@ def note_client(o: Office):
     detach exactly the terminals fm and office on attached, and no other."""
     me = {"pid": os.getpid(), "started": born(os.getpid())}
     if me["started"]:
-        write_json(clients_path(o.session, o.env), {"schema": 1, "clients": clients(o.session, o.env) + [me]})
+        C.write_json(clients_path(o.session, o.env), {"schema": 1, "clients": clients(o.session, o.env) + [me]})
 
 
 def attach(argv: list, env: dict):
