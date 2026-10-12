@@ -6,7 +6,9 @@ What it writes, and nothing else:
 - herdr's config, generated from the preset and your [herdr] keys, under the state folder,
 - the meter's settings, your [meter] keys, under the state folder, where the meter plugin reads
   them on every pass,
-- the `office` and `fm` commands, links in ~/.local/bin,
+- the `office`, `fm` and `officeoff-all` commands, links in ~/.local/bin,
+- the meter plugin's link in herdr, made by herdr itself (`herdr plugin link`): the sidebar
+  numbers and the preset's Shift+arrow come from that plugin,
 - and it removes the line that loads the tmux office's (0.x) `office` function from your zsh
   startup files: zsh finds a function before any command on PATH, so while it is loaded the
   1.0 command is never reached.
@@ -14,8 +16,8 @@ What it writes, and nothing else:
 ~/.tmux.conf keeps its tmux office lines: every verb 1.0 has not built yet still runs the tmux
 office, and without them its tmux has no prefix, keys or borders.
 
-It starts nothing and never touches ~/.config/herdr: the generated config is a separate file,
-and herdr only uses it once the office starts herdr against it.
+It starts nothing and never touches your own ~/.config/herdr/config.toml: the generated config
+is a separate file, and herdr only uses it once the office starts herdr against it.
 
 Every file it writes is recorded in the state folder's manifest.json with its hash. A file that
 still has that hash is ours and is updated without asking; anything else is somebody's work,
@@ -33,6 +35,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -146,7 +149,8 @@ class Installer:
 
     # --- what we want on disk -----------------------------------------------------------------
 
-    def want_file(self, p: Path, data: bytes, what: str) -> Step:
+    def want_file(self, p: Path, data: bytes, what: str, ours=lambda b: b) -> Step:
+        """`ours` takes out of the file what its program put there itself (herdr, in its config)."""
         rec = {"kind": "file", "sha256": _sha(data)}
 
         def run(backup=False):
@@ -166,7 +170,7 @@ class Installer:
         if cur == data:
             return Step("keep", p, what, record=rec)
         mine = self.manifest["owned"].get(str(p), {})
-        if mine.get("kind") == "file" and mine.get("sha256") == _sha(cur):
+        if mine.get("kind") == "file" and mine.get("sha256") in (_sha(cur), _sha(ours(cur))):
             return Step("update", p, what, run(), self._diff(cur, data, p.name), rec)
         why = "changed by hand since it was written" if mine else "not written by Agent Office"
         return Step("replace", p, f"{what} ({why})", run(True), self._diff(cur, data, p.name), rec)
@@ -238,6 +242,55 @@ class Installer:
         return Step("manual", p, "your own fm, which hides the fm command in zsh: "
                     "remove it yourself to use Agent Office's", diff=found)
 
+    def want_plugin(self) -> Step:
+        """The meter plugin, linked into herdr by herdr itself: `herdr plugin link`.
+
+        The sidebar numbers and the preset's Shift+arrow both come from it. herdr keeps its own
+        copy of the plugin's manifest in plugins.json, so a newer release is linked again, or
+        herdr would not know its new actions. A plugin you disabled stays disabled.
+        """
+        root = C.REPO / "herdr"
+        reg = C.herdr_dirs(self.env)[0] / "plugins.json"
+        what = "the meter plugin (sidebar numbers, Shift+arrow), linked with `herdr plugin link`"
+
+        def shape(d) -> tuple:
+            acts = d.get("actions") if isinstance(d.get("actions"), list) else []
+            return d.get("version"), sorted(str(a.get("id")) for a in acts if isinstance(a, dict))
+
+        try:
+            with open(root / "herdr-plugin.toml", "rb") as f:
+                manifest = C.tomllib.load(f)
+            entries = json.loads(reg.read_text()) if reg.exists() else []
+            entry = next((e for e in entries if isinstance(e, dict) and e.get("plugin_id") == manifest.get("id")), None)
+        except (OSError, ValueError, TypeError) as e:
+            return Step("manual", reg, f"{what}: not read ({e}). Run `herdr plugin link {self.show(root)}`")
+
+        def go(backup=False):
+            if backup:
+                self._backup(reg)
+            try:
+                got = subprocess.run(["herdr", "plugin", "link", str(root)], env=self.env, capture_output=True,
+                                     text=True, stdin=subprocess.DEVNULL, timeout=60)
+            except subprocess.TimeoutExpired:
+                raise OSError(f"`herdr plugin link {root}` did not answer in 60 seconds") from None
+            if got.returncode != 0:
+                raise OSError(f"`herdr plugin link {root}` failed: {(got.stderr or got.stdout).strip()}")
+
+        if entry is None:
+            return Step("create", reg, what, go)
+        there = Path(str(entry.get("plugin_root", "")))
+        try:
+            same = there.resolve() == root.resolve()
+        except (OSError, RuntimeError):
+            same = False
+        if not same:
+            return Step("replace", reg, what, lambda: go(backup=True),
+                        diff=[f"herdr links {self.show(there)} now; this release is {self.show(root)}"])
+        if shape(entry) == shape(manifest) or not entry.get("enabled", True):
+            return Step("keep", reg, what)
+        return Step("update", reg, what, go,
+                    diff=[f"herdr has version {entry.get('version')}; this release is {manifest.get('version')}"])
+
     # --- plan, ask, apply ---------------------------------------------------------------------
 
     def plan(self, cfg_text: Optional[bytes], herdr_text: str, meter_text: str) -> list:
@@ -248,8 +301,14 @@ class Installer:
             steps.append(Step("create", cfg, "your config, a starter to edit",
                               lambda: self._write(cfg, cfg_text), record={"kind": "starter"}))
         herdr = self.state / "herdr"
-        steps.append(self.want_file(herdr / "config.toml", herdr_text.encode(),
-                                    "herdr config, generated from the preset and your [herdr] keys"))
+        # herdr's own lines at the top stay: they are its record that you did its first-run setup
+        try:
+            own = C.herdr_split((herdr / "config.toml").read_text())[0]
+        except (OSError, UnicodeDecodeError):
+            own = ""
+        steps.append(self.want_file(herdr / "config.toml", (own + herdr_text).encode(),
+                                    "herdr config, generated from the preset and your [herdr] keys",
+                                    ours=lambda b: b[len(own.encode()):]))
         for f in sorted(C.PRESET_SOUNDS.iterdir()):
             steps.append(self.want_file(herdr / "sounds" / f.name, f.read_bytes(), "the preset's sound"))
         steps.append(self.want_file(C.meter_path(self.env), meter_text.encode(),
@@ -258,6 +317,9 @@ class Installer:
                                     str(C.REPO / "bin" / "office"), "the office command"))
         steps.append(self.want_link(self.home / ".local" / "bin" / "fm",
                                     str(C.REPO / "bin" / "fm"), "the fm command"))
+        steps.append(self.want_link(self.home / ".local" / "bin" / "officeoff-all",
+                                    str(C.REPO / "bin" / "officeoff-all"), "the officeoff-all command"))
+        steps.append(self.want_plugin())
         # zsh reads ~/.zshenv first, and that is where ZDOTDIR is usually set for the rest
         dirs = [self.home, Path(self.env.get("ZDOTDIR") or self.home)]
         for path in dict.fromkeys(d / n for d in dirs for n in ZSH_STARTUP):
@@ -279,27 +341,48 @@ class Installer:
 
     def apply(self, steps):
         changed = False
-        for s in steps:
-            if s.run is not None and s.kind not in ("keep", "manual"):
-                s.run()
-                changed = True
-            if s.record is not None and self.manifest["owned"].get(str(s.path)) != s.record:
-                self.manifest["owned"][str(s.path)] = s.record
-                changed = True
-        if changed:
-            self.manifest["repo"] = str(C.REPO)
-            self._write(self.manifest_path, (json.dumps(self.manifest, indent=2) + "\n").encode())
+        try:
+            for s in steps:
+                if s.run is not None and s.kind not in ("keep", "manual"):
+                    s.run()
+                    changed = True
+                if s.record is not None and self.manifest["owned"].get(str(s.path)) != s.record:
+                    self.manifest["owned"][str(s.path)] = s.record
+                    changed = True
+        finally:  # a step that fails must not leave the files written before it off the record
+            if changed:
+                self.manifest["repo"] = str(C.REPO)
+                self._write(self.manifest_path, (json.dumps(self.manifest, indent=2) + "\n").encode())
         return changed
 
 
-def _confirm(prompt: str) -> bool:
+def ask(prompt: str) -> Optional[str]:
+    """The line typed in answer on the terminal, or None when there is no terminal to ask on."""
     try:
-        with open("/dev/tty", "r+") as tty:
-            tty.write(prompt)
-            tty.flush()
-            return tty.readline().strip().lower() in ("y", "yes")
+        # unbuffered bytes: a terminal cannot seek, and Python refuses to open one for buffered
+        # reading and writing, which would read as "no terminal" on every terminal there is
+        with open("/dev/tty", "r+b", buffering=0) as tty:
+            tty.write(prompt.encode())
+            return tty.readline().decode(errors="replace").strip()
     except OSError:
-        return False
+        return None
+
+
+def _confirm(prompt: str) -> bool:
+    return (ask(prompt) or "").lower() in ("y", "yes")
+
+
+def wanted(env) -> tuple:
+    """What the config makes now: the starter when there is no config yet (else None), the herdr
+    config and the meter settings. Raises ConfigError."""
+    cfg_path = C.config_path(env)
+    starter = None
+    if cfg_path.exists() or cfg_path.is_symlink():  # a broken link is an error, not "no config"
+        cfg = C.load(cfg_path)
+    else:
+        starter = C.STARTER.read_bytes()
+        cfg = C.effective(C.tomllib.loads(starter.decode()), str(C.STARTER))
+    return starter, C.herdr_config(cfg), C.meter_settings(cfg)
 
 
 def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
@@ -322,15 +405,8 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
 
     inst = Installer(env, out)
     cfg_path = C.config_path(inst.env)
-    starter = None
     try:
-        if cfg_path.exists() or cfg_path.is_symlink():  # a broken link is an error, not "no config"
-            cfg = C.load(cfg_path)
-        else:
-            starter = C.STARTER.read_bytes()
-            cfg = C.effective(C.tomllib.loads(starter.decode()), str(C.STARTER))
-        herdr_text = C.herdr_config(cfg)
-        meter_text = C.meter_settings(cfg)
+        starter, herdr_text, meter_text = wanted(inst.env)
     except C.ConfigError as e:
         print("office install: the config has problems. Nothing was changed.", file=err)
         for p in e.problems:
@@ -361,7 +437,11 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
                   "Run it in a terminal to answer, or pass --yes.", file=err)
             return 1
 
-    inst.apply(steps)
+    try:
+        inst.apply(steps)
+    except OSError as e:
+        print(f"office install: {e}. Stopped there: run it again when that is fixed.", file=err)
+        return 1
     done = [s for s in steps if s.kind not in ("keep", "manual")]
     if done:
         inst.say(f"Done. Backups and the list of files Agent Office owns: {inst.show(inst.state)}")
@@ -382,10 +462,11 @@ usage: office install [--check] [--yes]
 
 Check your config, then write what the office needs, showing every change first:
 your config (a starter, only if there is none), herdr's config generated from the preset and
-your [herdr] keys, the meter's settings from your [meter] keys, the office and fm commands in
-~/.local/bin, and the line that loads the tmux office's (0.x) function removed from your zsh
-startup files. Anything it replaces or edits is backed up first. It starts nothing and never
-touches ~/.config/herdr or ~/.tmux.conf. A running meter reads its new settings on its next
+your [herdr] keys, the meter's settings from your [meter] keys, the office, fm and officeoff-all
+commands in ~/.local/bin, the meter plugin linked into herdr (`herdr plugin link`), and the line
+that loads the tmux office's (0.x) function removed from your zsh startup files. Anything it
+replaces or edits is backed up first. It starts nothing and never touches your own
+~/.config/herdr/config.toml or ~/.tmux.conf. A running meter reads its new settings on its next
 pass; a running herdr needs a restart (or `herdr server reload-config`) to load its new config.
 
   --check   show what it would do, change nothing

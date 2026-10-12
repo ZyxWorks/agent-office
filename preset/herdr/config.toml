@@ -6,32 +6,76 @@
 # `onboarding` is left out on purpose: a new user still gets herdr's first-run setup. Once you
 # have chosen, add `onboarding = false` yourself, as herdr's own default config says.
 
-# Keys carried over from the tmux office (office.tmux.conf), so muscle memory carries over.
-#   Shift+arrow          jump to a pane (no prefix)
+# No mouse needed. Shift+arrow (no prefix) walks everything, through the meter plugin's nav
+# action (herdr/nav): a herdr key has one action, and plain pane focus stops at the edge.
+#   Shift+left / right   the pane on that side, then the tab before / after
+#   Shift+up / down      the pane on that side, then the space above / below
 #   Ctrl+Space then:
-#     n / -              new pane right / below
-#     q                  close pane        z  zoom        Shift+arrow  swap pane that way
-#     c                  new tab           Space  next tab             1..9  tab by number
-#     Enter              copy mode         d  leave herdr (keeps running)      ?  all keys
+#     n / N              new space / new tab         c / C  close space (asks) / close tab
+#     r / R              rename space / tab          q      close pane
+#     v / -              new pane right / below      z      zoom     Shift+arrow  swap pane
+#     g                  go to any agent             o      the agent that needs you
+#     l                  last pane                   arrow  pane only
+#     Space / p          next / previous tab         1..9   tab by number
+#     s                  settings                    a      adjust pane size (resize mode)
+#     Enter              copy mode                   d      leave herdr (keeps running)
+#     ?                  all keys
+# Small letter for the space, capital for the tab: a space holds tabs, so it is the bigger step.
 # Ctrl+Space and not herdr's Ctrl+B: Ctrl+B is "back one character" in the shell and in the
 # agents' prompts. Nothing here binds Ctrl+A/E/U/W or Alt+B/F, because the WezTerm example's
 # Mac text keys send exactly those bytes to the agent and herdr must let them through.
+# Shift+arrow, prefix+arrow and Ctrl+Space come from the tmux office, so muscle memory carries over.
 [keys]
 prefix = "ctrl+space"
-focus_pane_left  = ["shift+left",  "prefix+left"]
-focus_pane_right = ["shift+right", "prefix+right"]
-focus_pane_up    = ["shift+up",    "prefix+up"]
-focus_pane_down  = ["shift+down",  "prefix+down"]
+focus_pane_left  = "prefix+left"
+focus_pane_right = "prefix+right"
+focus_pane_up    = "prefix+up"
+focus_pane_down  = "prefix+down"
 swap_pane_left   = "prefix+shift+left"
 swap_pane_right  = "prefix+shift+right"
 swap_pane_up     = "prefix+shift+up"
 swap_pane_down   = "prefix+shift+down"
-split_vertical   = "prefix+n"
-split_horizontal = "prefix+minus"
+new_workspace    = "prefix+n"
+new_tab          = "prefix+shift+n"
+close_workspace  = "prefix+c"
+close_tab        = "prefix+shift+c"
+rename_workspace = "prefix+r"
+rename_tab       = "prefix+shift+r"
 close_pane       = "prefix+q"
+last_pane        = "prefix+l"
+split_vertical   = "prefix+v"
+split_horizontal = "prefix+minus"
+resize_mode      = "prefix+a"
+# herdr's default prefix+shift+r is rename_tab here. Reload from the settings menu (prefix+s),
+# or with `herdr server reload-config`.
+reload_config    = ""
 detach           = "prefix+d"
 next_tab         = "prefix+space"
 copy_mode        = "prefix+enter"
+
+[[keys.command]]
+key = "shift+left"
+type = "plugin_action"
+command = "agent-office.meter.nav-left"
+description = "pane on the left, then the tab before"
+
+[[keys.command]]
+key = "shift+right"
+type = "plugin_action"
+command = "agent-office.meter.nav-right"
+description = "pane on the right, then the tab after"
+
+[[keys.command]]
+key = "shift+up"
+type = "plugin_action"
+command = "agent-office.meter.nav-up"
+description = "pane above, then the space above"
+
+[[keys.command]]
+key = "shift+down"
+type = "plugin_action"
+command = "agent-office.meter.nav-down"
+description = "pane below, then the space below"
 
 [ui]
 # Agents panel grouped by space. herdr's default too, kept explicit because it is a choice

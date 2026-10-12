@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent Office: several coding agents, one window</title>
-<meta name="description" content="A tmux cockpit for running several coding agents at once. Each session gets its own git worktree, and the border of the one that has stopped tells you so. One command, no daemon, no config file.">
+<title>Agent Office: several coding agents, one office</title>
+<meta name="description" content="The whole setup for running several coding agents at once, out of one box: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. MIT.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120' fill='none'><rect width='120' height='120' rx='18' fill='%230B0C10'/><g stroke='%23F6F5F1' stroke-width='11' stroke-linecap='round'><line x1='60' y1='60' x2='60' y2='30'/><line x1='60' y1='60' x2='30' y2='82'/><line x1='60' y1='60' x2='94' y2='74'/></g></svg>">
-<meta property="og:title" content="Agent Office: several coding agents, one window">
-<meta property="og:description" content="Several agents, one window, each in its own git worktree. The one that has stopped and needs you says so on its border.">
+<meta property="og:title" content="Agent Office: several coding agents, one office">
+<meta property="og:description" content="The whole setup for running coding agents side by side, out of one box. You see which one needs you, and you never reach for the mouse.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <!-- Not listed anywhere: a visitor gets here by typing the URL or from the index. "noindex" is
@@ -17,9 +17,8 @@
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="ai-content-declaration" content="noai, noimageai">
 <!--
-  ONE FILE plus three font files and one screenshot, no build step and no external request, which
-  is what lets GitHub Pages serve this straight out of /docs and keeps the same promise the product
-  makes: about two thousand lines of zsh and a tmux config, and nothing else at runtime.
+  ONE FILE plus three font files, no build step and no external request, which is what lets GitHub
+  Pages serve this straight out of /docs.
 
   The brand is ZyxWorks': the woven three-stroke mark, Sora and Geist Mono self-hosted, the
   monochrome ramp (near-black page, warm-white ink, one grey scale) and brass as the single signal
@@ -59,7 +58,7 @@
     /* THE one signal colour. Brass is not an accent: it marks the press that matters, so on this
        page it is the install button and the focus ring. Nothing else, and never the mark, which is
        one ink on every product the studio ships. (The product itself spends brass the same way, on
-       one thing only: a desk that has stopped and is waiting on you.) */
+       one thing only: an agent that needs you.) */
     --signal: #c9903f;
     --signal-ink: #0b0c10;
   }
@@ -187,12 +186,20 @@
 
 
   .scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 440px; }
+  /* No min-width: on a phone a table that scrolls sideways hides its second column, which is the
+     key or the command, the one thing the row is for. The cells wrap instead. */
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
   th, td { text-align: left; padding: 11px 0; border-bottom: 1px solid var(--edge); color: var(--subtle); }
   th { color: var(--dim); font-weight: 400; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-family: "Geist Mono", ui-monospace, Menlo, monospace; }
   td:last-child, th:last-child { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, monospace; }
   td:last-child { color: var(--ink); }
+  td:last-child, th:last-child { padding-left: 18px; }
+  th, table.short td:last-child { white-space: nowrap; }
   .note { font-size: 14px; color: var(--dim); margin-top: 18px; }
+
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px 34px; margin: 26px 0 8px; }
+  .fact strong { display: block; margin-bottom: 6px; }
+  .fact span { color: var(--muted); font-size: 15px; }
 
   ul { margin: 0; padding: 0; list-style: none; }
   li { padding: 13px 0; border-bottom: 1px solid var(--edge); color: var(--subtle); font-size: 16px; }
@@ -237,130 +244,151 @@
   </nav>
 
   <header id="top">
-    <h1>Several agents.<br>One window.</h1>
-    <p class="lead">Each one in its own git worktree. The one that has stopped and is waiting on you
-    says so, on its own border, without being asked.</p>
+    <h1>Several agents.<br>One office.</h1>
+    <p class="lead">The whole setup for running coding agents side by side, out of one box. You see
+    which one needs you, and you never reach for the mouse.</p>
 
     <div class="cta">
-      <p class="os mono">macOS, paste into Terminal</p>
+      <p class="os mono">macOS or Linux, paste into a terminal</p>
       <div class="cmd">
-        <div class="line"><code id="c1">brew install tmux fzf fd micro bat</code></div>
+        <div class="line"><code id="c1">git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office && ~/agent-office/bin/office tools && ~/agent-office/install.sh</code></div>
         <button data-copy="c1">copy</button>
       </div>
-      <p class="os mono">Windows, inside WSL2</p>
+      <p class="os mono">then, every morning</p>
       <div class="cmd">
-        <div class="line"><code id="c2">sudo apt install -y tmux zsh git fzf fd-find micro bat && mkdir -p ~/.local/bin && ln -sf "$(which fdfind)" ~/.local/bin/fd</code></div>
+        <div class="line"><code id="c2">office on</code></div>
         <button data-copy="c2">copy</button>
       </div>
-      <p class="os mono">then, on either</p>
-      <div class="cmd">
-        <div class="line"><code id="c3">git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office && ~/agent-office/bin/install-tmux</code></div>
-        <button data-copy="c3">copy</button>
-      </div>
-      <p class="after">Then <code>office on</code>. The installer adds one line to your
-      <code>.zshrc</code>, one to your <code>.tmux.conf</code> and a symlink, and no keyboard map in
-      any terminal: every key is <kbd>Shift</kbd>+arrow or the <kbd>Ctrl</kbd>+<kbd>Space</kbd>
-      prefix, which every terminal already sends. Closing the window kills nothing.</p>
+      <p class="after"><code>office tools</code> lists every tool you lack and asks before it installs
+      one, each at a pinned version from its own maker. <code>install.sh</code> shows every file it
+      will write and backs up what it replaces. Neither starts anything. You bring git, Node 22.19 or
+      newer, and a coding agent you signed in to yourself, such as Claude Code or Codex. One thing
+      is left to you before the first <code>office on</code>: clone
+      <a href="https://github.com/kunchenguid/firstmate">Firstmate</a> and put its path in the config.</p>
       <p class="after">MIT licensed, and all of it is on GitHub before you run any of it:
-      <a href="https://github.com/ZyxWorks/agent-office/blob/main/bin/install-tmux">the installer is
-      one shell script you can read first</a>, and so is
-      <a href="https://github.com/ZyxWorks/agent-office">everything it installs</a> — about two
-      thousand lines of zsh and a tmux config, no daemon, nothing compiled.</p>
+      <a href="https://github.com/ZyxWorks/agent-office/blob/main/install.sh">the installer is
+      one short script you can read first</a>, and so is
+      <a href="https://github.com/ZyxWorks/agent-office/blob/main/config/components.toml">the list of everything it installs</a>.
+      <a href="https://github.com/ZyxWorks/agent-office/blob/main/GETTING-STARTED.md">Getting started</a>
+      walks you through the first day.</p>
     </div>
 
   </header>
 
   <section>
     <h2>What was in the way</h2>
-    <p>Running three or four coding agents at once is normal now. The tooling for it was not: a
-    heap of terminal windows, a layout you rebuilt every morning, and <strong>no idea which one was
-    stuck</strong>. Every window looked equally busy, so finding the one waiting on you meant reading
-    all four — then doing it again five minutes later. That last part is why this exists. The window
-    is the easy half.</p>
+    <p>Running three or four coding agents at once is normal now. The tools for it exist, and they
+    are good: <a href="https://herdr.dev">herdr</a> runs the terminal and knows each agent's state,
+    <a href="https://github.com/kunchenguid/firstmate">Firstmate</a> supervises a fleet of workers,
+    <a href="https://github.com/kunchenguid/treehouse">treehouse</a> hands each one its own git
+    worktree. But each is its own install, its own config and its own update, and <strong>the wiring
+    between them lived in one person's dotfiles</strong>. A new machine meant doing it all
+    again by hand. A new colleague meant "how did you set that up".</p>
+    <p>Agent Office is that wiring, packaged and tested. It does not rewrite any of those tools.
+    Each one stays with its own maker.</p>
     <div class="stats">
       <div class="stat">
-        <div class="n">6</div>
-        <div class="l">panes in one window, three across at most, each agent in its own git worktree</div>
+        <div class="n">1</div>
+        <div class="l">config file. The native config of each tool is generated from it</div>
       </div>
       <div class="stat">
-        <div class="n">20<small>s</small></div>
-        <div class="l">before a desk that has stopped says so on its border</div>
+        <div class="n">1</div>
+        <div class="l">key, Shift+arrow, walks every pane, tab and space</div>
       </div>
       <div class="stat">
         <div class="n">0</div>
-        <div class="l">daemons, config files, and dashboards to stand up</div>
+        <div class="l">scripts piped into a shell, and no sudo, anywhere in the install</div>
       </div>
     </div>
     <p class="punch">Several agents you can keep track of is a different tool from several agents in
     several windows.</p>
-    <p class="note">Six is the cap, three across and two down, because past that a pane is a slit
-    and not a desk. Twenty seconds is the default and it is one variable.</p>
-  </section>
-
-
-  <section>
-    <h2>How it knows which one stopped</h2>
-    <p>It watches the pane, not the agent. There is no marker to grep for and no hook to install,
-    because each pane is pointed at whatever CLI you use — so the only thing it can rely on is
-    that <strong>an agent that is working redraws</strong>: a spinner, an elapsed timer, output
-    arriving. One that has stopped does not.</p>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>what the pane was doing</th><th>lines that changed</th></tr></thead>
-        <tbody>
-          <tr><td>streaming an answer, looks 5 s apart</td><td>7 &ndash; 34</td></tr>
-          <tr><td>thinking, spinner only, looks 5 s apart</td><td>1</td></tr>
-          <tr><td>idle at the prompt, looks 5 s apart</td><td>0 &ndash; 1</td></tr>
-          <tr><td>thinking, looks half a second apart</td><td>1, in 19 of 20</td></tr>
-          <tr><td>idle, looks half a second apart</td><td>0, in 19 of 20</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">One real Claude Code session, Apple M4 Pro, macOS 26.5, tmux 3.7b, sampled with
-    the same code the borders run. Two looks, because either alone is wrong: a hint line under the
-    input box rotates every eight seconds, so "nothing moved" cannot mean idle, and a thinking agent
-    moves exactly one line, so "one line moved" cannot mean idle either. Measure your own.</p>
   </section>
 
   <section>
-    <h2>Working next to them</h2>
-    <p>Every session gets its own git worktree. That is what stops four agents committing over each
-    other &mdash; and it is also why <code>git checkout develop</code> in your own checkout answers
-    <em>&ldquo;already used by worktree at &hellip;/desk-5&rdquo;</em> and stops. Git is right: a branch lives in
-    exactly one working tree, and a session is sat in that one.</p>
-    <p>The thing you wanted was never the branch, though. It was what is <em>in</em> it, and that is
-    already on disk one directory away. <strong><code>office cd</code> walks you there.</strong>
-    Nothing is checked out, so nothing collides: the agent keeps its worktree, you keep yours, and
-    you can read, build and run in its tree while it works. Run it in the shell pane and the file
-    list follows you, because the file editor follows that pane&rsquo;s directory.</p>
+    <h2>Which one needs you</h2>
+    <p>Every agent has one line in the sidebar. herdr knows whether it is working, idle, done or
+    blocked. The Agent Office meter adds the two numbers that decide what you do next:
+    <strong>how full its context is, and how long it has been quiet</strong>.</p>
+    <div class="cmd"><div class="line"><code>claude · 412k▲ · 47m · idle</code></div></div>
     <div class="scroll">
       <table>
-        <thead><tr><th>you type</th><th>you get</th></tr></thead>
+        <thead><tr><th>you see</th><th>it means</th></tr></thead>
         <tbody>
-          <tr><td><code>office cd</code></td><td>a picker: every worktree of this repo, and the branch in each</td></tr>
-          <tr><td><code>office cd develop</code></td><td>the checkout that has that branch &mdash; the one git just refused you</td></tr>
-          <tr><td><code>office cd desk-3</code></td><td>or the one that session is working in</td></tr>
+          <tr><td><code>412k</code></td><td>tokens in this agent's context right now</td></tr>
+          <tr><td><code>▲</code> amber</td><td>past 200k, or past half of a smaller window</td></tr>
+          <tr><td><code>▲▲</code> red</td><td>past 600k, or past three quarters</td></tr>
+          <tr><td><code>47m</code></td><td>time since it last wrote to its transcript</td></tr>
+          <tr><td>a push on your phone</td><td>an agent is blocked. Off until you turn it on</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Read-only is a choice, not a rule: it is a normal checkout and you can edit and
-    commit in it. Just remember whose branch it is.</p>
+    <p class="note">The numbers come from the agent's own transcript: Claude Code, Codex, and Claude
+    Code on a local Ollama model. An agent the meter cannot identify stays blank. It never guesses.
+    Both limits are yours to set in the config.</p>
+  </section>
+
+  <section>
+    <h2>No mouse</h2>
+    <p>One key walks the whole office. <kbd>Shift</kbd>+<kbd>&larr;</kbd> and
+    <kbd>Shift</kbd>+<kbd>&rarr;</kbd> go to the pane on that side, and from the last pane to the
+    next tab. <kbd>Shift</kbd>+<kbd>&uarr;</kbd> and <kbd>Shift</kbd>+<kbd>&darr;</kbd> do the same,
+    and from the last pane to the next space. It stops at the ends, so you can hold it.</p>
+    <p>Everything else is <kbd>Ctrl</kbd>+<kbd>Space</kbd>, then one letter. <strong>A small letter
+    is for the space, the same letter with Shift is for the tab.</strong></p>
+    <div class="scroll">
+      <table class="short">
+        <thead><tr><th>you want to</th><th>after Ctrl+Space</th></tr></thead>
+        <tbody>
+          <tr><td>make a new space, or a new tab</td><td>n &nbsp; N</td></tr>
+          <tr><td>close one</td><td>c &nbsp; C</td></tr>
+          <tr><td>rename one</td><td>r &nbsp; R</td></tr>
+          <tr><td>split the pane to the right, or below</td><td>v &nbsp; -</td></tr>
+          <tr><td>go to any agent by name</td><td>g</td></tr>
+          <tr><td>go to the agent that asked for you</td><td>o</td></tr>
+          <tr><td>leave, with everything still running</td><td>d</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note"><code>office keys</code> prints every key on one screen. A probe checks that
+    sheet against herdr itself on every push, so it cannot drift from what the keys really do.</p>
+  </section>
+
+  <section>
+    <h2>The day</h2>
+    <div class="scroll">
+      <table class="short">
+        <thead><tr><th>you want to</th><th>you type</th></tr></thead>
+        <tbody>
+          <tr><td>open the office and its Firstmate</td><td>office on</td></tr>
+          <tr><td>talk to Firstmate</td><td>fm</td></tr>
+          <tr><td>walk away and leave it all running</td><td>office break</td></tr>
+          <tr><td>see what is running</td><td>office status</td></tr>
+          <tr><td>see what is installed, and whether it is a tested version</td><td>office doctor</td></tr>
+          <tr><td>move every tool to the version this release names</td><td>office update</td></tr>
+          <tr><td>go home</td><td>office off</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">You tell Firstmate what you want done. It starts the workers, each in its own
+    worktree, and reports back. You watch the sidebar.</p>
   </section>
 
   <section>
     <h2>What it does not do</h2>
     <ul>
-      <li><strong>No daemon.</strong> Nothing runs between sessions, and <code>office off</code> takes the office you are in and every process its panes started, detached ones included. <code>office off --all</code> for every office on the machine &mdash; the blast radius is a word you type.</li>
-      <li><strong>No config file.</strong> Every setting is an <code>OFFICE_*</code> environment variable, and the defaults are the product.</li>
-      <li><strong>No plugin system</strong>, and no package manager. Two files and three small helpers is the whole surface.</li>
-      <li><strong>No hiding what it costs.</strong> Measured with its own <code>office list</code>: an agent pane is about 500&nbsp;MB, while the office's own shell pane is 9&nbsp;MB and its file list 16&nbsp;MB. Four agents is a RAM decision, so there is a command that shows you the bill.</li>
-      <li><strong>No context number on a non-Claude desk.</strong> That readout comes from Claude Code's own session files, so a codex or aider desk simply has none rather than a guess.</li>
-      <li><strong>No native Windows.</strong> tmux does not run there, so this lives in WSL2 and says so instead of half working.</li>
-      <li><strong>No telemetry, and one network call you can switch off.</strong> <code>office on</code> runs <code>git fetch</code> against this repo's remote to tell you when you are behind, and never pulls on its own. <code>OFFICE_UPDATE_CHECK=0</code> removes even that. Nothing else here opens a socket.</li>
+      <li><strong>No rewrite.</strong> herdr, Firstmate, treehouse and the tools around them stay with their own makers and keep their own update paths. Agent Office owns the install, the one config, the tested set of versions and the daily commands.</li>
+      <li><strong>No blind install.</strong> A release is downloaded at a pinned version and checked against a pinned SHA-256 before it is unpacked. npm packages install with their scripts off. Nothing is piped into a shell and nothing uses sudo.</li>
+      <li><strong>No overwriting your files.</strong> Every change is shown first, what it replaces is backed up, and it asks. Your own herdr config file is never touched.</li>
+      <li><strong>No blanket kill.</strong> <code>office off</code> stops the office it started, after it shows you what will stop. It never stops every <code>claude</code> on the machine, and it never deletes a worktree.</li>
+      <li><strong>No signing in for you.</strong> You install and authenticate Claude Code, Codex or any other agent yourself. Your accounts and keys never pass through this.</li>
+      <li><strong>No Windows yet.</strong> macOS and Linux are tested. Windows and WSL2 are not, so they are not claimed.</li>
+      <li><strong>No telemetry.</strong> Phone notifications are off until you turn them on, and the address they go to exists only in your own config file.</li>
     </ul>
-    <p class="after">Nine probes drive a real tmux server to check all of this, attaching real
-    clients on a pty and typing raw bytes at them, and CI runs every one of them on macOS and
-    Ubuntu — tmux 3.7b and 3.4 — on every push.
+    <p class="after">What is not done yet: herdr 0.9.1 is the only version on the tested list, so
+    <code>office doctor</code> still reports Firstmate and treehouse as not tested. And
+    <code>office off</code> refuses while a worker is still busy, where it will later ask Firstmate
+    to finish them. Every command on this page has a probe that runs it in a throwaway home, on
+    macOS and Linux, on every push.
     <a href="https://github.com/ZyxWorks/agent-office#readme">The source is public, and so is
     every claim on this page.</a></p>
   </section>
@@ -368,7 +396,7 @@
 
   <!-- The studio pitch. This page is the widest-reaching thing ZyxWorks publishes, and a visitor
        who likes Agent Office enough to install it is exactly the visitor worth telling about the
-       paid work. No new CSS: it reuses the .facts grid and .after that the sections above use. -->
+       paid work. -->
   <section>
     <h2>Who builds this</h2>
     <p><strong><a href="https://zyxworks.com">ZyxWorks</a></strong> is a product studio and forward
@@ -426,7 +454,7 @@
     <div class="copyright">
       &copy; <span id="year">2026</span> ZYXWORKS &middot; ZYX &middot; FORWARD DEPLOYED AI FOR YOUR COMPANY
       <div class="disclaimer">Agent Office is not affiliated with, endorsed by, or connected to
-      tmux, Anthropic, or any agent vendor.</div>
+      herdr, Firstmate, treehouse, Anthropic, OpenAI, or any agent vendor.</div>
     </div>
   </div>
 </footer>

@@ -90,6 +90,11 @@ something must prove it stopped only its own targets.
 Touched the meter (`herdr/`)? Run `herdr/meter-probe`. It needs no herdr
 server: it drives the meter against a fake herdr and fake transcripts.
 
+Touched the move key (`herdr/nav`, the preset's Shift+arrow)? Run
+`herdr/nav-probe`: every step, against a fake herdr. Touched any key in
+`preset/herdr/config.toml`? Run `preset/preset-probe`: it checks the key table
+in `preset/README.md` and the sheet in `preset/keys.txt` against herdr itself.
+
 Touched notifications (`herdr/notify`, `lib/agent_office/notify.py`, `[notify]`)?
 Run `bin/notify-probe`, and on macOS once more as `/usr/bin/python3 bin/notify-probe`.
 It needs no herdr server and no network: it drives both against a fake ntfy
@@ -101,10 +106,23 @@ your `PATH` but no herdr server. On macOS run it once more as
 `/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML
 reader, so it proves the vendored one in `lib/vendor/`.
 
+Touched `office update` (`lib/agent_office/update.py`, or what it shares with
+doctor, tools and install)? Run `bin/update-probe`, and on macOS once more as
+`/usr/bin/python3 bin/update-probe`. Every case runs in a throwaway `$HOME`
+with fake `brew`, `npm`, `herdr` and `curl` on `PATH` and local bare
+repositories as the remotes: it needs `git`, no network and no herdr, and it
+updates nothing on your machine.
+
 Touched `fm` (`bin/fm`, `lib/agent_office/fm.py`)? Run `bin/fm-probe`. It needs
 `herdr` on your `PATH` and starts a herdr server of its own, in a throwaway
 `$HOME` under `/tmp`, with a stand-in for Firstmate; it stops that server at
 the end.
+
+Touched `office on`, `break`, `off` or `status` (`lib/agent_office/lifecycle.py`,
+`bin/officeoff-all`), or `fm.py`, which they share? Run `bin/lifecycle-probe`, and on macOS once
+more as `/usr/bin/python3 bin/lifecycle-probe`. It needs `herdr` and `jq` on your `PATH` and
+starts herdr sessions of its own, in a throwaway `$HOME` under `/tmp`: two owned offices and a
+foreign session, to prove a stop ends only what `office on` started. It stops them all at the end.
 
 Touched the preset (`preset/`)? Run `preset/preset-probe`. It needs `herdr`
 on your `PATH` but no herdr server: it asks herdr for its defaults and checks
@@ -113,8 +131,10 @@ sheet in `preset/keys.txt`, the Mac text keys and the files for private paths.
 
 Lifecycle commands that start, stop or update herdr, Firstmate or treehouse
 need an isolated lab run: a herdr session and Firstmate home made for the test,
-at most two workers, torn down afterwards. The probes for that come with the
-commands; until then, write down the lab steps you used.
+at most two workers, torn down afterwards. `bin/lifecycle-probe` is that run
+for on, break, off and status, with a stand-in for Firstmate. For anything it
+does not cover (a real Firstmate, treehouse, an update), write down the lab
+steps you used.
 
 CI runs on macOS and Ubuntu. Keep both green; they catch different bugs.
 

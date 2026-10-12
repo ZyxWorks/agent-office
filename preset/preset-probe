@@ -18,6 +18,11 @@ itself, from the running herdr's defaults, and checks the documented key table a
 herdr 0.9.1 accepts copy_mode and swap_pane_* but leaves them out of --default-config; the
 preset sets them, so their effective keys are the preset's, and `config check` still rejects an
 action herdr does not have.
+
+A `[[keys.command]]` binding is a key too. The preset's Shift+arrow keys are four of them, each
+a plugin action of the meter plugin (herdr/nav). Here such a key goes by its command's name, in
+the effective map, in the README table and on the sheet, and the probe checks that the plugin
+really has that action: herdr's own check does not.
 """
 import json
 import os
@@ -35,6 +40,7 @@ WEZTERM = os.path.join(HERE, "wezterm", "wezterm.lua")
 README = os.path.join(HERE, "README.md")
 SHEET = os.path.join(HERE, "keys.txt")
 METER = os.path.join(ROOT, "herdr", "meter")
+PLUGIN = os.path.join(ROOT, "herdr", "herdr-plugin.toml")
 HERDR = os.environ.get("HERDR_BIN", "herdr")
 
 # What the WezTerm example's Mac text keys must send: the readline keys agents read.
@@ -86,6 +92,30 @@ def keys_section(lines, commented):
     return out
 
 
+def tables(text, header):
+    """Every `header` table of a TOML text, as a dict of its plain string and array values."""
+    out, cur = [], None
+    for line in text.splitlines():
+        bare = line.strip()
+        if bare.startswith("["):
+            cur = {} if bare == header else None
+            if cur is not None:
+                out.append(cur)
+            continue
+        m = re.match(r'^([a-z_]+)\s*=\s*("(?:[^"\\]|\\.)*"|\[[^\]]*\])\s*(#.*)?$', bare)
+        if cur is not None and m:
+            cur[m.group(1)] = json.loads(m.group(2))
+    return out
+
+
+def command_keys(text):
+    """The preset's [[keys.command]] bindings: command name -> its keys."""
+    out = {}
+    for t in tables(text, "[[keys.command]]"):
+        out.setdefault(t.get("command", ""), []).append(t.get("key", ""))
+    return out
+
+
 def expand(binding):
     m = re.match(r"^(.*?)(\d)\.\.(\d)$", binding)
     if not m:
@@ -99,9 +129,11 @@ def effective_keys():
         return None, None
     defaults = keys_section(got.stdout.splitlines(), commented=True)
     with open(CONFIG, encoding="utf-8") as f:
-        preset = keys_section(f.read().splitlines(), commented=False)
+        text = f.read()
+    preset = keys_section(text.splitlines(), commented=False)
     eff = dict(defaults)
     eff.update(preset)
+    eff.update(command_keys(text))
     return defaults, eff
 
 
@@ -128,6 +160,21 @@ def main():
     with open(CONFIG, encoding="utf-8") as f:
         text = f.read()
     preset_actions = [a for a in keys_section(text.splitlines(), False) if a != "prefix"]
+    preset_actions += list(command_keys(text))
+
+    # 1b. A key bound to a plugin action reaches a real one: the meter plugin has the action, and
+    # the script it runs is in the plugin's folder.
+    with open(PLUGIN, encoding="utf-8") as f:
+        manifest = f.read()
+    plugin_id = re.search(r'^id = "([^"]+)"', manifest, re.M).group(1)
+    actions = {plugin_id + "." + t["id"]: t.get("command", []) for t in tables(manifest, "[[actions]]") if "id" in t}
+    for t in tables(text, "[[keys.command]]"):
+        if t.get("type") != "plugin_action":
+            continue
+        argv = actions.get(t.get("command"))
+        script = next((a for a in argv or [] if os.path.isfile(os.path.join(os.path.dirname(PLUGIN), a))), None)
+        check(script is not None, f"{t.get('key')} runs {t.get('command')}"
+              + ("" if script else " (no such action in herdr/herdr-plugin.toml, or its script is missing)"))
 
     # 2. No two actions on one key, preset and defaults together. Navigate-mode keys are a mode
     # of their own, and the prefix is not an action.
@@ -150,7 +197,7 @@ def main():
     documented = {}
     for line in doc.splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) == 3 and re.fullmatch(r"`[a-z_]+`", cells[2]):
+        if len(cells) == 3 and re.fullmatch(r"`[a-z_.-]+`", cells[2]):
             documented[cells[2].strip("`")] = re.findall(r"`([^`]+)`", cells[1])
     check(bool(documented), "README.md has a key table")
     m = re.search(r"prefix is `([^`]+)`", doc)

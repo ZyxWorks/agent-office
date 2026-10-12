@@ -1,0 +1,75 @@
+#!/bin/sh
+# nav-probe - every step nav has to get right, against a fake herdr. No herdr server.
+# Exit 0 = all pass.
+#
+# The fake office: space w1 has tab t1 (panes p1 | p2, side by side) and tab t2 (pane p3).
+# Space w2 has tab t3 (pane p4). herdr lists tabs and spaces in no promised order, so the
+# fake lists them backwards: nav must go by their number.
+set -u
+here=$(cd "$(dirname "$0")" && pwd)
+T=$(mktemp -d) && trap 'rm -rf "$T"' EXIT
+fail=0
+unset HERDR_SOCKET_PATH HERDR_PANE_ID HERDR_ACTIVE_PANE_ID
+
+cat >"$T/herdr" <<EOF
+#!/bin/sh
+[ -z "\${FAKE_DOWN:-}" ] || exit 1
+case "\$1 \$2" in
+  "pane neighbor") # --direction D --pane P
+    case "\$6 \$4" in
+      "p1 right") echo '{"result":{"neighbor":{"pane_id":"p1","neighbor_pane_id":"p2"}}}' ;;
+      "p2 left") echo '{"result":{"neighbor":{"pane_id":"p2","neighbor_pane_id":"p1"}}}' ;;
+      *) echo "{\"result\":{\"neighbor\":{\"pane_id\":\"\$6\"}}}" ;; # the edge: no neighbor_pane_id
+    esac ;;
+  "pane list") echo '{"result":{"panes":[
+    {"pane_id":"p4","tab_id":"t3","workspace_id":"w2"},{"pane_id":"p3","tab_id":"t2","workspace_id":"w1"},
+    {"pane_id":"p2","tab_id":"t1","workspace_id":"w1"},{"pane_id":"p1","tab_id":"t1","workspace_id":"w1"}]}}' ;;
+  "tab list") echo '{"result":{"tabs":[
+    {"tab_id":"t3","workspace_id":"w2","number":1},{"tab_id":"t2","workspace_id":"w1","number":2},
+    {"tab_id":"t1","workspace_id":"w1","number":1}]}}' ;;
+  "workspace list") echo '{"result":{"workspaces":[
+    {"workspace_id":"w2","number":2},{"workspace_id":"w1","number":1}]}}' ;;
+  "pane focus" | "tab focus" | "workspace focus") echo "\$*" >>"$T/did" ;;
+  *) echo "fake herdr: unexpected \$*" >>"$T/did" ;;
+esac
+EOF
+chmod +x "$T/herdr"
+
+go() { # pane direction want: what nav must tell herdr, "" for nothing
+  : >"$T/did"
+  HERDR_BIN_PATH=$T/herdr HERDR_PANE_ID=$1 sh "$here/nav" "$2" || { echo "FAIL $1 $2: nav exit $?"; fail=1; }
+  got=$(cat "$T/did")
+  [ "$got" = "$3" ] || { echo "FAIL $1 $2: want '$3', got '$got'"; fail=1; }
+}
+
+go p1 right "pane focus --direction right --pane p1" # a pane on that side: herdr's own focus
+go p2 left  "pane focus --direction left --pane p2"
+go p2 right "tab focus t2"        # last pane: the tab after
+go p3 left  "tab focus t1"        # the tab before
+go p3 right ""                    # last tab: stop, and never the other space's tab
+go p1 left  ""                    # first tab: stop
+go p1 down  "workspace focus w2"  # no pane below: the space below
+go p4 up    "workspace focus w1"
+go p4 down  ""                    # last space: stop
+go p1 up    ""                    # first space: stop
+go p4 left  ""                    # one tab in the space
+go gone right ""                  # a pane herdr no longer has
+
+# a plain `type = "shell"` key binding names the pane in HERDR_ACTIVE_PANE_ID
+: >"$T/did"
+HERDR_BIN_PATH=$T/herdr HERDR_ACTIVE_PANE_ID=p2 sh "$here/nav" right
+[ "$(cat "$T/did")" = "tab focus t2" ] || { echo "FAIL HERDR_ACTIVE_PANE_ID: got '$(cat "$T/did")'"; fail=1; }
+
+# a herdr that does not answer is not an edge: nav stops, and never walks on to another tab
+: >"$T/did"
+FAKE_DOWN=1 HERDR_BIN_PATH=$T/herdr HERDR_PANE_ID=p2 sh "$here/nav" right 2>/dev/null; [ $? -eq 1 ] || { echo "FAIL a herdr that fails must exit 1"; fail=1; }
+[ -s "$T/did" ] && { echo "FAIL a herdr that fails still moved: $(cat "$T/did")"; fail=1; }
+
+# wrong use says so and touches nothing
+: >"$T/did"
+HERDR_BIN_PATH=$T/herdr HERDR_PANE_ID=p1 sh "$here/nav" sideways 2>/dev/null; [ $? -eq 2 ] || { echo "FAIL a bad direction must exit 2"; fail=1; }
+HERDR_BIN_PATH=$T/herdr sh "$here/nav" left 2>/dev/null; [ $? -eq 1 ] || { echo "FAIL no pane must exit 1"; fail=1; }
+[ -s "$T/did" ] && { echo "FAIL wrong use reached herdr: $(cat "$T/did")"; fail=1; }
+
+[ $fail -eq 0 ] && echo "nav-probe: all pass"
+exit $fail

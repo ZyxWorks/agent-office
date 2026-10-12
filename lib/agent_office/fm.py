@@ -14,6 +14,9 @@ process: launch-time wiring (hooks, model, flags) is read again only by a fresh 
 Every herdr call puts `--session` first: after a command's own `--`, a trailing one is handed
 to the agent as its argument. Nothing here runs a shell: argv is always a list, and herdr quotes
 the agent's arguments itself.
+
+`office on` and `office off` (lifecycle.py) use this same launch, attach and save: there is one
+implementation of each, and `who` only says which command is speaking.
 """
 
 from __future__ import annotations
@@ -82,12 +85,30 @@ class Herdr:
                 raise HerdrError("", (r.stderr or r.stdout).strip())
         return r.stdout
 
+    def stop(self):
+        """Stop this session's server and with it every pane in it. herdr answers when it is down."""
+        try:
+            r = subprocess.run(["herdr", "session", "stop", self.session, "--json"], env=self.env,
+                               capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120)
+        except FileNotFoundError:
+            raise Fail("herdr is not installed (https://herdr.dev)")
+        except subprocess.TimeoutExpired:
+            raise HerdrError("timeout", "herdr session stop did not answer within 2 minutes")
+        if r.returncode != 0:
+            try:
+                e = json.loads(r.stdout or r.stderr)["error"]
+                raise HerdrError(e.get("code", ""), e.get("message", ""))
+            except (ValueError, KeyError, TypeError):
+                raise HerdrError("", (r.stderr or r.stdout).strip())
+
     def server(self) -> dict:
         try:
             r = subprocess.run(["herdr", "--session", self.session, "status", "--json"], env=self.env,
                                capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=20)
         except FileNotFoundError:
             raise Fail("herdr is not installed (https://herdr.dev)")
+        except subprocess.TimeoutExpired:
+            return {}  # no answer is not "not running": callers that care check for the key
         try:
             return json.loads(r.stdout).get("server") or {}
         except ValueError:
@@ -101,9 +122,10 @@ class HerdrError(Exception):
 
 
 class Office:
-    def __init__(self, cfg: dict, env: dict):
+    def __init__(self, cfg: dict, env: dict, who: str = "fm"):
         fm = cfg["firstmate"]
         self.env = env
+        self.who = who
         self.session = cfg["office"]["session"]
         self.harness = fm["harness"]
         self.code = C.expand(fm["code"], env)
@@ -119,8 +141,7 @@ class Office:
     def running(self) -> dict:
         srv = self.herdr.server()
         if not srv.get("running"):
-            raise Fail(f"herdr session '{self.session}' is not running. Start it with: "
-                       f"herdr --session {self.session}")
+            raise Fail(f"herdr session '{self.session}' is not running. Start it with: office on")
         return srv
 
     def agent(self) -> dict | None:
@@ -152,6 +173,48 @@ def _same(a: str, b: Path) -> bool:
         return False
 
 
+def born(pid) -> str | None:
+    """When the process with this pid started, as ps prints it, or None when there is none.
+    A pid alone can be a recycled one: pid and start time together name one process."""
+    if not isinstance(pid, int) or pid <= 0:
+        return None
+    try:
+        r = subprocess.run(["ps", "-p", str(pid), "-o", "stat=,lstart="], env={"PATH": os.defpath, "LC_ALL": "C"},
+                           capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    stat, *when = r.stdout.split() or [""]
+    # a process that has exited but was not collected by its parent yet still has a row: it is gone
+    return None if stat.startswith("Z") else " ".join(when) or None
+
+
+def write_json(path: Path, data: dict):
+    # beside the target and renamed over it: a crash leaves the old record or the new one
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    os.replace(tmp, path)
+
+
+def read_json(path: Path) -> dict | None:
+    try:
+        d = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) and d.get("schema") == 1 else None
+
+
+def clients_path(session: str, env) -> Path:
+    # a folder of its own: offices/ holds one ownership record per session name, and nothing else
+    return C.state_dir(env) / "clients" / f"{session}.json"
+
+
+def clients(session: str, env) -> list:
+    """The herdr clients fm and office on attached that still run: each a pid and its start."""
+    got = (read_json(clients_path(session, env)) or {}).get("clients", [])
+    return [c for c in got if isinstance(c, dict) and c.get("started") and born(c.get("pid")) == c["started"]]
+
+
 def _lock(env):
     """One fm at a time per office: two quick launches must not start two Firstmates."""
     d = C.state_dir(env)
@@ -161,7 +224,7 @@ def _lock(env):
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         f.close()
-        raise Fail("another fm is running for this office (a start or a restart). "
+        raise Fail("another fm is running for this office (a start or a restart), or an office on or off. "
                    "Let it finish, then try again.")
     return f
 
@@ -179,7 +242,7 @@ def launch(o: Office, args: list, out) -> dict:
             raise Fail(f"Firstmate is already running (pane {a['pane_id']}), so these arguments "
                        "would not reach it. Quit it first, then run fm with them.")
         o.herdr.call("agent", "focus", NAME)
-        print(f"fm: Firstmate is running in pane {a['pane_id']}; focused it.", file=out)
+        print(f"{o.who}: Firstmate is running in pane {a['pane_id']}; focused it.", file=out)
         return srv
     strays = o.strays()
     if strays:
@@ -203,11 +266,11 @@ def launch(o: Office, args: list, out) -> dict:
                      "--timeout", str(START_TIMEOUT_MS), "--", *args)
     except HerdrError as e:
         if e.code == "agent_not_ready":
-            print(f"fm: started Firstmate in pane {pane}. It is asking something before it is "
+            print(f"{o.who}: started Firstmate in pane {pane}. It is asking something before it is "
                   "ready (a folder trust question, say): answer it there.", file=out)
             return srv
         raise Fail(f"Firstmate did not start in pane {pane}: {e}. The pane is left open to read.")
-    print(f"fm: started Firstmate in pane {pane}, herdr session '{o.session}'.", file=out)
+    print(f"{o.who}: started Firstmate in pane {pane}, herdr session '{o.session}'.", file=out)
     return srv
 
 
@@ -216,13 +279,33 @@ def _show(o: Office, srv: dict, out) -> list | None:
     if o.env.get("HERDR_ENV") == "1":
         if o.env.get("HERDR_SOCKET_PATH") and _same(o.env["HERDR_SOCKET_PATH"], Path(srv.get("socket", ""))):
             return None
-        print(f"fm: this pane is in another herdr session. To see Firstmate: herdr session attach "
-              f"{o.session}", file=out)
+        print(f"{o.who}: this pane is in another herdr session. To see Firstmate: run `office on` in a "
+              "terminal outside herdr.", file=out)
         return None
     if sys.stdin.isatty() and sys.stdout.isatty():
         return ["herdr", "session", "attach", o.session]
-    print(f"fm: to see Firstmate: herdr session attach {o.session}", file=out)
+    print(f"{o.who}: to see Firstmate: run `office on` in a terminal.", file=out)
     return None
+
+
+def note_client(o: Office):
+    """Record this process as a client of the session, just before it becomes one: exec keeps the
+    pid. herdr has no command that detaches a client, so this record is what lets `office break`
+    detach exactly the terminals fm and office on attached, and no other."""
+    me = {"pid": os.getpid(), "started": born(os.getpid())}
+    if me["started"]:
+        write_json(clients_path(o.session, o.env), {"schema": 1, "clients": clients(o.session, o.env) + [me]})
+
+
+def attach(argv: list, env: dict):
+    """Become the herdr client. herdr reads the keys in the client, from the client's own config,
+    so the client gets the generated config too: without it the office would answer to the keys
+    of ~/.config/herdr/config.toml, or to herdr's defaults, and not to the office's."""
+    cenv = {k: v for k, v in env.items() if k != "HERDR_SOCKET_PATH"}
+    gen = C.herdr_config_path(env)
+    if gen.is_file():
+        cenv["HERDR_CONFIG_PATH"] = str(gen)
+    os.execvpe(argv[0], argv, cenv)
 
 
 # --- fm restart -------------------------------------------------------------------------------
@@ -235,12 +318,61 @@ def _request(nonce: str) -> str:
             f"says this session is safe to reset, or by not-safe-{nonce} if it does not.")
 
 
-def restart(o: Office, args: list, out) -> int:
-    minutes = STOW_MINUTES
+def stow(o: Office, a: dict, minutes: int, out, kept: str, again: str):
+    """Ask the Firstmate agent `a` to save its work, and return only when it says the save worked
+    and it is still the same agent. Anything else raises Fail. `kept` says what the caller has
+    not done ("Nothing was reset"), `again` the command to run once the cause is gone."""
+    state = a.get("agent_status")
+    if state == "blocked":
+        raise Fail(f"Firstmate is waiting for an answer in its pane. Answer it, then {again}. "
+                   "Nothing was sent.")
+    if state == "working":
+        print(f"{o.who}: Firstmate is busy; waiting for its turn to end.", file=out)
+    if state not in ("idle", "done"):
+        got = o.herdr.call("agent", "wait", NAME, "--timeout", str(minutes * 60_000))
+        if (got.get("agent") or {}).get("agent_status") == "blocked":
+            raise Fail(f"Firstmate stopped to ask something. Answer it in its pane, then {again}. "
+                       "Nothing was sent.")
+    nonce = secrets.token_hex(6)
+    print(f"{o.who}: asking Firstmate to save its work (/stow), up to {minutes} minutes. "
+          "Ctrl-C cancels, and nothing else happens before the save is confirmed.", file=out)
+    try:
+        got = o.herdr.call("agent", "prompt", NAME, _request(nonce), "--wait",
+                           "--timeout", str(minutes * 60_000))
+    except HerdrError as e:
+        if e.code == "timeout":
+            raise Fail(f"the save did not finish within {minutes} minutes. {kept}. "
+                       f"Firstmate may still be saving: watch its pane, then {again}.")
+        if e.code == "agent_prompt_stalled":
+            raise Fail(f"Firstmate did not start the save. {kept}.")
+        raise Fail(f"could not ask Firstmate to save: {e}. {kept}.")
+    if (got.get("agent") or {}).get("agent_status") == "blocked":
+        raise Fail(f"Firstmate stopped to ask something during the save. {kept}. "
+                   f"Answer it in its pane, then {again}.")
+    text = o.herdr.text("agent", "read", NAME, "--source", "recent-unwrapped", "--lines", "400")
+    if f"{MARK}not-safe-{nonce}" in text:
+        raise Fail(f"Firstmate says this session is not safe to reset yet: read its receipt in "
+                   f"its pane. {kept}.")
+    if f"{MARK}reset-safe-{nonce}" not in text:
+        raise Fail(f"Firstmate's answer has no result line, so {o.who} cannot tell whether the save "
+                   f"worked. {kept}: read its receipt in its pane.")
+    print(f"{o.who}: Firstmate saved its work and says it is safe to reset.", file=out)
+    # The save was confirmed for this agent: if another one holds the name now, it covers nothing
+    now = o.agent()
+    if not now or now.get("pane_id") != a["pane_id"]:
+        raise Fail(f"Firstmate changed while it was saving. {kept}.")
+
+
+def minutes_arg(args: list, what: str) -> int:
     if args[:1] == ["--timeout"] and len(args) == 2 and args[1].isdigit() and 0 < int(args[1]) <= 1440:
-        minutes = int(args[1])
-    elif args:
-        raise Usage("fm restart takes only --timeout MINUTES (1 to 1440)")
+        return int(args[1])
+    if args:
+        raise Usage(f"{what} takes only --timeout MINUTES (1 to 1440)")
+    return STOW_MINUTES
+
+
+def restart(o: Office, args: list, out) -> int:
+    minutes = minutes_arg(args, "fm restart")
     if o.harness != "claude":
         raise Fail(f"fm restart is built and tested for harness claude only; firstmate.harness is "
                    f"{o.harness}. Ask Firstmate to /stow, check its receipt, then start a new session.")
@@ -249,51 +381,12 @@ def restart(o: Office, args: list, out) -> int:
     if not a:
         raise Fail(f"no Firstmate is running in herdr session '{o.session}': nothing to restart. "
                    "Start it with: fm")
-    pane = a["pane_id"]
-    state = a.get("agent_status")
-    if state == "blocked":
-        raise Fail("Firstmate is waiting for an answer in its pane. Answer it, then run fm restart "
-                   "again. Nothing was sent.")
-    if state == "working":
-        print("fm: Firstmate is busy; waiting for its turn to end.", file=out)
     try:
-        if state not in ("idle", "done"):
-            got = o.herdr.call("agent", "wait", NAME, "--timeout", str(minutes * 60_000))
-            if (got.get("agent") or {}).get("agent_status") == "blocked":
-                raise Fail("Firstmate stopped to ask something. Answer it in its pane, then run fm "
-                           "restart again. Nothing was sent.")
-        nonce = secrets.token_hex(6)
-        print(f"fm: asking Firstmate to save its work (/stow), up to {minutes} minutes. "
-              "Ctrl-C cancels; nothing is reset until the save is confirmed.", file=out)
-        try:
-            got = o.herdr.call("agent", "prompt", NAME, _request(nonce), "--wait",
-                               "--timeout", str(minutes * 60_000))
-        except HerdrError as e:
-            if e.code == "timeout":
-                raise Fail(f"the save did not finish within {minutes} minutes. Nothing was reset. "
-                           "Firstmate may still be saving: watch its pane, then run fm restart again.")
-            if e.code == "agent_prompt_stalled":
-                raise Fail("Firstmate did not start the save. Nothing was reset.")
-            raise Fail(f"could not ask Firstmate to save: {e}. Nothing was reset.")
-        if (got.get("agent") or {}).get("agent_status") == "blocked":
-            raise Fail("Firstmate stopped to ask something during the save. Nothing was reset. "
-                       "Answer it in its pane, then run fm restart again.")
-        text = o.herdr.text("agent", "read", NAME, "--source", "recent-unwrapped", "--lines", "400")
-        if f"{MARK}not-safe-{nonce}" in text:
-            raise Fail("Firstmate says this session is not safe to reset yet: read its receipt in "
-                       "its pane. Nothing was reset.")
-        if f"{MARK}reset-safe-{nonce}" not in text:
-            raise Fail("Firstmate's answer has no result line, so fm cannot tell whether the save "
-                       "worked. Nothing was reset: read its receipt in its pane.")
-        print("fm: Firstmate saved its work and says it is safe to reset.", file=out)
+        stow(o, a, minutes, out, "Nothing was reset", "run fm restart again")
     except KeyboardInterrupt:
         print("\nfm: cancelled. Nothing was reset. A save already asked for keeps running in "
               "Firstmate.", file=out)
         return 130
-    # The save was confirmed for this agent: if another one holds the name now, reset nothing
-    now = o.agent()
-    if not now or now.get("pane_id") != pane:
-        raise Fail("Firstmate changed while it was saving. Nothing was reset.")
     try:
         o.herdr.call("agent", "prompt", NAME, "/clear")
         o.herdr.call("agent", "wait", NAME, "--timeout", str(RESET_TIMEOUT_MS))
@@ -324,13 +417,15 @@ def main(argv, env=None, out=sys.stdout, err=sys.stderr) -> int:
         for p in e.problems:
             print("  " + p, file=err)
         return 1
-    attach = None
+    client = None
     try:
         lock = _lock(env)
         try:
             if restarting:
                 return restart(o, args, out)
-            attach = _show(o, launch(o, args, out), out)
+            client = _show(o, launch(o, args, out), out)
+            if client:
+                note_client(o)
         finally:
             lock.close()
     except Usage as e:
@@ -339,6 +434,6 @@ def main(argv, env=None, out=sys.stdout, err=sys.stderr) -> int:
     except (Fail, HerdrError) as e:
         print(f"fm: {e}", file=err)
         return 1
-    if attach:
-        os.execvpe(attach[0], attach, {k: v for k, v in env.items() if k != "HERDR_SOCKET_PATH"})
+    if client:
+        attach(client, env)
     return 0

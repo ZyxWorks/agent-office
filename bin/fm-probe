@@ -117,7 +117,7 @@ try:
     config()
     r = fm()
     check("fm says the session is not running and how to start it", r.returncode == 1
-          and f"herdr session '{SESSION}' is not running" in r.stderr and f"herdr --session {SESSION}" in r.stderr,
+          and f"herdr session '{SESSION}' is not running" in r.stderr and "Start it with: office on" in r.stderr,
           r.stdout + r.stderr)
     r = fm("restart")
     check("so does fm restart", r.returncode == 1 and "is not running" in r.stderr, r.stdout + r.stderr)
@@ -145,7 +145,7 @@ try:
     a = agents()
     check("one agent, named firstmate, in the checkout", len(a) == 1 and a[0].get("name") == "firstmate"
           and os.path.realpath(a[0].get("cwd", "")) == os.path.realpath(code), str(a))
-    check("without a terminal it says how to attach", f"herdr session attach {SESSION}" in r.stdout, r.stdout)
+    check("without a terminal it says how to attach", "run `office on` in a terminal" in r.stdout, r.stdout)
     r = fm()
     check("fm again focuses it", r.returncode == 0 and "focused it" in r.stdout and len(agents()) == 1,
           r.stdout + r.stderr)

@@ -57,25 +57,67 @@ def version(cmd: str, env, args=None) -> str | None:
     return m.group(0) if m else None
 
 
-def owner(real: Path, update: str | None) -> str | None:
-    """Who updates the program at this real path, from where its owner puts it."""
+def owned_by(real: Path, update: str | None) -> tuple | None:
+    """Who updates the program at this real path, from where its owner puts it: (kind, detail)."""
     parts = real.parts
-    for mark, label in (("Cellar", "Homebrew"), ("Caskroom", "Homebrew cask")):
+    for mark, kind in (("Cellar", "brew"), ("Caskroom", "cask")):
         if mark in parts and parts.index(mark) + 1 < len(parts):
-            return f"{label} ({parts[parts.index(mark) + 1]})"
+            return kind, parts[parts.index(mark) + 1]
     if "node_modules" in parts:
         # the outermost package is the one installed; any deeper one is its dependency
         i = parts.index("node_modules")
         pkg = parts[i + 1] if i + 1 < len(parts) else ""
         if pkg.startswith("@") and i + 2 < len(parts):
             pkg += "/" + parts[i + 2]
-        return f"npm, global ({pkg})"
+        return "npm", pkg
     if real.parts[1:3] == ("nix", "store"):
-        return "Nix"
+        return "nix", ""
     if str(real).startswith(_SYSTEM):
-        return "the system's packages"
+        return "system", ""
     # not under a package manager: a self-updater owns its own updates; anything else is unknown
-    return f"itself ({update})" if update else None
+    return ("self", update) if update else None
+
+
+_OWNER = {"brew": "Homebrew ({})", "cask": "Homebrew cask ({})", "npm": "npm, global ({})", "nix": "Nix",
+          "system": "the system's packages", "self": "itself ({})"}
+
+
+def label(own: tuple | None) -> str | None:
+    return _OWNER[own[0]].format(own[1]) if own else None
+
+
+def owner(real: Path, update: str | None) -> str | None:
+    return label(owned_by(real, update))
+
+
+def find(c: dict, env) -> tuple | None:
+    """A component's program as installed: (its path on PATH, its version, its owner as owned_by
+    gives it), or None when it is not on PATH."""
+    found = shutil.which(c["command"], path=env.get("PATH", ""))
+    if not found:
+        return None
+    own = owned_by(Path(found).resolve(), c.get("update"))
+    if own is None and "cask" in c and (Path(found).parent.parent / "Caskroom" / c["cask"]).is_dir():
+        # a cask's app lives in /Applications; Homebrew's link to it is what says who owns it
+        own = ("cask", c["cask"])
+    return found, version(found, env, c.get("version_args")), own
+
+
+def server_status(env, session: str) -> dict | None:
+    """What herdr says about the server of this session, or None when it did not say whether it
+    runs. It only asks: `status server` starts nothing."""
+    env = {k: v for k, v in env.items() if k != "HERDR_SOCKET_PATH"}  # --session picks the socket
+    try:
+        st = json.loads(_run(["herdr", "--session", session, "status", "server", "--json"], env) or "")
+    except ValueError:
+        return None
+    return st if isinstance(st, dict) and "running" in st else None
+
+
+def remotes(code: Path, env) -> dict:
+    """The checkout's remotes, name to URL, each URL as _norm compares them."""
+    out = _run(["git", "-C", str(code), "remote", "-v"], env)
+    return {l.split()[0]: _norm(l.split()[1]) for l in (out or "").splitlines() if len(l.split()) > 1}
 
 
 class Report:
@@ -105,17 +147,13 @@ class Report:
 
     def component(self, c: dict):
         name, cmd = c["name"], c["command"]
-        found = shutil.which(cmd, path=self.env.get("PATH", ""))
-        if not found:
+        got = find(c, self.env)
+        if got is None:
             how = " (`office tools` installs it)" if {"release", "npm", "brew", "cask"} & c.keys() else ""
             self.row(name, "-", "-", "-", problems=[f"{cmd} is not on PATH{how}"])
             return
-        real = Path(found).resolve()
-        ver, own, problems = version(found, self.env, c.get("version_args")), owner(real, c.get("update")), []
-        cask = Path(found).parent.parent / "Caskroom" / c.get("cask", "")
-        if own is None and "cask" in c and cask.is_dir():
-            # a cask's app lives in /Applications; Homebrew's link to it is what says who owns it
-            own = f"Homebrew cask ({c['cask']})"
+        found, ver, own = got
+        real, own, problems = Path(found).resolve(), label(own), []
         if ver is None:
             problems.append(f"`{cmd} --version` gave no version")
         if own is None:
@@ -163,8 +201,7 @@ class Report:
             problems.append(f"no checkout at {self.show(code)} (firstmate.code)")
         elif rev is None:
             problems.append(f"git read no commit in {self.show(code)}")
-        remotes = _run(["git", "-C", str(code), "remote", "-v"], self.env) if rev else ""
-        urls = {_norm(l.split()[1]) for l in (remotes or "").splitlines() if len(l.split()) > 1}
+        urls = set(remotes(code, self.env).values()) if rev else set()
         if rev and _norm(source) not in urls:
             problems.append(f"no remote of the checkout is the configured source {_bare(source)}")
         if rev and rev not in tested:
@@ -193,7 +230,7 @@ class Report:
         except C.ConfigError as e:
             self.fact("herdr config, installed", "unknown", problems=e.problems)
             herdr = None
-        for name, path, want in (("herdr config, installed", C.state_dir(self.env) / "herdr" / "config.toml", herdr),
+        for name, path, want in (("herdr config, installed", C.herdr_config_path(self.env), herdr),
                                  ("meter settings, installed", C.meter_path(self.env), C.meter_settings(cfg))):
             if want is None:
                 continue
@@ -201,6 +238,8 @@ class Report:
                 have = path.read_text()
             except (OSError, UnicodeDecodeError):
                 have = None
+            if have is not None and want is herdr:
+                have = C.herdr_split(have)[1]
             if have is None:
                 self.fact(name, "not written", problems=["not written yet: run `office install`"])
             elif have != want:
@@ -209,13 +248,13 @@ class Report:
             else:
                 self.fact(name, f"{self.show(path)}, matches your config")
 
-    def meter_plugin(self, enabled: bool):
-        """The meter herdr links: the folder in its plugins.json, read like herdr reads it."""
+    def meter_plugin(self):
+        """The meter herdr links: the folder in its plugins.json, read like herdr reads it.
+
+        Checked with the meter off too: the preset's Shift+arrow is an action of the same plugin.
+        """
         name = "meter plugin, installed"
         here = _plugin_version(METER)
-        if not enabled:
-            self.fact(name, f"{here or 'unknown'}, not needed: meter.enabled = false")
-            return
         try:
             reg = json.loads((C.herdr_dirs(self.env)[0] / "plugins.json").read_text())
             entry = next((p for p in reg if isinstance(p, dict) and p.get("plugin_id") == METER_ID), None)
@@ -224,7 +263,7 @@ class Report:
         link = f"`herdr plugin link {self.show(METER)}`"
         if entry is None:
             self.fact(name, f"{here or 'unknown'}, not linked into herdr",
-                      problems=[f"herdr does not link the meter: {link} links it"])
+                      problems=[f"herdr does not link the meter plugin, which Shift+arrow needs too: {link} links it"])
             return
         root = Path(str(entry.get("plugin_root", "")))
         if not _same(root, METER):
@@ -237,13 +276,9 @@ class Report:
 
     def active(self, cfg: dict, session: str):
         """What the office's herdr session runs. Nothing is active when it is not running."""
-        env = {k: v for k, v in self.env.items() if k != "HERDR_SOCKET_PATH"}  # --session picks the socket
-        try:
-            st = json.loads(_run(["herdr", "--session", session, "status", "server", "--json"], env) or "")
-        except ValueError:
-            st = None
+        st = server_status(self.env, session)
         name = f"office session {session}"
-        if not isinstance(st, dict) or "running" not in st:
+        if st is None:
             self.fact(name, "unknown", problems=["`herdr status server` did not say whether it runs"])
             return
         if not st["running"]:
@@ -254,7 +289,7 @@ class Report:
         state = C.herdr_dirs(self.env)[1] / "plugins" / METER_ID
         now = int(datetime.datetime.now().timestamp())
 
-        gen = C.state_dir(self.env) / "herdr" / "config.toml"
+        gen = C.herdr_config_path(self.env)
         started = _record(state, ".server.json", socket)
         name = "herdr config, active"
         if started is None:
@@ -263,7 +298,7 @@ class Report:
         elif not _same(Path(str(started.get("herdr_config", ""))), gen):
             self.fact(name, self.show(started.get("herdr_config")), problems=[
                 f"the session runs {self.show(started.get('herdr_config'))}, not the generated {self.show(gen)}"])
-        elif started.get("sha256") != _sha(gen):
+        elif started.get("sha256") != _herdr_sha(gen):
             self.fact(name, f"the generated config as it was when the session started, {_ago(now, started.get('at'))} ago", problems=[
                 "the generated config changed after the session started: restart the session to load it "
                 "(herdr does not report `herdr server reload-config`, so a reload cannot be confirmed)"])
@@ -335,6 +370,14 @@ def _sha(p: Path) -> str | None:
     try:
         return hashlib.sha256(p.read_bytes()).hexdigest()
     except OSError:
+        return None
+
+
+def _herdr_sha(p: Path) -> str | None:
+    """The hash herdr/start records: the config without the lines herdr itself adds."""
+    try:
+        return hashlib.sha256(C.herdr_split(p.read_text())[1].encode()).hexdigest()
+    except (OSError, UnicodeDecodeError):
         return None
 
 
@@ -430,7 +473,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
         rep.fact("workstation tools", f"{len(have)} of {len(extra)} installed"
                  + ("" if len(have) == len(extra) else " (optional: `office tools --workstation`)"))
     rep.installed(cfg)
-    rep.meter_plugin(cfg["meter"]["enabled"])
+    rep.meter_plugin()
     rep.active(cfg, cfg["office"]["session"])
     rep.print(out)
     return 1 if rep.problems else 0

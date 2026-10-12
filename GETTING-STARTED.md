@@ -1,9 +1,8 @@
 # Getting started
 
-> **Status: in transition.** Agent Office 1.0 is herdr-first, and most of it is
-> **planned**. This guide shows the 1.0 flow as a contract, marked `planned`,
-> and the one piece you can set up today, marked `works today`. Using the tmux
-> office? Its guide is [docs/legacy-tmux/GETTING-STARTED.md](docs/legacy-tmux/GETTING-STARTED.md).
+From nothing to a running office, then the keys and the daily commands. Using
+the tmux office (0.x)? Its guide is
+[docs/legacy-tmux/GETTING-STARTED.md](docs/legacy-tmux/GETTING-STARTED.md).
 
 ## 1. The words you need
 
@@ -26,91 +25,148 @@
 
 Everything else is what `office tools` and `office install` are for.
 
-## 3. The 1.0 flow
+## 3. Install
 
-`office tools` and `office install` work today. `office on` is planned.
+Four steps. Each one shows what it will do and asks before it does it.
 
 ```sh
 git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-~/agent-office/bin/office tools   # works today: herdr, treehouse and the agent tools you lack
-~/agent-office/install.sh         # works today: the config, herdr's config, the office and fm commands
-office on                         # planned: open the office and its Firstmate
+~/agent-office/bin/office tools
+~/agent-office/install.sh
+herdr integration install claude     # or: codex
 ```
 
-`office tools` installs each missing tool at a pinned version through its
+**`office tools`** installs each tool you lack at a pinned version, through its
 owner: herdr, treehouse and no-mistakes from their GitHub releases, checked
 against a pinned SHA-256; the Node-based tools with `npm install -g
---ignore-scripts`; `jq` and `gh` with Homebrew. It lists them and asks first,
-and leaves every tool you already have as it is.
+--ignore-scripts`; `jq` and `gh` with Homebrew. A tool you already have is left
+as it is. `office tools --workstation` adds the optional
+[workstation tools](README.md#workstation-profile-optional).
 [The README](README.md#what-office-tools-installs) has the details.
 
-`office install` checks `~/.config/agent-office/config.toml` (and writes a
-starter the first time), generates herdr's config from the preset and your
-`[herdr]` keys, puts `office` and `fm` on your `PATH` in `~/.local/bin`, and stops your
-zsh loading the tmux office's `office` function if you had it. It shows every
-change first, backs up anything it replaces and asks before it does. `--check`
-shows the plan and changes nothing. It starts nothing, and it never touches
-`~/.config/herdr`. [The README](README.md#what-office-install-writes) lists
-every file.
+**`install.sh`** is `office install`. It writes a starter
+`~/.config/agent-office/config.toml`, generates herdr's config from the preset
+and your `[herdr]` keys, links the meter plugin into herdr, puts `office`, `fm`
+and `officeoff-all` in `~/.local/bin`, and stops your zsh loading the tmux
+office's `office` function if you had it. It backs up anything it replaces.
+`--check` shows the plan and changes nothing. It starts nothing, and it never
+touches your own `~/.config/herdr/config.toml`.
+[The README](README.md#what-office-install-writes) lists every file.
 
-Firstmate is not installed by either: [clone it yourself](#today-firstmate).
+If `~/.local/bin` is not on your `PATH`, it prints the line to add to your
+shell's startup file. Add it and open a new terminal.
 
-`office tools --workstation` also installs the optional
-[workstation tools](README.md#workstation-profile-optional) you lack.
+**`herdr integration install`** lets herdr learn each agent's session id. The
+meter needs it to find the right transcript.
 
-`office on` opens the office herdr session and one Firstmate inside it. Talk to
-Firstmate like any agent: say what you want done. It starts workers, each in a
-treehouse worktree, and you see them in herdr's sidebar with their state and,
-from the meter, their context size and how long since each last wrote to its
-transcript.
-
-The rest of the day:
-
-| you want to | command | status |
-|---|---|---|
-| walk away, leave it all running | `office break` | planned |
-| come back | `office on` | planned |
-| jump to Firstmate | `fm` | works today, once the herdr session runs |
-| give Firstmate a fresh conversation, work saved first | `fm restart` | works today |
-| see what is installed, who updates it and whether it is tested | `office doctor` | works today |
-| see what is running | `office status` | planned |
-| update everything to a tested set | `office update` | planned |
-| go home, office stops | `office off` | planned |
-| stop every office on this machine that Agent Office owns | `office off --all` | planned |
-
-Your settings live in one file, `~/.config/agent-office/config.toml`. The
-[README](README.md#one-config) shows its shape.
-
-## Today: the meter by hand
-
-`works today`. The meter plugin in [`herdr/`](herdr) needs herdr 0.9.0 or
-newer and `jq`.
-
-```sh
-git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-herdr integration install claude              # herdr learns each pane's session id
-herdr plugin link ~/agent-office/herdr
-```
-
-The meter starts with the next herdr server. To start or replace it without
-restarting Herdr, use the steps below.
-
-Then put `$turn` and `$ctx` in the agent rows in `~/.config/herdr/config.toml`
-(the [preset](#today-the-preset-by-hand) already has them, in its own colours):
+**Firstmate** is the one thing you clone yourself, from
+[its repo](https://github.com/kunchenguid/firstmate). Follow its README, then
+tell the office where it is:
 
 ```toml
-[ui.sidebar.agents]
-rows = [
-  ["state_icon", "machine", "workspace", "tab"],
-  ["state_text",
-   { token = "$turn", rules = [{ contains = "h", fg = "#f55", bold = true }] },
-   { token = "$ctx", fg = "#6c6", rules = [{ contains = "▲▲", fg = "#f55", bold = true, dim = false }, { contains = "▲", fg = "#fc0", dim = false }] }],
-]
+# ~/.config/agent-office/config.toml
+[firstmate]
+code = "/path/to/firstmate"
 ```
 
+Run `office doctor` to see what is installed and what is missing. Today it
+ends with problems even on a good setup, because no Firstmate revision and no
+treehouse version is on this release's tested list yet. Read the list: those
+two lines are expected.
+
+## 4. Open the office
+
+```sh
+office on
 ```
- ○ agent-office
-   idle · 47m · 412k▲
+
+Run it in a plain terminal window, not inside herdr. It starts the office's
+herdr session, starts one Firstmate in it, and puts you in front of it.
+
+The first time, herdr shows its own first-run setup. Go through it or press
+Esc. While it is open it takes every key, so the office's keys do nothing until
+it is closed. It does not come back.
+
+Talk to Firstmate like any agent: say what you want done. It starts workers,
+each in its own treehouse worktree. You see every agent in the sidebar on the
+left, with its state and, from the meter, its context size and how long since
+it last wrote to its transcript:
+
+```
+ ○ api
+   claude · 412k▲ · 47m · idle
+```
+
+## 5. Move without a mouse
+
+One key walks the whole office: **Shift+arrow**, with no prefix.
+
+- Left and right: the pane on that side. From the last pane, the tab before or
+  after.
+- Up and down: the pane on that side. From the last pane, the space above or
+  below.
+
+Everything else starts with the prefix, `ctrl+space`: press it, let go, then
+the key. A small letter is for a space, the same letter with Shift is for a tab.
+
+| you want | keys |
+|---|---|
+| a new space / a new tab | `ctrl+space` `n` / `ctrl+space` `shift+n` (for a tab herdr asks for a name: type one, or press Enter) |
+| close the space / the tab | `ctrl+space` `c` / `ctrl+space` `shift+c` |
+| rename the space / the tab | `ctrl+space` `r` / `ctrl+space` `shift+r` |
+| a new pane on the right / below | `ctrl+space` `v` / `ctrl+space` `minus` |
+| go to an agent by name | `ctrl+space` `g` |
+| settings | `ctrl+space` `s` |
+| every key | `ctrl+space` `?`, or `office keys` in a shell |
+
+[The preset's README](preset/README.md#keys) has every key and why.
+
+## 6. The day
+
+| you want to | command |
+|---|---|
+| walk away, leave it all running | `office break` |
+| come back | `office on` |
+| jump to Firstmate | `fm` |
+| give Firstmate a fresh conversation, work saved first | `fm restart` |
+| see what is running | `office status` |
+| see what is installed, who updates it and whether it is tested | `office doctor` |
+| update everything to the versions this release names | `office update` |
+| go home, office stops | `office off` |
+| stop every office on this machine that Agent Office owns | `office off --all` |
+
+`office off` stops only a session `office on` started, and only after
+Firstmate confirmed it saved its work. If Firstmate does not confirm, nothing
+stops, and `office off` says why. `office break` detaches the terminals
+`office on` and `fm` attached; in a herdr you attached yourself, press
+`ctrl+space` then `d`.
+[The README](README.md#how-office-on-break-off-and-status-work) has the rules.
+
+Your settings live in one file, `~/.config/agent-office/config.toml`. The
+[README](README.md#one-config) shows its shape. After you change it, run
+`office install` again: it shows the difference and writes the new herdr
+config.
+
+## 7. When something is off
+
+| you see | do this |
+|---|---|
+| `ctrl+space` does nothing, on macOS | macOS has it for "Select the previous input source". Turn that off in System Settings, Keyboard, Keyboard Shortcuts, Input Sources |
+| no key does anything, right after `office on` | herdr's first-run setup is open. Close it with Esc |
+| the keys are herdr's defaults (`ctrl+b`), not the office's | you attached with `herdr session attach` yourself. herdr reads its keys in the window, so use `office on` or `fm`, which give it the office's config |
+| `office on` says the generated herdr config is older | you changed your config or updated the checkout. Run `office install`, then `office on` |
+| `office on` says this pane is in another herdr session | you ran it inside herdr. Run it in a plain terminal window |
+| the sidebar shows no numbers | run `herdr integration install claude` (or `codex`), then `office doctor`: it says what the meter runs with |
+| `office off` stops nothing | it says why: Firstmate did not confirm its save, or an agent is still working. `office status` shows it again |
+
+`office doctor` and `office status` change nothing, and their output is safe to
+read at any time.
+
+## The meter in detail
+
+```
+ ○ api
+   claude · 412k▲ · 47m · idle
 ```
 
 `47m` is transcript age: how long since the agent last wrote to its
@@ -197,9 +253,9 @@ Verified on Herdr 0.9.1 in a named isolated session: refresh retained the PID,
 kill plus the start hook produced a new PID, the server stayed running, and
 teardown verified that the default session was unchanged.
 
-## Today: phone notifications
+## Phone notifications
 
-`works today`, off by default. With the meter plugin linked (above), herdr runs
+Off by default. `office install` links the meter plugin, and with it herdr runs
 `herdr/notify` on every agent status change. When an agent turns blocked,
 herdr's "needs you", it pushes one line through [ntfy](https://ntfy.sh):
 
@@ -224,17 +280,16 @@ whatever knows a PR is ready calls `office notify pr-ready <url>` itself;
 quiet mode holds those. The URL stays in your file: no default ships, and a
 failed send never prints it.
 
-## Today: the preset by hand
+## The preset and the meter in a herdr of your own
 
-`works today`. The office's herdr keys, sidebar, theme and silent "done"
-sound, and an optional WezTerm example with Mac text keys, are in
-[`preset/`](preset). [Its README](preset/README.md) has the copy steps and
-every key. `office keys` prints them all on one screen.
+You do not need `office on` to use them. In a herdr you run yourself:
 
-## Today: Firstmate
+```sh
+herdr integration install claude
+herdr plugin link ~/agent-office/herdr
+```
 
-`office tools` installs treehouse. Firstmate is a git checkout you clone
-yourself, from [its repo](https://github.com/kunchenguid/firstmate): follow its
-README, and set `firstmate.code` in your config to where you cloned it.
-`office doctor` checks the checkout. Wiring them into one office is what 1.0
-adds.
+Then copy the preset, or the parts you want, into your own
+`~/.config/herdr/config.toml`: [the preset's README](preset/README.md#set-it-up-by-hand)
+has the steps. Its `[ui.sidebar.agents]` rows are what show `$ctx` and `$turn`.
+The meter starts with the next herdr server.

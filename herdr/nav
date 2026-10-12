@@ -1,0 +1,50 @@
+#!/bin/sh
+# nav - one Shift+arrow walks panes, tabs and spaces, so the office needs no mouse.
+#
+#     nav left|right   the pane on that side; at the edge, the tab before / after
+#     nav up|down      the pane on that side; at the edge, the space above / below
+#
+# herdr gives a key one action, and "focus the pane on the left" does nothing at the
+# edge. So this asks herdr where the edge is and takes the next step itself. No wrap
+# at either end: holding the key stops at the first or last one.
+#
+# It is a plugin action (herdr-plugin.toml) so the preset can bind it by name, with
+# no path in anyone's config. herdr names the focused pane in HERDR_PANE_ID for a
+# plugin action and in HERDR_ACTIVE_PANE_ID for a plain `type = "shell"` binding.
+set -eu
+dir=${1:-}
+case $dir in left | right | up | down) ;; *) echo "usage: nav left|right|up|down" >&2; exit 2 ;; esac
+command -v jq >/dev/null || { echo "nav: needs jq" >&2; exit 1; }
+H=${HERDR_BIN_PATH:-herdr}
+pane=${HERDR_ACTIVE_PANE_ID:-${HERDR_PANE_ID:-}}
+[ -n "$pane" ] || { echo "nav: no focused pane (run it from a herdr key binding)" >&2; exit 1; }
+
+# herdr names the pane on that side in neighbor_pane_id, and leaves it out at the edge
+# a herdr that did not answer is not an edge: stop, do not walk on to another tab or space
+side=$("$H" pane neighbor --direction "$dir" --pane "$pane") || { echo "nav: herdr did not answer" >&2; exit 1; }
+next=$(printf '%s' "$side" | jq -r '.result.neighbor.neighbor_pane_id // empty')
+if [ -n "$next" ]; then
+  exec "$H" pane focus --direction "$dir" --pane "$pane" >/dev/null
+fi
+
+# the pane's own tab and space, from herdr and not from the environment: the two kinds of
+# binding name them differently, and the pane id is the one thing both agree on
+at=$("$H" pane list | jq -r --arg p "$pane" '.result.panes[] | select(.pane_id == $p) | "\(.tab_id) \(.workspace_id)"')
+tab=${at% *} ws=${at#* }
+[ -n "$tab" ] || exit 0
+case $dir in left | up) step=-1 ;; *) step=1 ;; esac
+# shellcheck disable=SC2016  # $at and $step are jq's, not the shell's
+pick='(map(.id) | index($at)) as $i
+  | if $i == null or $i + $step < 0 then empty else .[$i + $step].id // empty end'
+case $dir in
+  left | right)
+    id=$("$H" tab list | jq -r --arg ws "$ws" --arg at "$tab" --argjson step "$step" \
+      "[.result.tabs[] | select(.workspace_id == \$ws) | { id: .tab_id, number }] | sort_by(.number) | $pick")
+    [ -z "$id" ] || "$H" tab focus "$id" >/dev/null
+    ;;
+  *)
+    id=$("$H" workspace list | jq -r --arg at "$ws" --argjson step "$step" \
+      "[.result.workspaces[] | { id: .workspace_id, number }] | sort_by(.number) | $pick")
+    [ -z "$id" ] || "$H" workspace focus "$id" >/dev/null
+    ;;
+esac
