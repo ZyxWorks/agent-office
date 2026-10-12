@@ -349,7 +349,7 @@ for name, want in (("agent-office", rf"update: \w{{12}} +{tip[:12]} +git, origin
                    ("gh-axi", r"update: 0\.1\.30 +0\.1\.35 +npm, global \(gh-axi\)"),
                    ("quota-axi", r"ok: 0\.1\.55 +0\.1\.55 +npm, global \(quota-axi\)"),
                    ("firstmate", rf"update: {fm_old[:12]} +{fm_new[:12]} +git, origin \(firstmate\.source\)"),
-                   ("config", r"update: 5 file\(s\) behind +this release +office install")):
+                   ("config", r"update: 6 file\(s\) behind +this release +office install")):
     check(f"{name}: installed, target, owner", re.fullmatch(want, plan.get(name, "")), said)
 for name, want in (
         ("agent-office", f"runs: git fetch origin refs/heads/main, then git merge --ff-only {tip[:12]}, in ~/agent-office"),
