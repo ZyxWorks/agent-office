@@ -9,6 +9,8 @@
 #           [] means none verified yet. No `tested` key means no version is pinned.
 # pin:      the version `office tools` installs: one that was read before it was trusted. Without
 #           `tested`, office doctor reports any other installed version as a problem.
+# restart:  the command that makes what already runs use a new version, for a tool with a
+#           long-running process. `office update` prints it after an update and never runs it.
 # profile:  "workstation" is the optional set, `office tools --workstation`: generic command-line
 #           tools. office doctor lists the ones you have and does not miss the rest.
 #
@@ -61,6 +63,7 @@ linux-amd64 = { asset = "treehouse-v3.1.0-linux-amd64.tar.gz", sha256 = "d783b1f
 name = "no-mistakes"
 command = "no-mistakes"
 update = "no-mistakes update"
+restart = "no-mistakes daemon restart"    # its daemon; run it when no pipeline is running
 pin = "1.84.0"
 
 # where its own installer puts it: the program in ~/.no-mistakes/bin, a link in ~/.local/bin
@@ -295,6 +298,10 @@ update = "claude update"
 name = "codex"
 command = "codex"
 
-# Firstmate is a git checkout: tested holds full commit hashes.
+# Firstmate is a git checkout: tested holds full commit hashes, the newest last.
+# update:   Firstmate's own updater, a program in its checkout. It takes no revision and goes to
+#           the newest commit of its origin, so `office update` runs it only when that commit is
+#           tested. A checkout without it is fast-forwarded by git to the newest tested one.
 [firstmate]
 tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run
+update = "bin/fm-update.sh"

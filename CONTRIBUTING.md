@@ -106,6 +106,13 @@ your `PATH` but no herdr server. On macOS run it once more as
 `/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML
 reader, so it proves the vendored one in `lib/vendor/`.
 
+Touched `office update` (`lib/agent_office/update.py`, or what it shares with
+doctor, tools and install)? Run `bin/update-probe`, and on macOS once more as
+`/usr/bin/python3 bin/update-probe`. Every case runs in a throwaway `$HOME`
+with fake `brew`, `npm`, `herdr` and `curl` on `PATH` and local bare
+repositories as the remotes: it needs `git`, no network and no herdr, and it
+updates nothing on your machine.
+
 Touched `fm` (`bin/fm`, `lib/agent_office/fm.py`)? Run `bin/fm-probe`. It needs
 `herdr` on your `PATH` and starts a herdr server of its own, in a throwaway
 `$HOME` under `/tmp`, with a stand-in for Firstmate; it stops that server at

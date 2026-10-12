@@ -77,7 +77,7 @@ The rest of the day:
 | give Firstmate a fresh conversation, work saved first | `fm restart` | works today |
 | see what is installed, who updates it and whether it is tested | `office doctor` | works today |
 | see what is running | `office status` | works today |
-| update everything to a tested set | `office update` | planned |
+| update everything to the versions this release names | `office update` | works today |
 | go home, office stops | `office off` | works today |
 | stop every office on this machine that Agent Office owns | `office off --all` | works today |
 

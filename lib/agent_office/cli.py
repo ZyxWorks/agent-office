@@ -9,6 +9,7 @@ import sys
 from . import config as C
 from . import doctor, install, lifecycle, tools
 from . import notify
+from . import update
 
 VERSION = "1.0.0-dev"
 
@@ -38,15 +39,16 @@ office: Agent Office, one command for the whole agent setup.
                                      office on did not start is never stopped
   office status                      read-only: what runs, what the office owns, the meter,
                                      pending restarts, the last office off
+  office update [--check] [--yes]    bring every component to the versions this release is
+                                     tested with, each through its owner; restarts nothing
   office help | version
 
 Also `fm`: open the office's Firstmate, and `fm restart` (see `fm --help`), and
 `officeoff-all`, the same as `office off --all`.
 
-Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (update) is planned. Until it
-lands, any other verb runs the tmux office (0.x) from bin/office-tmux: see
-docs/legacy-tmux/README.md. Run that way it is a separate process, so `office cd` cannot move
-your shell."""
+Your config: ~/.config/agent-office/config.toml. Any other verb runs the tmux office (0.x)
+from bin/office-tmux: see docs/legacy-tmux/README.md. Run that way it is a separate process,
+so `office cd` cannot move your shell."""
 
 
 def _config(args, out, err) -> int:
@@ -103,6 +105,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return tools.run(rest, out=out, err=err)
     if verb == "doctor":
         return doctor.run(rest, out=out, err=err)
+    if verb == "update":
+        return update.run(rest, out=out, err=err)
     if verb == "config":
         return _config(rest, out, err)
     if verb in ("on", "break", "off", "status"):

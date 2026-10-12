@@ -1,0 +1,618 @@
+#!/usr/bin/env python3
+"""update-probe: `office update` and `office update --check`, each in a throwaway $HOME.
+
+Never your own home, never the network and never this machine's tools. Every case gets a fresh
+folder as HOME holding a copy of this checkout with a git remote of its own, a stand-in Firstmate
+checkout with its remote, and a PATH of fakes only: herdr, brew, npm, node and curl are scripts
+that write down how they were called, and git is the one real program. So an update here can
+only ever move the copy, and no herdr server is asked anything. Each case is a promise the
+README makes.
+
+  bin/update-probe
+  /usr/bin/python3 bin/update-probe     # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import fcntl
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "lib"))
+from agent_office import tools  # noqa: E402
+
+PLAT = tools.platform_key()
+GIT = shutil.which("git")
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+def herdr_text(version, log):
+    """A herdr that answers what office asks and writes down every call, so a test can prove
+    that `herdr update` and `herdr server stop` were never among them."""
+    return (f'#!/bin/sh\necho "herdr $*" >> {log}\n'
+            f'[ "$1" = --version ] && {{ echo "herdr {version}"; exit 0; }}\n'
+            '[ "$1 $2" = "config check" ] && exit 0\n'
+            '[ "$1 $3 $4" = "--session status server" ] && {  # no cat: PATH is only the fakes\n'
+            '  read -r s <"$HOME/herdr-status.json" 2>/dev/null ||\n'
+            '  s=\'{"status":"not_running","running":false,"socket":"/x/herdr.sock"}\'; echo "$s"; exit 0; }\n'
+            'exit 1\n')
+
+
+class Home:
+    def __init__(self):
+        self.root = Path(tempfile.mkdtemp(prefix="office-update-probe."))
+        self.home = self.root / "home"
+        self.bin = self.home / "fakebin"
+        self.bin.mkdir(parents=True)
+        self.log = self.root / "calls.log"
+        self.state = self.home / ".local" / "state" / "agent-office"
+        self.record = self.state / "update.json"
+        self.office = self.home / "agent-office"
+        self.fm = self.home / "firstmate"
+        os.symlink(GIT, self.bin / "git")
+
+    def env(self, **extra):
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(("XDG_", "HERDR_", "GIT_", "FM_")) and k != "ZDOTDIR"}
+        env.update(HOME=str(self.home), PYTHONDONTWRITEBYTECODE="1",
+                   PATH=f"{self.bin}:{self.home / '.local' / 'bin'}", **extra)
+        return env
+
+    def run(self, *args):
+        # the copy's own office, so "this checkout" is the copy; no terminal, so nothing can ask
+        return subprocess.run([sys.executable, str(self.office / "bin" / "office"), "update", *args],
+                              env=self.env(), capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                              start_new_session=True)
+
+    def git(self, where, *args):
+        r = subprocess.run([GIT, "-C", str(where), "-c", "user.name=probe", "-c", "user.email=probe@example.invalid",
+                            "-c", "commit.gpgsign=false", *args], env=self.env(), capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit(f"update-probe: git {' '.join(args)} failed in {where}: {r.stderr}")
+        return r.stdout.strip()
+
+    def snapshot(self):
+        out = {}
+        for p in sorted(self.home.rglob("*")):
+            if p.is_symlink():
+                out[str(p)] = "-> " + os.readlink(p)
+            elif p.is_file():
+                out[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
+        return out
+
+    def calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def fake(self, name, body):
+        p = self.bin / name
+        p.write_text("#!/bin/sh\n" + body + "\n")
+        p.chmod(0o755)
+
+    def program(self, path, version, linked=True):
+        """A fake program at path under the home, where its owner would put it, linked like an
+        install. It writes down its calls: a self-updater must never be asked to update."""
+        real = self.home / path
+        real.parent.mkdir(parents=True, exist_ok=True)
+        real.write_text(herdr_text(version, self.log) if real.name == "herdr" else
+                        f'#!/bin/sh\necho "{real.name} $*" >> {self.log}\necho "{version}"\n')
+        real.chmod(0o755)
+        link = self.bin / real.name.split(".")[0]
+        if linked and link != real:
+            os.symlink(real, link)
+
+    def repo(self, where, bare):
+        """Make where a git checkout that follows its own remote, a bare repo outside the home."""
+        self.git(where, "init", "-q", "-b", "main")
+        self.git(where, "add", "-A")
+        self.git(where, "commit", "-q", "--allow-empty", "-m", "first")
+        subprocess.run([GIT, "clone", "-q", "--bare", str(where), str(bare)], env=self.env(), check=True)
+        self.git(where, "remote", "add", "origin", str(bare))
+        self.git(where, "fetch", "-q", "origin")
+        self.git(where, "branch", "-q", "-u", "origin/main")
+        return self.git(where, "rev-parse", "HEAD")
+
+    def upstream(self, bare, edit):
+        """A commit on the remote that the checkout does not have yet. Its hash."""
+        work = self.root / "work"
+        if work.exists():
+            shutil.rmtree(work)
+        subprocess.run([GIT, "clone", "-q", str(bare), str(work)], env=self.env(), check=True)
+        edit(work)
+        self.git(work, "add", "-A")
+        self.git(work, "commit", "-q", "-m", "next")
+        self.git(work, "push", "-q", "origin", "main")
+        return self.git(work, "rev-parse", "HEAD")
+
+    def done(self):
+        shutil.rmtree(self.root)
+
+
+def asset(h, name, text, tar_as=None):
+    prog = h.root / "assets" / (tar_as or name)
+    prog.parent.mkdir(exist_ok=True)
+    prog.write_text(text)
+    if not tar_as:
+        return hashlib.sha256(prog.read_bytes()).hexdigest()
+    out = h.root / "assets" / name
+    with tarfile.open(out, "w:gz") as tar:
+        tar.add(prog, arcname=tar_as)
+    return hashlib.sha256(out.read_bytes()).hexdigest()
+
+
+ODD = '''
+[[component]]
+name = "chrome-devtools-axi"
+command = "chrome-devtools-axi"
+npm = "chrome-devtools-axi"
+pin = "0.1.35"
+node = "20"
+[[component]]
+name = "lavish-axi"
+command = "lavish-axi"
+npm = "lavish-axi"
+pin = "0.1.79"
+node = "20"
+[[component]]
+name = "gnhf"
+command = "gnhf"
+npm = "gnhf"
+pin = "0.1.50"
+node = "20"
+[[component]]
+name = "backpass"
+command = "backpass"
+npm = "backpass"
+pin = "0.1.28"
+node = "20"
+'''
+
+
+def manifest(h, tested, odd=False, fm_update=None):
+    """One tool of each owner kind, at the pins this probe's fakes install."""
+    herdr = asset(h, "herdr-test", herdr_text("0.9.1", h.log))
+    nm = asset(h, "nm-test.tar.gz", '#!/bin/sh\necho "no-mistakes version v1.84.0"\n', tar_as="no-mistakes")
+    return f'''schema = 1
+[[component]]
+name = "herdr"
+command = "herdr"
+update = "herdr update"
+tested = ["0.9.1"]
+pin = "0.9.1"
+[component.release]
+url = "https://example.invalid/"
+dir = "~/.local/bin"
+{PLAT} = {{ asset = "herdr-test", sha256 = "{herdr}" }}
+[[component]]
+name = "treehouse"
+command = "treehouse"
+update = "treehouse update"
+pin = "3.1.0"
+[[component]]
+name = "no-mistakes"
+command = "no-mistakes"
+update = "no-mistakes update"
+restart = "no-mistakes daemon restart"
+pin = "1.84.0"
+[component.release]
+url = "https://example.invalid/"
+dir = "~/.no-mistakes/bin"
+link = "~/.local/bin"
+{PLAT} = {{ asset = "nm-test.tar.gz", sha256 = "{nm}" }}
+[[component]]
+name = "jq"
+command = "jq"
+brew = "jq"
+[[component]]
+name = "gh-axi"
+command = "gh-axi"
+npm = "gh-axi"
+pin = "0.1.35"
+node = "20"
+[[component]]
+name = "quota-axi"
+command = "quota-axi"
+npm = "quota-axi"
+pin = "0.1.55"
+node = "22.19"
+{ODD if odd else ""}
+[[component]]
+name = "ripgrep"
+command = "rg"
+brew = "ripgrep"
+profile = "workstation"
+[firstmate]
+tested = [{", ".join(f'"{t}"' for t in tested)}]
+{f'update = "{fm_update}"' if fm_update else ""}
+'''
+
+
+def kit(h, odd=False, **have):
+    """A home with every tool where its owner puts it, at its target unless have says otherwise,
+    a Firstmate checkout and a copy of this checkout, each following a remote of its own."""
+    v = {"herdr": "0.9.1", "treehouse": "3.1.0", "nm": "1.84.0", "gh_axi": "0.1.35", **have}
+    h.program(".local/bin/herdr", v["herdr"], linked=False)              # itself, where its installer puts it
+    h.program("brew/Cellar/treehouse/3.0.0/bin/treehouse", v["treehouse"])   # Homebrew's, though it can self-update
+    h.program(".no-mistakes/bin/no-mistakes", f"no-mistakes version v{v['nm']}", linked=False)
+    os.symlink(h.home / ".no-mistakes" / "bin" / "no-mistakes", h.home / ".local" / "bin" / "no-mistakes")
+    h.program("brew/Cellar/jq/1.8.2/bin/jq", "jq-1.8.2")
+    h.program("node/lib/node_modules/gh-axi/dist/bin/gh-axi.js", v["gh_axi"])
+    h.program("node/lib/node_modules/quota-axi/dist/bin/quota-axi.js", "0.1.55")
+    if odd:
+        h.program("node/lib/node_modules/chrome-devtools-axi/dist/bin/chrome-devtools-axi.js", "0.1.30")
+        h.program("node/lib/node_modules/lavish-axi/dist/bin/lavish-axi.js", "9.9.9")     # newer than the pin
+        h.program("fakebin/gnhf", "0.1.40")                                                # nobody owns it
+        (h.root / "npm-fail-chrome-devtools-axi").write_text("")                           # backpass: missing
+    h.fake("node", "echo v24.1.0")
+    # npm installs the version after the @, unless a test made it fail or die for that package
+    h.fake("npm", f'echo "npm $*" >> {h.log}\nfor a; do :; done\nn=${{a%@*}}; v=${{a#*@}}\n'
+           f'[ -e {h.root}/npm-fail-$n ] && {{ echo "npm error 404 $a is not in this registry" >&2; exit 1; }}\n'
+           f'[ -e {h.root}/npm-kill-$n ] && {{ kill -9 $PPID; exit 1; }}\n'
+           f'printf \'#!/bin/sh\\necho %s\\n\' "$v" > {h.home}/node/lib/node_modules/$n/dist/bin/$n.js')
+    # brew says which version it has, and upgrades to exactly that
+    h.fake("brew", f'echo "brew $*" >> {h.log}\nfor a; do :; done\nread -r v < {h.root}/brew-has-$a || exit 1\n'
+           '[ "$1" = info ] && { echo "{\\"formulae\\":[{\\"versions\\":{\\"stable\\":\\"$v\\"}}],\\"casks\\":[]}"; exit 0; }\n'
+           f'[ "$1" = upgrade ] && printf \'#!/bin/sh\\necho %s\\n\' "$v" > {h.bin}/$a')
+    (h.root / "brew-has-treehouse").write_text("3.1.0\n")
+    # curl saves the asset from a local folder: the URL in the manifest is never reached
+    h.fake("curl", f'echo "curl $*" >> {h.log}\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && d=$2; shift; done\n'
+           f'/bin/cp {h.root}/assets/${{1##*/}} "$d"')
+
+    h.fm.mkdir()
+    (h.fm / "AGENTS.md").write_text("one\n")
+    rev = h.repo(h.fm, h.root / "fm.git")
+    (h.home / "fm-home").mkdir()
+    cfg = h.home / ".config" / "agent-office" / "config.toml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(f'schema = 1\n[firstmate]\nsource = "{h.root / "fm.git"}"\ncode = "~/firstmate"\nhome = "~/fm-home"\n')
+
+    for d in ("bin", "lib", "config", "preset", "herdr"):
+        shutil.copytree(REPO / d, h.office / d, ignore=shutil.ignore_patterns("__pycache__"))
+    (h.office / "config" / "components.toml").write_text(manifest(h, [rev], odd))
+    h.repo(h.office, h.root / "office.git")
+    return rev
+
+
+def rows(said):
+    """The plan or the results as {name: the rest of its line}."""
+    out = {}
+    for line in said.splitlines():
+        m = re.match(r"  (update|blocked|ok|updated|unchanged|skipped|failed|pending) +(\S+) +(.*)", line)
+        if m:
+            out[m.group(2)] = f"{m.group(1)}: {m.group(3)}"
+    return out
+
+
+def under(said, name):
+    """The lines the plan prints under one component: what runs, what restarts, what blocks."""
+    lines = said.splitlines()
+    i = next((n for n, l in enumerate(lines) if re.match(rf"  \w+ +{re.escape(name)} ", l)), None)
+    out = []
+    for l in lines[i + 1:] if i is not None else []:
+        if not l.startswith("     "):
+            break
+        out.append(l.strip())
+    return "\n".join(out)
+
+
+def bump(pin):
+    def edit(work):
+        m = work / "config" / "components.toml"
+        m.write_text(m.read_text().replace('pin = "0.1.35"\nnode = "20"\n[[component]]\nname = "quota-axi"',
+                                           f'pin = "{pin}"\nnode = "20"\n[[component]]\nname = "quota-axi"'))
+    return edit
+
+
+def touch(work):
+    (work / "AGENTS.md").write_text("two\n")
+
+
+if not GIT:
+    sys.exit("update-probe: needs git on PATH")
+
+print("office update --check: a plan, and nothing written")
+h = Home()
+kit(h, odd=True, herdr="0.9.0", treehouse="3.0.0", nm="1.83.0", gh_axi="0.1.30")
+fm_old = h.git(h.fm, "rev-parse", "HEAD")
+fm_new = h.upstream(h.root / "fm.git", touch)
+m = h.office / "config" / "components.toml"                    # this release is tested with the new Firstmate
+m.write_text(m.read_text().replace(f'tested = ["{fm_old}"]', f'tested = ["{fm_new}"]'))
+h.git(h.office, "commit", "-qam", "tested")
+h.git(h.office, "push", "-q", "origin", "main")
+tip = h.upstream(h.root / "office.git", bump("0.1.36"))       # the next release pins a newer gh-axi
+before = h.snapshot()
+r = h.run("--check")
+said = r.stdout
+check("exit 0", r.returncode == 0, said + r.stderr)
+check("it wrote nothing: every file in the home, both .git folders too, hashes the same", h.snapshot() == before)
+check("it ran no updater: no npm, brew or curl, and herdr was only asked for its version and status",
+      not [c for c in h.calls() if not re.fullmatch(r"herdr (--version|--session office status server --json)|\S+ --version", c)],
+      str(h.calls()))
+plan = rows(said)
+for name, want in (("agent-office", rf"update: \w{{12}} +{tip[:12]} +git, origin/main"),
+                   ("herdr", r"update: 0\.9\.0 +0\.9\.1 +itself \(herdr update\)"),
+                   ("treehouse", r"update: 3\.0\.0 +3\.1\.0 +Homebrew \(treehouse\)"),
+                   ("no-mistakes", r"update: 1\.83\.0 +1\.84\.0 +itself \(no-mistakes update\)"),
+                   ("gh-axi", r"update: 0\.1\.30 +0\.1\.35 +npm, global \(gh-axi\)"),
+                   ("quota-axi", r"ok: 0\.1\.55 +0\.1\.55 +npm, global \(quota-axi\)"),
+                   ("firstmate", rf"update: {fm_old[:12]} +{fm_new[:12]} +git, origin \(firstmate\.source\)"),
+                   ("config", r"update: 5 file\(s\) behind +this release +office install")):
+    check(f"{name}: installed, target, owner", re.fullmatch(want, plan.get(name, "")), said)
+for name, want in (
+        ("agent-office", f"runs: git fetch origin refs/heads/main, then git merge --ff-only {tip[:12]}, in ~/agent-office"),
+        ("herdr", "runs: its release asset herdr-test at 0.9.1, SHA-256 checked, over ~/.local/bin/herdr "
+                  "(`herdr update` takes no version, so it is not run)"),
+        ("herdr", "restart: a running herdr server"),
+        ("treehouse", "runs: brew upgrade --formula treehouse, when Homebrew has 3.1.0 (asked first)"),
+        ("no-mistakes", "runs: its release asset nm-test.tar.gz at 1.84.0, SHA-256 checked, over ~/.no-mistakes/bin/no-mistakes"),
+        ("no-mistakes", "restart: `no-mistakes daemon restart`, for what already runs"),
+        ("gh-axi", "runs: npm install -g --ignore-scripts gh-axi@0.1.35"),
+        ("gh-axi", "restart: nothing, the next run uses it"),
+        ("firstmate", f"runs: git fetch origin, then git merge --ff-only {fm_new[:12]}, in ~/firstmate"),
+        ("firstmate", "restart: a running Firstmate: `fm restart`"),
+        ("config", "runs: office install --yes: ~/.local/state/agent-office/herdr/config.toml"),
+        ("backpass", "blocker: backpass is not on PATH: `office tools` installs it"),
+        ("gnhf", "blocker: nothing says how ~/fakebin/gnhf is updated (owner unknown)"),
+        ("lavish-axi", "blocker: 9.9.9 is newer than the target 0.1.79: Agent Office never downgrades")):
+    check(f"{name}: {want[:70]}", want in under(said, name), said)
+check("a tool with no pin is left to its owner; a workstation tool you lack is not missed",
+      "no version pinned, so their owner decides: jq" in said and "ripgrep" not in said, said)
+check("your home is never printed", str(h.home) not in said + r.stderr, said)
+
+print("office update: asks first")
+r = h.run()
+check("without a terminal or --yes it refuses and changes nothing",
+      r.returncode == 1 and "not confirmed" in r.stderr and h.snapshot() == before, r.stdout + r.stderr)
+
+print("office update: each component through its owner, each result as it is")
+r = h.run("--yes")
+said = r.stdout
+got = rows(said.split("Results:")[-1])
+check("a failed component makes it exit 1", r.returncode == 1, said + r.stderr)
+check("this checkout was fast-forwarded to the commit the plan showed",
+      h.git(h.office, "rev-parse", "HEAD") == tip and "Agent Office itself moved" in said, said)
+for name, want in (("agent-office", r"updated: \w{12} -> " + tip[:12] + r" \(earlier in this update\)"),
+                   ("herdr", r"updated: 0\.9\.0 -> 0\.9\.1"),
+                   ("treehouse", r"updated: 3\.0\.0 -> 3\.1\.0"),
+                   ("no-mistakes", r"pending: 1\.83\.0 -> 1\.84\.0 on disk, not yet active: what already runs keeps "
+                                   r"1\.83\.0 until you run `no-mistakes daemon restart`"),
+                   ("gh-axi", r"updated: 0\.1\.30 -> 0\.1\.36"),
+                   ("quota-axi", r"unchanged: 0\.1\.55"),
+                   ("chrome-devtools-axi", r"failed: `npm install -g --ignore-scripts chrome-devtools-axi@0\.1\.35` failed \(exit 1\)"),
+                   ("lavish-axi", r"skipped: 9\.9\.9 is newer than the target .*"),
+                   ("gnhf", r"skipped: nothing says how ~/fakebin/gnhf is updated \(owner unknown\)"),
+                   ("backpass", r"skipped: backpass is not on PATH.*"),
+                   ("firstmate", rf"updated: {fm_old[:12]} -> {fm_new[:12]}"),
+                   ("config", r"updated: written by office install")):
+    check(f"{name}: {want[:60]}", re.fullmatch(want, got.get(name, "")), said)
+check("and the counts", "6 updated, 2 unchanged, 3 skipped, 1 failed, 1 updated on disk but not yet active." in said, said)
+calls = h.calls()
+check("the rest ran from the new release: npm got its pin, not the old one",
+      "npm install -g --ignore-scripts gh-axi@0.1.36" in calls and not any("gh-axi@0.1.35" in c for c in calls), str(calls))
+check("Homebrew was asked what it has, then upgraded", [c for c in calls if c.startswith("brew")] == [
+    "brew info --json=v2 --formula treehouse", "brew upgrade --formula treehouse"], str(calls))
+check("a self-updater is never run next to its owner, and herdr is never stopped or reloaded",
+      not any(re.search(r"^(herdr|treehouse|no-mistakes) .*\b(update|stop|reload-config)\b", c) for c in calls), str(calls))
+check("the release assets came through curl, and only those", [c.rsplit("/", 1)[1] for c in calls if c.startswith("curl")]
+      == ["herdr-test", "nm-test.tar.gz"], str(calls))
+check("Firstmate was fast-forwarded to the tested revision", h.git(h.fm, "rev-parse", "HEAD") == fm_new)
+check("the config is written", (h.state / "herdr" / "config.toml").is_file())
+rec = json.loads(h.record.read_text())
+check("the record says done, exit 1, and each result",
+      rec["state"] == "done" and rec["exit"] == 1 and rec["results"]["chrome-devtools-axi"]["state"] == "failed", str(rec))
+(h.root / "npm-fail-chrome-devtools-axi").unlink()
+n = len(h.calls())
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("a second run does only what is left", got.get("chrome-devtools-axi") == "updated: 0.1.30 -> 0.1.35"
+      and [c for c in h.calls()[n:] if not re.search(r"--version|status server", c)]
+      == ["npm install -g --ignore-scripts chrome-devtools-axi@0.1.35"], r.stdout + str(h.calls()[n:]))
+check("what is still skipped still makes it exit 1", r.returncode == 1 and "3 skipped" in r.stdout, r.stdout)
+r = h.run("--bogus")
+check("an unknown option is refused", r.returncode == 2 and "unknown option --bogus" in r.stderr, r.stderr)
+h.done()
+
+print("office update: everything at its target")
+h = Home()
+kit(h)
+r = h.run("--yes")
+check("the first run writes the config, exit 0", r.returncode == 0 and "updated    config" in r.stdout, r.stdout + r.stderr)
+before = {k: v for k, v in h.snapshot().items() if k != str(h.record)}
+r = h.run("--yes")
+check("then nothing is left: all unchanged, exit 0, nothing but the record written", r.returncode == 0
+      and set(v.split(":")[0] for v in rows(r.stdout.split("Results:")[-1]).values()) == {"unchanged"}
+      and {k: v for k, v in h.snapshot().items() if k != str(h.record)} == before, r.stdout + r.stderr)
+
+print("office update: a checkout that cannot be fast-forwarded blocks, and only itself")
+tip = h.upstream(h.root / "office.git", bump("0.1.36"))
+(h.office / "bin" / "office").write_text((h.office / "bin" / "office").read_text() + "# mine\n")
+r = h.run("--check")
+check("dirty: uncommitted changes block it", r.returncode == 0
+      and "blocker: 1 tracked file(s) in ~/agent-office have uncommitted changes (dirty)" in under(r.stdout, "agent-office"), r.stdout)
+h.git(h.office, "commit", "-qam", "mine")
+head = h.git(h.office, "rev-parse", "HEAD")
+r = h.run("--check")
+check("diverged: commits of its own next to new ones upstream block it", r.returncode == 0
+      and "blocker: it has commits the target does not have (diverged)" in under(r.stdout, "agent-office"), r.stdout)
+r = h.run("--yes")
+check("applying skips it, exit 1, and the checkout is where it was", r.returncode == 1
+      and rows(r.stdout.split("Results:")[-1]).get("agent-office", "").startswith("skipped: it has commits")
+      and h.git(h.office, "rev-parse", "HEAD") == head, r.stdout + r.stderr)
+check("the others' results are all there", len(rows(r.stdout.split("Results:")[-1])) == 9, r.stdout)
+h.git(h.office, "remote", "set-url", "origin", str(h.root / "gone.git"))
+r = h.run("--check")
+check("offline is reported, not a crash", r.returncode == 0 and "Traceback" not in r.stderr
+      and "blocker: the remote origin did not answer (offline?)" in under(r.stdout, "agent-office"), r.stdout + r.stderr)
+r = h.run("--yes")
+check("and applying skips it", r.returncode == 1
+      and "skipped    agent-office  the remote origin did not answer" in r.stdout, r.stdout + r.stderr)
+h.done()
+
+print("office update: Firstmate")
+h = Home()
+old = kit(h)
+m = h.office / "config" / "components.toml"
+new = h.upstream(h.root / "fm.git", touch)
+r = h.run("--check")
+check("a source that moved past the tested revision is not followed", rows(r.stdout).get("firstmate", "").startswith("ok: "), r.stdout)
+m.write_text(m.read_text().replace(f'tested = ["{old}"]', "tested = []"))
+r = h.run("--check")
+check("no tested revision: no target, so it is blocked", "blocker: no Firstmate revision is tested with this release yet"
+      in under(r.stdout, "firstmate"), r.stdout)
+m.write_text(m.read_text().replace("tested = []", f'tested = ["{new}"]'))
+(h.fm / "AGENTS.md").write_text("mine\n")
+r = h.run("--check")
+check("a dirty Firstmate checkout blocks it", "blocker: 1 tracked file(s) in ~/firstmate have uncommitted changes (dirty)"
+      in under(r.stdout, "firstmate"), r.stdout)
+h.git(h.fm, "checkout", "-q", "--", "AGENTS.md")
+cfg = h.home / ".config" / "agent-office" / "config.toml"
+text = cfg.read_text()
+cfg.write_text(text.replace(str(h.root / "fm.git"), "https://example.invalid/fork.git"))
+r = h.run("--check")
+check("a checkout that does not come from firstmate.source has no owner", "blocker: no remote of the checkout is the "
+      "configured source https://example.invalid/fork.git" in under(r.stdout, "firstmate"), r.stdout)
+cfg.write_text(text)
+
+h.done()
+
+# Firstmate's own updater, when the checkout has one: a stand-in that fast-forwards like the real
+# one and says what it was given
+h = Home()
+kit(h)
+updater = h.fm / "bin" / "fm-update.sh"
+updater.parent.mkdir()
+updater.write_text(f'#!/bin/sh\necho "fm-update FM_HOME=$FM_HOME" >> {h.log}\n'
+                   'git fetch -q origin && git merge -q --ff-only origin/main\necho "reread-firstmate: yes"\n')
+updater.chmod(0o755)
+h.git(h.fm, "add", "-A")
+h.git(h.fm, "commit", "-qm", "an updater")
+h.git(h.fm, "push", "-q", "origin", "main")
+old = h.git(h.fm, "rev-parse", "HEAD")
+new = h.upstream(h.root / "fm.git", touch)
+m = h.office / "config" / "components.toml"
+m.write_text(re.sub(r'\[firstmate\]\ntested = \[.*\]', f'[firstmate]\ntested = ["{"0" * 40}"]\nupdate = "bin/fm-update.sh"',
+                    m.read_text()))
+r = h.run("--check")
+check("its own updater goes to the newest commit: not tested, so it is not run",
+      f"blocker: its own updater goes to the newest commit of its source, {new[:12]}, which is not a revision this "
+      "release is tested with" in under(r.stdout, "firstmate"), r.stdout)
+m.write_text(m.read_text().replace("0" * 40, new))
+r = h.run("--check")
+check("tested: the plan is Firstmate's own updater, with its home", "runs: FM_HOME=~/fm-home ~/firstmate/bin/fm-update.sh"
+      in under(r.stdout, "firstmate") and re.search(r"Firstmate's own updater \(bin/fm-update\.sh\)", r.stdout), r.stdout)
+(h.home / "herdr-status.json").write_text(json.dumps({"running": True, "version": "0.9.1", "socket": "/x/s.sock"}) + "\n")
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("it ran with FM_HOME, and the checkout is at the tested revision",
+      f"fm-update FM_HOME={h.home / 'fm-home'}" in h.calls() and h.git(h.fm, "rev-parse", "HEAD") == new, str(h.calls()))
+check("while the office session runs it is on disk, not active: the command is fm restart",
+      r.returncode == 1 and re.match(r"pending: \w{12} -> \w{12} on disk, not yet active: a running Firstmate keeps the "
+                                     r"instructions it started with: `fm restart`", got.get("firstmate", "")), r.stdout)
+h.done()
+
+print("office update: updated on disk is not active")
+h = Home()
+kit(h, herdr="0.9.0")
+sock = "/x/office.sock"
+(h.home / "herdr-status.json").write_text(json.dumps({"running": True, "version": "0.9.0", "socket": sock}) + "\n")
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("herdr is updated on disk while the session runs the old one: pending, exit 1", r.returncode == 1 and re.match(
+    r"pending: 0\.9\.0 -> 0\.9\.1 on disk, not yet active: the session office still runs herdr 0\.9\.0: restart the herdr "
+    r"session office when its agents can stop: `herdr --session office server stop`, then start it again",
+    got.get("herdr", "")), r.stdout + r.stderr)
+check("the config it just wrote is not what the session started with: pending too",
+      got.get("config", "").startswith("pending: written by office install on disk, not yet active: "), r.stdout)
+check("it restarted nothing itself", not any(re.search(r"\b(stop|reload-config|update)\b", c) for c in h.calls()
+                                              if c.startswith("herdr")), str(h.calls()))
+r = h.run("--yes")
+check("a later run still says so: nothing to update, herdr still pending, exit 1", r.returncode == 1
+      and rows(r.stdout.split("Results:")[-1]).get("herdr", "").startswith("pending: on disk, not yet active: the session "
+                                                                           "office still runs herdr 0.9.0"), r.stdout)
+# the session restarts: herdr reports the new version, and the meter plugin's records say which
+# config it started with and what the meter runs (as install-probe writes them)
+(h.home / "herdr-status.json").write_text(json.dumps({"running": True, "version": "0.9.1", "socket": sock}) + "\n")
+pstate = h.home / ".local" / "state" / "herdr" / "plugins" / "agent-office.meter"
+pstate.mkdir(parents=True)
+gen = h.state / "herdr" / "config.toml"
+version = re.search(r'^version = "(.*)"$', (h.office / "herdr" / "herdr-plugin.toml").read_text(), re.M).group(1)
+(pstate / "meter.1.server.json").write_text(json.dumps({
+    "schema": 1, "socket": sock, "herdr_config": str(gen), "at": int(time.time()),
+    "sha256": hashlib.sha256(gen.read_bytes()).hexdigest()}))
+(pstate / "meter.1.json").write_text(json.dumps({
+    "schema": 1, "version": version, "root": str(h.office / "herdr"), "pid": os.getpid(), "socket": sock,
+    "started": int(time.time()), "last_pass": int(time.time()), "settings": {
+        "source": str(h.state / "meter.json"), "enabled": True, "interval_seconds": 30,
+        "warn_tokens": 200000, "alarm_tokens": 600000}}))
+r = h.run("--yes")
+check("after the restart everything is active: exit 0", r.returncode == 0 and "pending" not in r.stdout, r.stdout + r.stderr)
+h.done()
+
+print("office update: Homebrew has another version, a self-updater sits elsewhere")
+h = Home()
+kit(h, treehouse="3.0.0")
+(h.root / "brew-has-treehouse").write_text("3.2.0\n")
+(h.home / ".local" / "bin" / "herdr").unlink()
+h.program("opt/herdr", "0.9.0")                              # yours, not where herdr's installer puts it
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("Homebrew's version is not the target: nothing is upgraded, skipped",
+      got.get("treehouse") == "skipped: Homebrew has 3.2.0, not the target 3.1.0: `brew update` refreshes what Homebrew knows"
+      and "brew upgrade --formula treehouse" not in h.calls(), r.stdout + str(h.calls()))
+check("a self-updating program elsewhere is yours to update: its updater is not run",
+      got.get("herdr", "").startswith("skipped: it is at ~/opt/herdr, not where its own installer puts it, and "
+                                      "`herdr update` installs its newest version") and "herdr update" not in h.calls(), r.stdout)
+h.done()
+
+print("office update: one at a time, and a run that was cut off is picked up")
+h = Home()
+kit(h, herdr="0.9.0", gh_axi="0.1.30")
+h.state.mkdir(parents=True)
+held = open(h.state / "update.lock", "w")
+fcntl.flock(held, fcntl.LOCK_EX)
+before = {k: v for k, v in h.snapshot().items() if k != str(h.state / "update.lock")}
+r = h.run("--yes")
+check("the lock refuses a second run, which changes nothing", r.returncode == 1
+      and "another office update is running for this installation" in r.stderr
+      and {k: v for k, v in h.snapshot().items() if k != str(h.state / "update.lock")} == before, r.stdout + r.stderr)
+r = h.run("--check")
+check("--check still plans, and says one is running", r.returncode == 0
+      and "Another office update is running now" in r.stdout, r.stdout + r.stderr)
+held.close()
+(h.root / "npm-kill-gh-axi").write_text("")                  # npm kills the update that called it
+r = h.run("--yes")
+rec = json.loads(h.record.read_text())
+check("killed in the middle: the record says what was done and what it was on",
+      r.returncode < 0 and rec["state"] == "running" and rec["current"] == "gh-axi"
+      and rec["results"]["herdr"]["state"] == "updated", f"{r.returncode} {rec}")
+before = h.snapshot()
+r = h.run("--check")
+check("the next --check reports it, and writes nothing", r.returncode == 0 and h.snapshot() == before and re.search(
+    r"The last office update \(started \S+\) was cut off while it updated gh-axi\. It had updated: herdr\.", r.stdout), r.stdout)
+(h.root / "npm-kill-gh-axi").unlink()
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("the next run picks it up: what was done stays done, the rest is finished, exit 0", r.returncode == 0
+      and "was cut off while it updated gh-axi" in r.stdout
+      and got.get("herdr") == "updated: 0.9.0 -> 0.9.1 (earlier in this update)"
+      and got.get("gh-axi") == "updated: 0.1.30 -> 0.1.35", r.stdout + r.stderr)
+check("and the record is closed", json.loads(h.record.read_text())["state"] == "done")
+r = h.run("--check")
+check("so nothing is reported any more", "cut off" not in r.stdout, r.stdout)
+h.done()
+
+print("PASS" if not fails else f"FAIL: {fails}")
+sys.exit(1 if fails else 0)
