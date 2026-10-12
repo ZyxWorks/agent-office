@@ -7,7 +7,7 @@ import shutil
 import sys
 
 from . import config as C
-from . import doctor, install, tools
+from . import doctor, install, lifecycle, tools
 from . import notify
 
 VERSION = "1.0.0-dev"
@@ -27,14 +27,26 @@ office: Agent Office, one command for the whole agent setup.
                                      generic command-line tools
   office doctor                      read-only: each component's version, who updates it, and
                                      whether this release is tested with it
+  office on                          start the office's herdr session and its Firstmate, or
+                                     focus them, and attach. Starts no workers
+  office break                       detach the terminals office on and fm attached; everything
+                                     keeps running
+  office off [--all] [--yes] [--force] [--timeout MINUTES]
+                                     stop this office (--all: every office this installation
+                                     started) after showing what stops and asking; Firstmate
+                                     saves first, and a failed save stops nothing. A session
+                                     office on did not start is never stopped
+  office status                      read-only: what runs, what the office owns, the meter,
+                                     pending restarts, the last office off
   office help | version
 
-Also `fm`: open the office's Firstmate, and `fm restart` (see `fm --help`).
+Also `fm`: open the office's Firstmate, and `fm restart` (see `fm --help`), and
+`officeoff-all`, the same as `office off --all`.
 
-Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, update,
-status) is planned. Until each one lands, any other verb runs the tmux office (0.x)
-from bin/office-tmux: see docs/legacy-tmux/README.md. Run that way it is a separate process,
-so `office cd` cannot move your shell."""
+Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (update) is planned. Until it
+lands, any other verb runs the tmux office (0.x) from bin/office-tmux: see
+docs/legacy-tmux/README.md. Run that way it is a separate process, so `office cd` cannot move
+your shell."""
 
 
 def _config(args, out, err) -> int:
@@ -93,6 +105,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return doctor.run(rest, out=out, err=err)
     if verb == "config":
         return _config(rest, out, err)
+    if verb in ("on", "break", "off", "status"):
+        return lifecycle.run(verb, rest, out=out, err=err)
     if verb == "notify":
         return notify.run(rest, out=out, err=err)
     if verb == "keys":

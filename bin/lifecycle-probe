@@ -1,0 +1,431 @@
+#!/usr/bin/env python3
+"""lifecycle-probe: `office on`, `break`, `off`, `off --all`, `officeoff-all` and `status`, against
+herdr servers of their own.
+
+Never your herdr: the probe makes a throwaway $HOME (under /tmp, because herdr's socket path
+must stay short). Every herdr session it touches lives in that home, under names only it uses,
+and every one is stopped at the end. Firstmate is the stand-in fm-probe uses: a small `claude`
+that herdr detects by name, logs every line it is sent, and answers /stow the way a mode file in
+its folder says. Where a command asks on the terminal, the probe gives it a terminal of its own
+(a pty) and types the answer. Each case below is a promise the README makes.
+
+  bin/lifecycle-probe
+"""
+
+import fcntl
+import json
+import os
+import pty
+import select
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import threading
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OFFICE, OFFALL = REPO / "bin" / "office", REPO / "bin" / "officeoff-all"
+A, B, F = (f"ao-lc-{os.getpid()}-{x}" for x in "abf")
+fails = 0
+
+FAKE = r'''#!/usr/bin/env python3
+import os, re, subprocess, sys, time
+pane = os.environ.get("HERDR_PANE_ID", "")
+log = open(".fake-log", "a")
+def state(s):
+    subprocess.run(["herdr", "pane", "report-agent", "--source", "fake", "--agent", "claude",
+                    "--state", s, pane], capture_output=True)
+log.write("start %r FM_HOME=%s CONFIG=%s\n" % (sys.argv[1:], os.environ.get("FM_HOME"),
+          os.environ.get("HERDR_CONFIG_PATH"))); log.flush()
+print("fake claude", flush=True)
+state("idle")
+while True:
+    sys.stdout.write("> "); sys.stdout.flush()
+    line = sys.stdin.readline()
+    if not line:
+        break
+    line = line.strip()
+    log.write("got " + line + "\n"); log.flush()
+    mode = open(".fake-mode").read().strip() if os.path.exists(".fake-mode") else "ok"
+    if line.startswith("/stow"):
+        state("working")
+        time.sleep(1)
+        nonce = re.search(r"reset-safe-([0-9a-f]+)", line).group(1)
+        print("Stow receipt: memory unchanged.", flush=True)
+        if mode == "ok":
+            print("office-stow-reset-safe-" + nonce, flush=True)
+        elif mode == "notsafe":
+            print("office-stow-not-safe-" + nonce, flush=True)
+        state("idle")
+    else:
+        state("working"); time.sleep(0.5); print("ok", flush=True); state("idle")
+'''
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+root = Path(tempfile.mkdtemp(prefix="aolc.", dir="/tmp" if os.path.isdir("/tmp") else None))
+home, fakebin, stub, fmhome = root / "h", root / "bin", root / "stub", root / "fmhome"
+code = {A: root / "code-a", B: root / "code-b"}
+for d in (home, fakebin, stub, fmhome, *code.values()):
+    d.mkdir()
+(fakebin / "claude").write_text(FAKE)
+(fakebin / "claude").chmod(0o755)
+(stub / "herdr").write_text("#!/bin/sh\nexit 1\n")  # a herdr that answers nothing
+(stub / "herdr").chmod(0o755)
+herdr_bin = shutil.which("herdr")
+if not herdr_bin or not shutil.which("jq"):
+    sys.exit("lifecycle-probe: needs herdr and jq on PATH")
+PATH = os.pathsep.join([str(fakebin), str(Path(herdr_bin).parent), os.path.dirname(sys.executable),
+                        os.path.dirname(shutil.which("jq")), "/usr/bin", "/bin"])
+BASE = {"HOME": str(home), "PATH": PATH, "TERM": "xterm-256color", "LANG": "C.UTF-8", "SHELL": "/bin/sh"}
+state = home / ".local" / "state" / "agent-office"
+meters = home / ".local" / "state" / "herdr" / "plugins" / "agent-office.meter"
+
+
+def config(session):
+    cfg = home / ".config" / "agent-office" / "config.toml"
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(f'schema = 1\n[office]\nsession = "{session}"\n[firstmate]\ncode = "{code[session]}"\n'
+                   f'home = "{fmhome}"\n[meter]\ninterval_seconds = 5\n')
+
+
+def herdr(session, *args, check_rc=True):
+    r = subprocess.run([herdr_bin, "--session", session, *args], env=dict(BASE, HERDR_SESSION=session),
+                       capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60)
+    if check_rc and r.returncode != 0:
+        raise SystemExit(f"lifecycle-probe: herdr {' '.join(args)} failed: {r.stderr}")
+    return json.loads(r.stdout).get("result", {}) if r.stdout.startswith("{") else r.stdout
+
+
+def running(session):
+    st = subprocess.run([herdr_bin, "--session", session, "status", "--json"], env=dict(BASE, HERDR_SESSION=session),
+                        capture_output=True, text=True)
+    return bool(st.stdout.startswith("{") and json.loads(st.stdout).get("server", {}).get("running"))
+
+
+def office(*args, exe=OFFICE, **env):
+    # start_new_session: no terminal, so nothing can ask and office on never attaches
+    return subprocess.run([sys.executable, str(exe), *args], env=dict(BASE, **env), capture_output=True, text=True,
+                          stdin=subprocess.DEVNULL, start_new_session=True, timeout=300)
+
+
+def on_tty(args, answers=(), until=None):
+    """Run office on a terminal of its own, typing each answer when its question shows. Returns
+    (exit code, what it printed), or the still running child once until() holds."""
+    pid, fd = pty.fork()
+    if pid == 0:
+        fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
+        os.execve(sys.executable, [sys.executable, str(OFFICE), *args], dict(BASE))
+    seen, answers, end = b"", list(answers), time.time() + 120
+    while time.time() < end:
+        if select.select([fd], [], [], 0.2)[0]:
+            try:
+                seen += os.read(fd, 65536)
+            except OSError:
+                break
+        if answers and answers[0][0].encode() in seen:
+            os.write(fd, (answers.pop(0)[1] + "\n").encode())
+        if until and until():
+            return pid, fd
+        if not until and os.waitpid(pid, os.WNOHANG)[0]:
+            return None, seen.decode(errors="replace")
+    raise SystemExit(f"lifecycle-probe: office {' '.join(args)} on a terminal did not finish: {seen[-400:]!r}")
+
+
+def drain(fd):
+    """Keep reading what the client draws, as a terminal does: one nobody reads blocks its client."""
+    def go():
+        try:
+            while os.read(fd, 65536):
+                pass
+        except OSError:
+            pass
+    threading.Thread(target=go, daemon=True).start()
+
+
+def record(session):
+    p = state / "offices" / f"{session}.json"
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+def alive(pid):
+    r = subprocess.run(["ps", "-p", str(pid), "-o", "stat=,args="], capture_output=True, text=True)
+    return bool(r.stdout.strip()) and not r.stdout.strip().startswith("Z")
+
+
+def meter_pid(session):
+    sock = str(home / ".config" / "herdr" / "sessions" / session / "herdr.sock")
+    for f in meters.glob("meter.*.json"):
+        if f.name.count(".") == 2:
+            rec = json.loads(f.read_text())
+            if rec.get("socket") == sock and alive(rec.get("pid", 0)):
+                return rec["pid"]
+    return None
+
+
+def wait(what, seconds=20):
+    for _ in range(seconds * 4):
+        if what():
+            return True
+        time.sleep(0.25)
+    return False
+
+
+def agents(session):
+    return herdr(session, "agent", "list").get("agents", [])
+
+
+def sent(session):
+    log = code[session] / ".fake-log"
+    return [l for l in log.read_text().splitlines() if l.startswith("got ")] if log.exists() else []
+
+
+def start_foreign(session):
+    p = subprocess.Popen([herdr_bin, "--session", session, "server"], env=dict(BASE, HERDR_SESSION=session),
+                         cwd=str(home), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    if not wait(lambda: running(session)):
+        raise SystemExit("lifecycle-probe: the probe's own herdr server did not start")
+    return p
+
+
+def last_off():
+    return {t["session"]: t for t in json.loads((state / "last-off.json").read_text())["targets"]}
+
+
+foreign = []
+try:
+    print("before office install, and with nothing running")
+    config(A)
+    r = office("on")
+    check("office on asks for office install first, and starts nothing", r.returncode == 1
+          and "office install" in r.stderr and not running(A), r.stdout + r.stderr)
+    r = office("install", "--yes")
+    check("office install links officeoff-all next to office and fm", r.returncode == 0
+          and os.readlink(home / ".local" / "bin" / "officeoff-all") == str(OFFALL), r.stdout + r.stderr)
+    subprocess.run([herdr_bin, "plugin", "link", str(REPO / "herdr")], env=dict(BASE), capture_output=True, check=True)
+    r = office("status")
+    check("office status: not running, exit 0", r.returncode == 0 and "not running" in r.stdout
+          and "No problems." in r.stdout, r.stdout + r.stderr)
+    r = office("off", "--yes")
+    check("office off with nothing running stops nothing, exit 0", r.returncode == 0 and "Nothing to stop" in r.stdout,
+          r.stdout + r.stderr)
+    r = office("status", PATH=str(stub) + os.pathsep + PATH)
+    check("office status with a herdr that does not answer: unknown, exit 1", r.returncode == 1
+          and "unknown" in r.stdout and "No problems." not in r.stdout, r.stdout + r.stderr)
+    r = office("break")
+    check("office break with nothing running says so", r.returncode == 0 and "not running" in r.stdout,
+          r.stdout + r.stderr)
+
+    print("a session of the configured name that office on did not start")
+    foreign.append(start_foreign(A))
+    r = office("on")
+    check("office on uses it, says it does not own it, and starts Firstmate in it", r.returncode == 0
+          and "did not start it" in r.stdout and record(A) is None and len(agents(A)) == 1, r.stdout + r.stderr)
+    r = office("status")
+    check("office status says office off leaves it running", "not office on" in r.stdout, r.stdout + r.stderr)
+    r = office("off", "--yes")
+    check("office off refuses it and sends Firstmate nothing", r.returncode == 1 and "did not start it" in r.stderr
+          and running(A) and sent(A) == [] and len(agents(A)) == 1, r.stdout + r.stderr)
+    r = office("--yes", exe=OFFALL)
+    check("officeoff-all has nothing of its own to stop, and leaves it too", r.returncode == 0
+          and "Nothing to stop" in r.stdout and A in r.stdout and running(A), r.stdout + r.stderr)
+    herdr(A, "server", "stop")  # the probe's own server, in the probe's own home
+    foreign.pop().wait(timeout=10)
+    (code[A] / ".fake-log").unlink()
+
+    print("office on creates the session and records it")
+    r = office("on")
+    rec = record(A)
+    check("office on starts the session and one Firstmate", r.returncode == 0 and "started herdr session" in r.stdout
+          and "started Firstmate" in r.stdout and running(A), r.stdout + r.stderr)
+    check("the record names the server it started: pid, start time, socket", bool(rec) and alive(rec["pid"])
+          and rec["started"] and rec["socket"].endswith(f"/sessions/{A}/herdr.sock"), str(rec))
+    a = agents(A)
+    check("one agent, named firstmate, in the checkout", len(a) == 1 and a[0].get("name") == "firstmate"
+          and os.path.realpath(a[0].get("cwd", "")) == os.path.realpath(code[A]), str(a))
+    gen = state / "herdr" / "config.toml"
+    log = (code[A] / ".fake-log").read_text().splitlines()
+    check("the server runs the generated herdr config, and Firstmate got its home",
+          log[:1] == [f"start [] FM_HOME={fmhome} CONFIG={gen}"], str(log))
+    check("without a terminal it says how to attach", f"herdr session attach {A}" in r.stdout, r.stdout)
+    check("the session's meter runs", wait(lambda: meter_pid(A)))
+    r = office("status")
+    check("office status: running, owned, Firstmate, meter, no restart pending; exit 0", r.returncode == 0
+          and "office on," in r.stdout and "office off stops it" in r.stdout and "the generated config, as installed"
+          in r.stdout and f"pane {a[0]['pane_id']}" in r.stdout and "none that herdr reports" in r.stdout
+          and "No problems." in r.stdout, r.stdout + r.stderr)
+    r = office("on")
+    check("office on again focuses what is there: same server, same Firstmate", r.returncode == 0
+          and "focused it" in r.stdout and record(A) == rec and len(agents(A)) == 1 and len(log) == 1,
+          r.stdout + r.stderr)
+
+    print("office break detaches only")
+    r = office("break")
+    check("with no terminal of its own attached it says so, with the detach key", r.returncode == 0
+          and "ctrl+space then d" in r.stdout and running(A), r.stdout + r.stderr)
+    clients = state / "clients" / f"{A}.json"
+    pid, fd = on_tty(["on"], until=lambda: clients.exists() and json.loads(clients.read_text())["clients"])
+    drain(fd)
+    time.sleep(2)
+    check("on a terminal, office on attaches: the process becomes herdr's client",
+          alive(pid) and json.loads(clients.read_text())["clients"][0]["pid"] == pid, str(pid))
+    r = office("break")
+    check("office break detaches it", r.returncode == 0 and "detached 1 terminal" in r.stdout
+          and wait(lambda: not alive(pid), 5), r.stdout + r.stderr)
+    os.waitpid(pid, 0)
+    os.close(fd)
+    check("and everything keeps running: the server, Firstmate, the meter", running(A) and alive(rec["pid"])
+          and len(agents(A)) == 1 and meter_pid(A) is not None and record(A) == rec)
+
+    print("office off shows, asks, and stops nothing unless Firstmate's save is confirmed")
+    r = office("off")
+    check("without a terminal and without --yes it lists what stops and stops nothing", r.returncode == 1
+          and "not confirmed" in r.stderr and f"server pid {rec['pid']}" in r.stdout and str(fmhome) in r.stdout
+          and "Kept: repos, worktrees" in r.stdout and running(A) and sent(A) == [], r.stdout + r.stderr)
+    r = office("off", "--yes", PATH=str(stub) + os.pathsep + PATH)
+    check("a herdr that does not answer: incomplete, exit 1, nothing stopped", r.returncode == 1
+          and "INCOMPLETE" in r.stderr and running(A) and record(A) == rec, r.stdout + r.stderr)
+    sock = rec["socket"]
+    r = office("off", "--yes", HERDR_ENV="1", HERDR_SOCKET_PATH=sock, HERDR_PANE_ID=a[0]["pane_id"])
+    check("run by Firstmate in its own pane it refuses: it could not save", r.returncode == 1
+          and "Firstmate's own pane" in r.stderr and running(A) and sent(A) == [], r.stdout + r.stderr)
+    worker = herdr(A, "tab", "create", "--cwd", str(root), "--no-focus")["root_pane"]["pane_id"]
+    time.sleep(1)
+    herdr(A, "agent", "start", "worker", "--kind", "claude", "--pane", worker)
+    herdr(A, "pane", "report-agent", "--source", "fake", "--agent", "claude", "--state", "working", worker)
+    r = office("off", "--yes")
+    check("a worker still working: listed, nothing sent, nothing stopped", r.returncode == 1
+          and f"pane {worker}" in r.stdout and "still working" in r.stderr and "Nothing was sent" in r.stderr
+          and running(A) and sent(A) == [], r.stdout + r.stderr)
+    herdr(A, "pane", "report-agent", "--source", "fake", "--agent", "claude", "--state", "idle", worker)
+    for m, why in (("notsafe", "not safe to reset"), ("silent", "no result line")):
+        (code[A] / ".fake-mode").write_text(m)
+        n = len(sent(A))
+        r = office("off", "--yes")
+        check(f"a stow answer that is {m}: exit 1, nothing stopped", r.returncode == 1 and why in r.stderr
+              and "Nothing was stopped" in r.stderr and running(A) and alive(rec["pid"]) and record(A) == rec
+              and len(agents(A)) == 2 and len(sent(A)) == n + 1, r.stdout + r.stderr)
+    r = office("off", "--yes", "--force")
+    check("--yes --force without a terminal never forces", r.returncode == 1 and "--yes never forces" in r.stderr
+          and running(A) and record(A) == rec, r.stdout + r.stderr)
+    r = office("status")
+    check("office status shows the stop that did not happen", "last office off" in r.stdout and "kept" in r.stdout
+          and "office off stops it" in r.stdout, r.stdout + r.stderr)
+
+    print("--force is confirmed on its own, on the terminal")
+    _, said = on_tty(["off", "--force"], [("[y/N]", "y"), ("to stop it anyway", "no")])
+    check("the wrong answer to the second question stops nothing", "WARNING" in said and "was not confirmed" in said
+          and running(A) and record(A) == rec, said)
+    mp = meter_pid(A)
+    _, said = on_tty(["off", "--force"], [("[y/N]", "y"), ("to stop it anyway", A)])
+    check("the session name typed: it warns what may be lost, then stops the office", "may be lost" in said
+          and "stopped" in said and not running(A) and not alive(rec["pid"]) and record(A) is None, said)
+    check("its meter stopped too", mp is not None and wait(lambda: not alive(mp), 5), str(mp))
+    check("the checkout and Firstmate's home are untouched", (code[A] / ".fake-log").exists() and fmhome.is_dir())
+
+    print("office off stops its own session once the save is confirmed")
+    (code[A] / ".fake-mode").write_text("ok")
+    r = office("on")
+    rec = record(A)
+    check("office on starts it again, with a new record", r.returncode == 0 and bool(rec) and alive(rec["pid"]),
+          r.stdout + r.stderr)
+    wait(lambda: meter_pid(A))
+    mp, n = meter_pid(A), len(sent(A))
+    r = office("off", "--yes")
+    new = sent(A)[n:]
+    check("a confirmed save, then the stop: exit 0", r.returncode == 0 and "saved its work" in r.stdout
+          and "stopped" in r.stdout and len(new) == 1 and new[0].startswith("got /stow "), r.stdout + r.stderr + str(new))
+    check("the server, the record and the meter are gone", not running(A) and not alive(rec["pid"])
+          and record(A) is None and mp is not None and wait(lambda: not alive(mp), 5))
+    r = office("status")
+    check("office status: not running, last office off stopped, exit 0", r.returncode == 0
+          and "not running" in r.stdout and "stopped" in r.stdout and "No problems." in r.stdout, r.stdout + r.stderr)
+
+    print("office off typed in a pane of the session it stops")
+    office("on")
+    rec = record(A)
+    shell = herdr(A, "tab", "create", "--cwd", str(root), "--no-focus")["root_pane"]["pane_id"]
+    time.sleep(1)
+    (state / "last-off.json").unlink()
+    herdr(A, "pane", "run", shell, f"{sys.executable} {OFFICE} off --yes")
+    check("the session stops", wait(lambda: not running(A) and not alive(rec["pid"]), 40))
+    check("and the result was recorded although the pane ended with it",
+          wait(lambda: (state / "last-off.json").exists() and last_off().get(A, {}).get("result") == "stopped", 10)
+          and record(A) is None, (state / "last-off.json").read_text() if (state / "last-off.json").exists() else "")
+
+    print("office off --all: two owned offices and a foreign session")
+    office("on")
+    config(B)
+    r = office("on")
+    ra, rb = record(A), record(B)
+    foreign.append(start_foreign(F))
+    check("two offices started and recorded", r.returncode == 0 and bool(ra) and bool(rb) and running(A) and running(B),
+          r.stdout + r.stderr)
+    r = office("status")
+    check("office status lists the other office this installation started", f"office '{A}', also started here" in r.stdout,
+          r.stdout + r.stderr)
+    (code[B] / ".fake-mode").write_text("notsafe")
+    r = office(exe=OFFALL)
+    check("officeoff-all without a terminal and without --yes stops nothing", r.returncode == 1
+          and "not confirmed" in r.stderr and running(A) and running(B) and running(F), r.stdout + r.stderr)
+    r = office("--yes", exe=OFFALL)
+    check("officeoff-all lists both offices, and the foreign session as left running",
+          f"office '{A}'" in r.stdout and f"office '{B}'" in r.stdout and "Left running" in r.stdout
+          and F in r.stdout.split("Left running")[1], r.stdout + r.stderr)
+    check("one save fails: that office keeps running, the other stops, exit 1", r.returncode == 1
+          and "incomplete" in r.stderr and not running(A) and record(A) is None and running(B) and record(B) == rb
+          and last_off()[A]["result"] == "stopped" and last_off()[B]["result"] == "kept", r.stdout + r.stderr)
+    check("the foreign session survived", running(F) and foreign[0].poll() is None)
+    (code[B] / ".fake-mode").write_text("ok")
+    config(A)
+    office("on")
+    ra = record(A)
+    r = office("off", "--all", "--yes")
+    check("office off --all, the other spelling: both stop, exit 0", r.returncode == 0 and not running(A)
+          and not running(B) and not alive(ra["pid"]) and not alive(rb["pid"]) and record(A) is None
+          and record(B) is None, r.stdout + r.stderr)
+    check("the foreign session survived again", running(F) and foreign[0].poll() is None, r.stdout)
+    check("no meter of a stopped office is left", wait(lambda: not meter_pid(A) and not meter_pid(B), 5))
+    r = office("off", "--all", "--yes")
+    check("with nothing left it says so, exit 0", r.returncode == 0 and "Nothing to stop" in r.stdout
+          and running(F), r.stdout + r.stderr)
+
+    print("a record whose server is gone, and a stranger under its name")
+    office("on")
+    rec = record(A)
+    herdr(A, "server", "stop")  # stopped behind the office's back, in the probe's own home
+    wait(lambda: not alive(rec["pid"]))
+    foreign.append(start_foreign(A))
+    r = office("off", "--yes")
+    check("office off leaves the session that took the name, and drops the stale record", r.returncode == 1
+          and "LEFT" in r.stderr and running(A) and record(A) is None, r.stdout + r.stderr)
+finally:
+    for s in (A, B, F):
+        if running(s):
+            subprocess.run([herdr_bin, "session", "stop", s], env=dict(BASE), capture_output=True)
+    for p in foreign:
+        try:
+            p.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            p.kill()
+    for f in meters.glob("meter.*.pid") if meters.is_dir() else []:
+        # only a meter of this probe's own home, proven by its command line
+        pid = f.read_text().strip()
+        r = subprocess.run(["ps", "-p", pid, "-o", "args="], capture_output=True, text=True)
+        if str(REPO / "herdr" / "meter") in r.stdout:
+            os.kill(int(pid), signal.SIGTERM)
+    shutil.rmtree(root, ignore_errors=True)
+
+print("FAIL: %d" % fails if fails else "PASS")
+sys.exit(1 if fails else 0)
