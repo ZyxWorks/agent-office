@@ -1,8 +1,8 @@
 id = "agent-office.meter"
 name = "Agent Office meter"
-version = "0.2.0"
+version = "0.3.0"
 min_herdr_version = "0.9.0"
-description = "Context size, model and transcript age for Claude Code and Codex panes, on the sidebar, and an opt-in phone push when an agent needs you"
+description = "Context size, model and transcript age for Claude Code and Codex panes, on the sidebar, an opt-in phone push when an agent needs you, and one key to walk panes, tabs and spaces"
 platforms = ["linux", "macos"]
 
 [[startup]]
@@ -13,6 +13,31 @@ id = "refresh"
 title = "Refresh meter now"
 contexts = ["workspace"]
 command = ["sh", "meter", "once"]
+
+# Shift+arrow in the preset: see nav
+[[actions]]
+id = "nav-left"
+title = "Go left: pane, then the tab before"
+contexts = ["workspace"]
+command = ["sh", "nav", "left"]
+
+[[actions]]
+id = "nav-right"
+title = "Go right: pane, then the tab after"
+contexts = ["workspace"]
+command = ["sh", "nav", "right"]
+
+[[actions]]
+id = "nav-up"
+title = "Go up: pane, then the space above"
+contexts = ["workspace"]
+command = ["sh", "nav", "up"]
+
+[[actions]]
+id = "nav-down"
+title = "Go down: pane, then the space below"
+contexts = ["workspace"]
+command = ["sh", "nav", "down"]
 
 # off unless [notify] is on in your Agent Office config.toml; see herdr/notify
 [[events]]

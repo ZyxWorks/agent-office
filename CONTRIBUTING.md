@@ -90,6 +90,11 @@ something must prove it stopped only its own targets.
 Touched the meter (`herdr/`)? Run `herdr/meter-probe`. It needs no herdr
 server: it drives the meter against a fake herdr and fake transcripts.
 
+Touched the move key (`herdr/nav`, the preset's Shift+arrow)? Run
+`herdr/nav-probe`: every step, against a fake herdr. Touched any key in
+`preset/herdr/config.toml`? Run `preset/preset-probe`: it checks the key table
+in `preset/README.md` and the sheet in `preset/keys.txt` against herdr itself.
+
 Touched notifications (`herdr/notify`, `lib/agent_office/notify.py`, `[notify]`)?
 Run `bin/notify-probe`, and on macOS once more as `/usr/bin/python3 bin/notify-probe`.
 It needs no herdr server and no network: it drives both against a fake ntfy

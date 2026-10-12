@@ -17,7 +17,8 @@ The daily look and keys of the office:
 
 What it gives you:
 
-- **Keys** from the tmux office, so muscle memory carries over (table below).
+- **Keys** for an office with no mouse: Shift+arrow walks panes, tabs and
+  spaces, and one letter each makes, closes and renames them (table below).
 - **Sidebar**: herdr's own state icon and state word stay. Between them the
   [meter](../herdr) adds context size and transcript age, how long since the
   agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. Without the meter those two stay blank.
@@ -53,32 +54,68 @@ The prefix is `ctrl+space`: press Ctrl+Space, let go, then the key. herdr's own
 default is Ctrl+B, but Ctrl+B is "back one character" in the shell and in the
 agents' prompts.
 
+**No mouse needed.** One key walks the whole office: Shift+arrow, with no
+prefix. Left and right go to the pane on that side, and from the last pane to
+the tab before or after. Up and down go to the pane on that side, and from the
+last pane to the space above or below. It stops at the first and the last one.
+
+The rule for the letters: a small letter is for the space, the same letter with
+Shift is for the tab. `n` new, `c` close, `r` rename. A space holds tabs, so it
+is the bigger step and gets the easier key.
+
+herdr gives a key one action, and its own "jump to the pane" does nothing at the
+edge. So Shift+arrow is an action of the [meter plugin](../herdr) (`herdr/nav`).
+It needs the plugin linked (`herdr plugin link ~/agent-office/herdr`) and `jq`.
+Without the plugin, use `prefix+arrow` for panes, `prefix+space` for tabs and
+`prefix+w` for spaces.
+
+Three things on the sidebar have no key in herdr 0.9.1: the `menu` button, the
+`grouped` switch and `update ready`. Everything they do has another way:
+settings is `prefix+s`, the sort order is `agent_panel_sort` in the config, and
+an update is `herdr update` in a shell.
+
 On macOS, Ctrl+Space can be taken by "Select the previous input source". If the
 prefix does nothing, turn that off in System Settings, Keyboard, Keyboard
 Shortcuts, Input Sources.
 
 | what | keys | herdr action |
 |---|---|---|
-| jump to the pane on the left | `shift+left` `prefix+left` | `focus_pane_left` |
-| jump to the pane on the right | `shift+right` `prefix+right` | `focus_pane_right` |
-| jump to the pane above | `shift+up` `prefix+up` | `focus_pane_up` |
-| jump to the pane below | `shift+down` `prefix+down` | `focus_pane_down` |
+| go left: the pane there, then the tab before | `shift+left` | `agent-office.meter.nav-left` |
+| go right: the pane there, then the tab after | `shift+right` | `agent-office.meter.nav-right` |
+| go up: the pane there, then the space above | `shift+up` | `agent-office.meter.nav-up` |
+| go down: the pane there, then the space below | `shift+down` | `agent-office.meter.nav-down` |
+| new space | `prefix+n` | `new_workspace` |
+| close the space (asks first) | `prefix+c` | `close_workspace` |
+| rename the space | `prefix+r` | `rename_workspace` |
+| pick a space from a list | `prefix+w` | `workspace_picker` |
+| new tab | `prefix+shift+n` | `new_tab` |
+| close the tab | `prefix+shift+c` | `close_tab` |
+| rename the tab | `prefix+shift+r` | `rename_tab` |
+| next tab | `prefix+space` | `next_tab` |
+| previous tab | `prefix+p` | `previous_tab` |
+| tab by number | `prefix+1..9` | `switch_tab` |
+| new pane to the right | `prefix+v` | `split_vertical` |
+| new pane below | `prefix+minus` | `split_horizontal` |
+| close the pane | `prefix+q` | `close_pane` |
+| zoom the pane, and back | `prefix+z` | `zoom` |
+| adjust the pane size: arrows, then Esc | `prefix+a` | `resize_mode` |
+| jump to the pane on the left, pane only | `prefix+left` | `focus_pane_left` |
+| jump to the pane on the right, pane only | `prefix+right` | `focus_pane_right` |
+| jump to the pane above, pane only | `prefix+up` | `focus_pane_up` |
+| jump to the pane below, pane only | `prefix+down` | `focus_pane_down` |
+| back to the pane you were in last | `prefix+l` | `last_pane` |
 | swap with the pane on the left | `prefix+shift+left` | `swap_pane_left` |
 | swap with the pane on the right | `prefix+shift+right` | `swap_pane_right` |
 | swap with the pane above | `prefix+shift+up` | `swap_pane_up` |
 | swap with the pane below | `prefix+shift+down` | `swap_pane_down` |
-| new pane to the right | `prefix+n` | `split_vertical` |
-| new pane below | `prefix+minus` | `split_horizontal` |
-| close the pane | `prefix+q` | `close_pane` |
-| zoom the pane, and back | `prefix+z` | `zoom` |
-| new tab | `prefix+c` | `new_tab` |
-| next tab | `prefix+space` | `next_tab` |
-| previous tab | `prefix+p` | `previous_tab` |
-| tab by number | `prefix+1..9` | `switch_tab` |
+| go to any agent, by name | `prefix+g` | `goto` |
+| go to the agent that asked for you | `prefix+o` | `open_notification_target` |
+| settings | `prefix+s` | `settings` |
 | copy mode | `prefix+enter` | `copy_mode` |
 | leave herdr, everything keeps running | `prefix+d` | `detach` |
 | show or hide the sidebar | `prefix+b` | `toggle_sidebar` |
 | all keys | `prefix+?` | `help` |
+| reload the config: no key, it is in settings |  | `reload_config` |
 
 These are the keys herdr really uses: the preset's, plus herdr's defaults for
 everything the preset leaves alone. `preset/preset-probe` checks this table
