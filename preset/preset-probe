@@ -114,8 +114,9 @@ def tables(text, header):
 def command_keys(text):
     """The preset's [[keys.command]] bindings: command name -> its keys."""
     out = {}
-    for t in tables(text, "[[keys.command]]"):
-        out.setdefault(t.get("command", ""), []).append(t.get("key", ""))
+    for t in C.tomllib.loads(text).get("keys", {}).get("command", []):
+        name = t.get("command", "") if t.get("type") == "plugin_action" else t.get("description", "")
+        out.setdefault(name, []).append(t.get("key", ""))
     return out
 
 
@@ -162,7 +163,7 @@ def main():
 
     with open(CONFIG, encoding="utf-8") as f:
         text = f.read()
-    preset_actions = [a for a in keys_section(text.splitlines(), False) if a != "prefix"]
+    preset_actions = [a for a, keys in keys_section(text.splitlines(), False).items() if a != "prefix" and keys]
     preset_actions += list(command_keys(text))
 
     # 1b. A key bound to a plugin action reaches a real one: the meter plugin has the action, and
@@ -200,7 +201,7 @@ def main():
     documented = {}
     for line in doc.splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) == 3 and re.fullmatch(r"`[a-z_.-]+`", cells[2]):
+        if len(cells) == 3 and re.fullmatch(r"`[^`]+`", cells[2]):
             documented[cells[2].strip("`")] = re.findall(r"`([^`]+)`", cells[1])
     check(bool(documented), "README.md has a key table")
     m = re.search(r"prefix is `([^`]+)`", doc)

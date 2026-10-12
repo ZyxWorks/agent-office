@@ -124,7 +124,8 @@ more as `/usr/bin/python3 bin/lifecycle-probe`. It needs `herdr` and `jq` on you
 starts herdr sessions of its own, in a throwaway `$HOME` under `/tmp`: two owned offices and a
 foreign session, to prove a stop ends only what `office on` started. It stops them all at the end.
 
-Touched the preset (`preset/`)? Run `preset/preset-probe`. It needs `herdr`
+Touched the preset (`preset/`)? Run `preset/preset-probe`. For tab closing, also run
+`python3 preset/close-tab-probe`: it types the shortcut on a real TUI in a throwaway session. It needs `herdr`
 on your `PATH` but no herdr server: it asks herdr for its defaults and checks
 the effective keys, the key table in `preset/README.md`, the `office keys`
 sheet in `preset/keys.txt`, the Mac text keys and the files for private paths.
