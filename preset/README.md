@@ -20,8 +20,9 @@ What it gives you:
 - **Keys** for an office with no mouse: Shift+arrow walks panes, tabs and
   spaces, and one letter each makes, closes and renames them (table below).
 - **Key strip**: the keys you press most stay on screen, at the right end of the
-  tab row: `^Space  n new space · N new tab · v split · q close pane · z zoom · ? keys`.
-  Press Ctrl+Space, then the key; a capital letter is the key with Shift.
+  tab row: `⇧ arrows move │ ^Space  n new space · N new tab · v split · q close pane · z zoom · ? keys`.
+  Shift+arrow moves you, with no prefix. For the rest press Ctrl+Space, then
+  the key; a capital letter is the key with Shift.
   herdr's own bar for the prefix names four keys and cannot be changed, so the
   strip does this job. `office install` builds it from your keys: a key you
   rebind in `[herdr.keys]` is the key it shows. `ZOOM` shows next to it while a

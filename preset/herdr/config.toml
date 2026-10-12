@@ -87,13 +87,13 @@ agent_panel_sort = "spaces"
 
 # The key strip, at the right end of the tab row. herdr's own prefix bar names four keys and
 # cannot be changed, so the keys you press most stay on screen here: Ctrl+Space, then the
-# key. A capital letter is the key with Shift. herdr hides the strip, and the ZOOM pill with
+# key. A capital letter is the key with Shift. Shift+arrow needs no prefix, so it comes first. herdr hides the strip, and the ZOOM pill with
 # it, when the tabs need the room; a zoomed tab still shows its own Z.
 # The text is the [keys] above in one line. `office install` writes it again from the keys
 # you rebind in [herdr.keys]; by hand, change both. preset/preset-probe checks they agree.
 tab_bar_right = [
   { type = "zoom" },
-  { type = "text", text = "^Space  n new space · N new tab · v split · q close pane · z zoom · ? keys" },
+  { type = "text", text = "⇧ arrows move │ ^Space  n new space · N new tab · v split · q close pane · z zoom · ? keys" },
 ]
 tab_bar_right_separator = "  "
 
