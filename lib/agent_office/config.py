@@ -200,6 +200,8 @@ def merge(base: dict, over: dict) -> dict:
 # The key strip on the tab row: the herdr actions it names, in order, and the word for each.
 STRIP = (("new_workspace", "new space"), ("new_tab", "new tab"), ("split_vertical", "split"),
          ("close_pane", "close pane"), ("zoom", "zoom"), ("help", "keys"))
+# The keys that walk the office with no prefix: the strip names them first, when all four are bound.
+STRIP_ARROWS = ("shift+left", "shift+right", "shift+up", "shift+down")
 _STRIP_KEYS = {"minus": "-", "plus": "+", "comma": ",", "backtick": "`", "ampersand": "&"}
 
 
@@ -211,12 +213,14 @@ def _first(binding) -> str:
 
 
 def key_strip(keys: dict) -> str:
-    """The key strip's text for a herdr [keys] table: "^Space  n new space · N new tab ...".
+    """The key strip's text for a herdr [keys] table: "⇧ arrows move │ ^Space  n new space ...".
 
     herdr's own bar for the prefix names four keys and cannot be changed, so the strip shows
     the office's. It is built from the keys and never typed by hand, so a key you rebind in
     [herdr.keys] is the key the strip shows. An action with no key, or with a key that needs
-    no prefix, is left out: every key on the strip comes after the prefix.
+    no prefix, is left out: every key after the prefix on the strip needs the prefix.
+    Shift+arrow needs none, so it stands before the prefix, and only when [[keys.command]]
+    binds all four arrows.
     """
     prefix = _first(keys.get("prefix"))
     if prefix.startswith("ctrl+") and "+" not in prefix[5:]:
@@ -230,7 +234,13 @@ def key_strip(keys: dict) -> str:
         if key.startswith("shift+") and len(key) == 7 and key[6].isalpha():
             key = key[6].upper()
         items.append(f"{_STRIP_KEYS.get(key, key)} {word}")
-    return f"{prefix}  " + " · ".join(items)
+    commands = keys.get("command")
+    bound = set()
+    for c in commands if isinstance(commands, list) else []:
+        key = c.get("key") if isinstance(c, dict) else None
+        bound.update(key if isinstance(key, list) else [key])
+    arrows = "⇧ arrows move │ " if bound.issuperset(STRIP_ARROWS) else ""
+    return f"{arrows}{prefix}  " + " · ".join(items)
 
 
 def _restrip(herdr: dict):

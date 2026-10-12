@@ -295,6 +295,8 @@ def main():
     for action, word in C.STRIP:
         check(eff.get(action) == [C._first(preset_toml["keys"].get(action))],
               f"the key strip's {word!r} is herdr's {action}: {', '.join(eff.get(action, [])) or 'unset'}")
+    walks = set(C.STRIP_ARROWS) <= {k for keys in command_keys(text).values() for k in keys}
+    check(walks and strip.startswith("⇧ arrows move │ "), "the key strip names Shift+arrow, and the preset binds all four")
     check(f"`{strip}`" in doc, "README.md shows the key strip")
 
     # 5. The look keeps herdr's native state, and the meter really publishes the tokens it uses.
