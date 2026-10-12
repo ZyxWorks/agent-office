@@ -297,6 +297,27 @@ def herdr_config(cfg: dict) -> str:
     return HEADER + dumps(cfg["herdr"])
 
 
+_HERDR_OWN = re.compile(r"\A(?:onboarding = (?:true|false)\n)+")
+
+
+def herdr_split(text: str) -> tuple[str, str]:
+    """A herdr config file as (herdr's own lines, the rest).
+
+    herdr writes `onboarding = false` at the top of the config it runs with, once you have
+    been through its first-run setup. That line is herdr's and not a change by hand: nothing
+    compares it, and `office install` keeps it, so the setup does not come back.
+    herdr/start leaves the same lines out of the hash it records.
+    """
+    m = _HERDR_OWN.match(text)
+    own = m.group(0) if m else ""
+    return own, text[len(own):]
+
+
+def herdr_config_path(env=None) -> Path:
+    """The generated herdr config: what the office's herdr server and every client of it use."""
+    return state_dir(env) / "herdr" / "config.toml"
+
+
 def meter_path(env=None) -> Path:
     """Where the meter plugin reads its settings: herdr/meter looks in the same place."""
     return state_dir(env) / "meter.json"

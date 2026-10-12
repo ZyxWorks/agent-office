@@ -294,6 +294,12 @@ sum=$({ sha256sum "$T/herdr.toml" 2>/dev/null || shasum -a 256 "$T/herdr.toml"; 
 printf '%s' "$rec" | jq -e --arg c "$T/herdr.toml" --arg s "$sum" \
   '.socket == "/s/one" and .herdr_config == $c and .sha256 == $s' >/dev/null ||
   { echo "FAIL [start-record] $rec"; fail=1; }
+# the line herdr writes at the top after its first-run setup is not part of the hash
+printf 'onboarding = false\nx = 1\n' >"$T/herdr.toml"
+HERDR_CONFIG_PATH=$T/herdr.toml st /s/one
+rec=$(cat "$T/state/meter.$(printf /s/one | cksum | cut -d' ' -f1).server.json" 2>/dev/null)
+printf '%s' "$rec" | jq -e --arg s "$sum" '.sha256 == $s' >/dev/null ||
+  { echo "FAIL [start-record-onboarding] $rec"; fail=1; }
 { kill "$decoy"; wait "$decoy"; } 2>/dev/null; kill "$first" 2>/dev/null; for f in "$T"/state/meter.*.pid; do kill "$(cat "$f")" 2>/dev/null; done
 
 [ "$fail" = 0 ] && echo "meter-probe: all cases pass"

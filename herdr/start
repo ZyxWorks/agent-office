@@ -11,7 +11,11 @@ pidf=$dir/meter.$key.pid
 # on every start, before the pid check: after a live handoff the meter from before keeps running.
 case ${XDG_CONFIG_HOME:-} in /*) cfg=$XDG_CONFIG_HOME ;; *) cfg=$HOME/.config ;; esac
 cfg=${HERDR_CONFIG_PATH:-$cfg/herdr/config.toml}
-sha=$({ sha256sum "$cfg" 2>/dev/null || shasum -a 256 "$cfg" 2>/dev/null; } | cut -d' ' -f1)
+# herdr adds `onboarding = false` at the top after its first-run setup: that is not a change
+# to the config, so those lines stay out of the hash (as herdr_split in lib/agent_office/config.py)
+sha=
+[ -r "$cfg" ] && sha=$(awk 'body || !/^onboarding = (true|false)$/ { body = 1; print }' "$cfg" |
+  { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | cut -d' ' -f1)
 jq -n --arg socket "${HERDR_SOCKET_PATH:-}" --arg config "$cfg" --arg sha "$sha" --argjson at "$(date +%s)" \
   '{ schema: 1, socket: $socket, herdr_config: $config, sha256: $sha, at: $at }' \
   >"$dir/meter.$key.server.json.tmp" 2>/dev/null && mv "$dir/meter.$key.server.json.tmp" "$dir/meter.$key.server.json"

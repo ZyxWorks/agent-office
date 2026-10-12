@@ -280,12 +280,12 @@ def _show(o: Office, srv: dict, out) -> list | None:
     if o.env.get("HERDR_ENV") == "1":
         if o.env.get("HERDR_SOCKET_PATH") and _same(o.env["HERDR_SOCKET_PATH"], Path(srv.get("socket", ""))):
             return None
-        print(f"{o.who}: this pane is in another herdr session. To see Firstmate: herdr session attach "
-              f"{o.session}", file=out)
+        print(f"{o.who}: this pane is in another herdr session. To see Firstmate: run `office on` in a "
+              "terminal outside herdr.", file=out)
         return None
     if sys.stdin.isatty() and sys.stdout.isatty():
         return ["herdr", "session", "attach", o.session]
-    print(f"{o.who}: to see Firstmate: herdr session attach {o.session}", file=out)
+    print(f"{o.who}: to see Firstmate: run `office on` in a terminal.", file=out)
     return None
 
 
@@ -299,7 +299,14 @@ def note_client(o: Office):
 
 
 def attach(argv: list, env: dict):
-    os.execvpe(argv[0], argv, {k: v for k, v in env.items() if k != "HERDR_SOCKET_PATH"})
+    """Become the herdr client. herdr reads the keys in the client, from the client's own config,
+    so the client gets the generated config too: without it the office would answer to the keys
+    of ~/.config/herdr/config.toml, or to herdr's defaults, and not to the office's."""
+    cenv = {k: v for k, v in env.items() if k != "HERDR_SOCKET_PATH"}
+    gen = C.herdr_config_path(env)
+    if gen.is_file():
+        cenv["HERDR_CONFIG_PATH"] = str(gen)
+    os.execvpe(argv[0], argv, cenv)
 
 
 # --- fm restart -------------------------------------------------------------------------------

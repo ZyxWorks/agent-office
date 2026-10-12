@@ -258,7 +258,7 @@ try:
     log = (code[A] / ".fake-log").read_text().splitlines()
     check("the server runs the generated herdr config, and Firstmate got its home",
           log[:1] == [f"start [] FM_HOME={fmhome} CONFIG={gen}"], str(log))
-    check("without a terminal it says how to attach", f"herdr session attach {A}" in r.stdout, r.stdout)
+    check("without a terminal it says how to attach", "run `office on` in a terminal" in r.stdout, r.stdout)
     check("the session's meter runs", wait(lambda: meter_pid(A)))
     r = office("status")
     check("office status: running, owned, Firstmate, meter, no restart pending; exit 0", r.returncode == 0
@@ -280,6 +280,11 @@ try:
     time.sleep(2)
     check("on a terminal, office on attaches: the process becomes herdr's client",
           alive(pid) and json.loads(clients.read_text())["clients"][0]["pid"] == pid, str(pid))
+    # herdr reads the keys in the client: without the generated config a client answers to
+    # herdr's default Ctrl+B, not to the office's keys
+    penv = subprocess.run(["ps", "eww", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
+    check("and that client reads the generated herdr config, so the office's keys work in it",
+          f"HERDR_CONFIG_PATH={state / 'herdr' / 'config.toml'}" in penv, penv[-600:])
     r = office("break")
     check("office break detaches it", r.returncode == 0 and "detached 1 terminal" in r.stdout
           and wait(lambda: not alive(pid), 5), r.stdout + r.stderr)
@@ -336,7 +341,12 @@ try:
 
     print("office off stops its own session once the save is confirmed")
     (code[A] / ".fake-mode").write_text("ok")
+    # herdr writes this line itself once you have been through its first-run setup
+    gen = home / ".local" / "state" / "agent-office" / "herdr" / "config.toml"
+    gen.write_text("onboarding = false\n" + gen.read_text())
     r = office("on")
+    check("herdr's own onboarding line in the generated config does not stop office on",
+          r.returncode == 0 and "office install" not in r.stderr, r.stdout + r.stderr)
     rec = record(A)
     check("office on starts it again, with a new record", r.returncode == 0 and bool(rec) and alive(rec["pid"]),
           r.stdout + r.stderr)

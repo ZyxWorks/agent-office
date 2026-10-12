@@ -149,9 +149,9 @@ def _load(env, who, err):
 
 def _preflight(cfg: dict, o: fm.Office, env, out) -> Path:
     """What must hold before anything starts. Returns the generated herdr config."""
-    gen = C.state_dir(env) / "herdr" / "config.toml"
+    gen = C.herdr_config_path(env)
     try:
-        have = gen.read_text()
+        have = C.herdr_split(gen.read_text())[1]
     except (OSError, UnicodeDecodeError):
         have = None
     if have is None:

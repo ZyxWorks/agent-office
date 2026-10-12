@@ -149,7 +149,8 @@ class Installer:
 
     # --- what we want on disk -----------------------------------------------------------------
 
-    def want_file(self, p: Path, data: bytes, what: str) -> Step:
+    def want_file(self, p: Path, data: bytes, what: str, ours=lambda b: b) -> Step:
+        """`ours` takes out of the file what its program put there itself (herdr, in its config)."""
         rec = {"kind": "file", "sha256": _sha(data)}
 
         def run(backup=False):
@@ -169,7 +170,7 @@ class Installer:
         if cur == data:
             return Step("keep", p, what, record=rec)
         mine = self.manifest["owned"].get(str(p), {})
-        if mine.get("kind") == "file" and mine.get("sha256") == _sha(cur):
+        if mine.get("kind") == "file" and mine.get("sha256") in (_sha(cur), _sha(ours(cur))):
             return Step("update", p, what, run(), self._diff(cur, data, p.name), rec)
         why = "changed by hand since it was written" if mine else "not written by Agent Office"
         return Step("replace", p, f"{what} ({why})", run(True), self._diff(cur, data, p.name), rec)
@@ -296,8 +297,14 @@ class Installer:
             steps.append(Step("create", cfg, "your config, a starter to edit",
                               lambda: self._write(cfg, cfg_text), record={"kind": "starter"}))
         herdr = self.state / "herdr"
-        steps.append(self.want_file(herdr / "config.toml", herdr_text.encode(),
-                                    "herdr config, generated from the preset and your [herdr] keys"))
+        # herdr's own lines at the top stay: they are its record that you did its first-run setup
+        try:
+            own = C.herdr_split((herdr / "config.toml").read_text())[0]
+        except (OSError, UnicodeDecodeError):
+            own = ""
+        steps.append(self.want_file(herdr / "config.toml", (own + herdr_text).encode(),
+                                    "herdr config, generated from the preset and your [herdr] keys",
+                                    ours=lambda b: b[len(own.encode()):]))
         for f in sorted(C.PRESET_SOUNDS.iterdir()):
             steps.append(self.want_file(herdr / "sounds" / f.name, f.read_bytes(), "the preset's sound"))
         steps.append(self.want_file(C.meter_path(self.env), meter_text.encode(),

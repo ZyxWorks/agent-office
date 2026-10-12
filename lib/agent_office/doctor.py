@@ -230,7 +230,7 @@ class Report:
         except C.ConfigError as e:
             self.fact("herdr config, installed", "unknown", problems=e.problems)
             herdr = None
-        for name, path, want in (("herdr config, installed", C.state_dir(self.env) / "herdr" / "config.toml", herdr),
+        for name, path, want in (("herdr config, installed", C.herdr_config_path(self.env), herdr),
                                  ("meter settings, installed", C.meter_path(self.env), C.meter_settings(cfg))):
             if want is None:
                 continue
@@ -238,6 +238,8 @@ class Report:
                 have = path.read_text()
             except (OSError, UnicodeDecodeError):
                 have = None
+            if have is not None and want is herdr:
+                have = C.herdr_split(have)[1]
             if have is None:
                 self.fact(name, "not written", problems=["not written yet: run `office install`"])
             elif have != want:
@@ -287,7 +289,7 @@ class Report:
         state = C.herdr_dirs(self.env)[1] / "plugins" / METER_ID
         now = int(datetime.datetime.now().timestamp())
 
-        gen = C.state_dir(self.env) / "herdr" / "config.toml"
+        gen = C.herdr_config_path(self.env)
         started = _record(state, ".server.json", socket)
         name = "herdr config, active"
         if started is None:
@@ -296,7 +298,7 @@ class Report:
         elif not _same(Path(str(started.get("herdr_config", ""))), gen):
             self.fact(name, self.show(started.get("herdr_config")), problems=[
                 f"the session runs {self.show(started.get('herdr_config'))}, not the generated {self.show(gen)}"])
-        elif started.get("sha256") != _sha(gen):
+        elif started.get("sha256") != _herdr_sha(gen):
             self.fact(name, f"the generated config as it was when the session started, {_ago(now, started.get('at'))} ago", problems=[
                 "the generated config changed after the session started: restart the session to load it "
                 "(herdr does not report `herdr server reload-config`, so a reload cannot be confirmed)"])
@@ -368,6 +370,14 @@ def _sha(p: Path) -> str | None:
     try:
         return hashlib.sha256(p.read_bytes()).hexdigest()
     except OSError:
+        return None
+
+
+def _herdr_sha(p: Path) -> str | None:
+    """The hash herdr/start records: the config without the lines herdr itself adds."""
+    try:
+        return hashlib.sha256(C.herdr_split(p.read_text())[1].encode()).hexdigest()
+    except (OSError, UnicodeDecodeError):
         return None
 
 
