@@ -527,8 +527,13 @@ own herdr, config or office.
 | `office on`, `break`, `off`, `off --all`, `status` | `bin/lifecycle-probe` | throwaway herdr sessions, a stand-in agent |
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
 
-What the probes do not cover yet: a real Firstmate with real workers, and the
-real npm, Homebrew and GitHub downloads. The probes use stand-ins for those.
+CI also runs `office tools` for real, on a Linux and a macOS machine that have
+none of the pinned tools: the GitHub release downloads with their SHA-256, the
+npm installs, then `office install` and `office doctor`. That run proves the
+pins and hashes in `config/components.toml` still exist.
+
+What nothing covers yet: a real Firstmate with real workers. The probes use a
+stand-in agent for it.
 
 ## The tmux office (legacy)
 

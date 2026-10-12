@@ -77,7 +77,7 @@ def last_off_path(env) -> Path:
 
 
 def _record(path: Path) -> dict | None:
-    r = fm.read_json(path)
+    r = C.read_json(path)
     ok = (r and r.get("session") == path.name[:-len(".json")] and isinstance(r.get("pid"), int)
           and all(isinstance(r.get(k), str) and r[k] for k in ("socket", "started"))
           and isinstance(r.get("firstmate"), dict))
@@ -122,6 +122,17 @@ def _state(rec: dict, herdr: fm.Herdr) -> tuple:
     if alive and fm._same(srv.get("socket") or "", Path(rec["socket"])):
         return "owned", srv
     return "foreign", srv
+
+
+def _unsettled(session, at, env) -> bool:
+    """Whether a stop that recorded no result still leaves open what runs under the session name."""
+    if not isinstance(session, str) or not session:
+        return True
+    rec = _record(record_path(session, env))
+    if rec:
+        # an office on after that stop wrote this record: the stop is history
+        return not (isinstance(at, int) and isinstance(rec.get("at"), int) and rec["at"] >= at)
+    return fm.Herdr(session, env).server().get("running") is not False
 
 
 def _now() -> int:
@@ -196,7 +207,7 @@ def _start(o: fm.Office, gen: Path, cfg: dict, env, out):
             proc.terminate()  # the process this call started and nothing else: it never answered
         raise fm.Fail(f"herdr did not start session '{o.session}'. Its log, if it wrote one, is "
                       "herdr-server.log in the session's folder (`herdr session list` shows it).")
-    fm.write_json(path, {
+    C.write_json(path, {
         "schema": 1, "session": o.session, "socket": srv.get("socket") or "", "pid": proc.pid,
         "started": started, "at": _now(), "herdr_config": str(gen),
         "firstmate": {k: v for k, v in cfg["firstmate"].items() if k != "source"},
@@ -288,7 +299,7 @@ def break_(args, env, out, err) -> int:
             break
         time.sleep(0.25)
     if mine:
-        fm.write_json(fm.clients_path(session, env), {"schema": 1, "clients": left})
+        C.write_json(fm.clients_path(session, env), {"schema": 1, "clients": left})
     srv = fm.Herdr(session, env).server()
     if left:
         print(f"office break: {len(left)} of {len(mine)} terminal(s) did not detach (pid "
@@ -473,10 +484,10 @@ class Run:
     def set(self, session: str, result: str, detail: str):
         self.data["targets"] = [t for t in self.data["targets"] if t["session"] != session]
         self.data["targets"].append({"session": session, "result": result, "detail": detail})
-        fm.write_json(self.path, self.data)
+        C.write_json(self.path, self.data)
 
     def get(self, session: str) -> dict:
-        got = fm.read_json(self.path) or {}
+        got = C.read_json(self.path) or {}
         return next((t for t in got.get("targets", []) if t.get("session") == session), {})
 
 
@@ -683,11 +694,12 @@ def status(args, env, out, err) -> int:
                 "foreign": "another server runs under its name: left alone", "unknown": "unknown"}[st]
         rep.fact(f"office '{r['session']}', also started here", said,
                  problems=["herdr does not say whether it runs"] if st == "unknown" else [])
-    last = fm.read_json(last_off_path(env))
+    last = C.read_json(last_off_path(env))
     for t in (last or {}).get("targets", []):
         good = t.get("result") in ("stopped", "already stopped")
-        pending = t.get("result") == "stopping"
-        # a stop that failed is history once the office runs again or is gone; one with no result is not
+        # a stop that failed is history once the office runs again or is gone. One with no result
+        # is a problem until that is seen: started again since, or nothing under its name any more
+        pending = t.get("result") == "stopping" and _unsettled(t.get("session"), last.get("at"), env)
         rep.fact(f"last office off, '{t.get('session')}'",
                  f"{t.get('result')}, {doctor._ago(_now(), last.get('at'))} ago" + ("" if good else f": {t.get('detail')}"),
                  problems=["the stop began and recorded no result: check what still runs"] if pending else [])

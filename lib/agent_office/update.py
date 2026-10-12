@@ -494,14 +494,6 @@ class Update:
                            for s in STATES if count[s]) + ".")
 
 
-def _read(path: Path) -> Optional[dict]:
-    try:
-        rec = json.loads(path.read_text())
-    except (OSError, ValueError):
-        return None
-    return rec if isinstance(rec, dict) and rec.get("schema") == 1 else None
-
-
 def _held(path: Path) -> bool:
     """Whether a running office update holds the lock. Opened to read: asking writes nothing."""
     try:
@@ -568,7 +560,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     print(f"Agent Office {VERSION} at {u.show(C.REPO)}, config {u.show(C.config_path(env))}", file=out)
     print(file=out)
     u.print_plan(items)
-    prior = _read(u.record)
+    prior = C.read_json(u.record)
     unfinished = prior if prior and prior.get("state") == "running" else None
     if busy:
         print("Another office update is running now: this plan is what it started from.", file=out)
