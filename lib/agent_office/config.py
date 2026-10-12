@@ -235,7 +235,10 @@ def key_strip(keys: dict) -> str:
             key = key[6].upper()
         items.append(f"{_STRIP_KEYS.get(key, key)} {word}")
     commands = keys.get("command")
-    bound = {_first(c.get("key")) for c in commands if isinstance(c, dict)} if isinstance(commands, list) else set()
+    bound = set()
+    for c in commands if isinstance(commands, list) else []:
+        key = c.get("key") if isinstance(c, dict) else None
+        bound.update(key if isinstance(key, list) else [key])
     arrows = "⇧ arrows move │ " if bound.issuperset(STRIP_ARROWS) else ""
     return f"{arrows}{prefix}  " + " · ".join(items)
 

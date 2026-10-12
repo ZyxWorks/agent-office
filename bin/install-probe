@@ -132,13 +132,13 @@ r = h.run("install")
 gen = h.gen.read_text()
 check("a key you rebind is the key on the strip", r.returncode == 0
       and '"⇧ arrows move │ ^B  w new space · N new tab · v split · q close pane · ? keys"' in gen, r.stdout + r.stderr + gen)
-h.cfg.write_text('schema = 1\n[herdr.keys]\nprefix = "ctrl+b"\n[herdr.ui]\ntab_bar_right = [{ type = "hostname" }]\n')
-r = h.run("install")
-gen = h.gen.read_text()
 h.cfg.write_text('schema = 1\n[herdr.keys]\ncommand = []\n')
 r = h.run("install")
 check("no Shift+arrow keys, no Shift+arrow on the strip", r.returncode == 0
       and '"^Space  n new space · ' in h.gen.read_text(), r.stdout + r.stderr + h.gen.read_text())
+h.cfg.write_text('schema = 1\n[herdr.keys]\nprefix = "ctrl+b"\n[herdr.ui]\ntab_bar_right = [{ type = "hostname" }]\n')
+r = h.run("install")
+gen = h.gen.read_text()
 check("a tab_bar_right of your own is kept", r.returncode == 0
       and 'tab_bar_right = [{ type = "hostname" }]' in gen and "new space" not in gen, r.stdout + r.stderr + gen)
 h.cfg.write_text(yours)
