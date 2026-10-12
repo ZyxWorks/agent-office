@@ -42,6 +42,9 @@ close_tab        = "prefix+shift+c"
 rename_workspace = "prefix+r"
 rename_tab       = "prefix+shift+r"
 close_pane       = "prefix+q"
+# herdr's defaults, set here because the key strip in [ui] names them
+zoom             = "prefix+z"
+help             = "prefix+?"
 last_pane        = "prefix+l"
 split_vertical   = "prefix+v"
 split_horizontal = "prefix+minus"
@@ -81,6 +84,18 @@ description = "pane below, then the space below"
 # Agents panel grouped by space. herdr's default too, kept explicit because it is a choice
 # (the other one, "priority", reorders the list as agents change state).
 agent_panel_sort = "spaces"
+
+# The key strip, at the right end of the tab row. herdr's own prefix bar names four keys and
+# cannot be changed, so the keys you press most stay on screen here: Ctrl+Space, then the
+# key. A capital letter is the key with Shift. herdr hides the strip, and the ZOOM pill with
+# it, when the tabs need the room; a zoomed tab still shows its own Z.
+# The text is the [keys] above in one line. `office install` writes it again from the keys
+# you rebind in [herdr.keys]; by hand, change both. preset/preset-probe checks they agree.
+tab_bar_right = [
+  { type = "zoom" },
+  { type = "text", text = "^Space  n new space · N new tab · v split · q close pane · z zoom · ? keys" },
+]
+tab_bar_right_separator = "  "
 
 # Only "needs you" plays a sound. A worker finishing is routine under Firstmate, so its sound is
 # a silent mp3: herdr has no per-event off switch, and done_path overrides only the finished
