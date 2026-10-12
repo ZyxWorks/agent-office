@@ -57,25 +57,67 @@ def version(cmd: str, env, args=None) -> str | None:
     return m.group(0) if m else None
 
 
-def owner(real: Path, update: str | None) -> str | None:
-    """Who updates the program at this real path, from where its owner puts it."""
+def owned_by(real: Path, update: str | None) -> tuple | None:
+    """Who updates the program at this real path, from where its owner puts it: (kind, detail)."""
     parts = real.parts
-    for mark, label in (("Cellar", "Homebrew"), ("Caskroom", "Homebrew cask")):
+    for mark, kind in (("Cellar", "brew"), ("Caskroom", "cask")):
         if mark in parts and parts.index(mark) + 1 < len(parts):
-            return f"{label} ({parts[parts.index(mark) + 1]})"
+            return kind, parts[parts.index(mark) + 1]
     if "node_modules" in parts:
         # the outermost package is the one installed; any deeper one is its dependency
         i = parts.index("node_modules")
         pkg = parts[i + 1] if i + 1 < len(parts) else ""
         if pkg.startswith("@") and i + 2 < len(parts):
             pkg += "/" + parts[i + 2]
-        return f"npm, global ({pkg})"
+        return "npm", pkg
     if real.parts[1:3] == ("nix", "store"):
-        return "Nix"
+        return "nix", ""
     if str(real).startswith(_SYSTEM):
-        return "the system's packages"
+        return "system", ""
     # not under a package manager: a self-updater owns its own updates; anything else is unknown
-    return f"itself ({update})" if update else None
+    return ("self", update) if update else None
+
+
+_OWNER = {"brew": "Homebrew ({})", "cask": "Homebrew cask ({})", "npm": "npm, global ({})", "nix": "Nix",
+          "system": "the system's packages", "self": "itself ({})"}
+
+
+def label(own: tuple | None) -> str | None:
+    return _OWNER[own[0]].format(own[1]) if own else None
+
+
+def owner(real: Path, update: str | None) -> str | None:
+    return label(owned_by(real, update))
+
+
+def find(c: dict, env) -> tuple | None:
+    """A component's program as installed: (its path on PATH, its version, its owner as owned_by
+    gives it), or None when it is not on PATH."""
+    found = shutil.which(c["command"], path=env.get("PATH", ""))
+    if not found:
+        return None
+    own = owned_by(Path(found).resolve(), c.get("update"))
+    if own is None and "cask" in c and (Path(found).parent.parent / "Caskroom" / c["cask"]).is_dir():
+        # a cask's app lives in /Applications; Homebrew's link to it is what says who owns it
+        own = ("cask", c["cask"])
+    return found, version(found, env, c.get("version_args")), own
+
+
+def server_status(env, session: str) -> dict | None:
+    """What herdr says about the server of this session, or None when it did not say whether it
+    runs. It only asks: `status server` starts nothing."""
+    env = {k: v for k, v in env.items() if k != "HERDR_SOCKET_PATH"}  # --session picks the socket
+    try:
+        st = json.loads(_run(["herdr", "--session", session, "status", "server", "--json"], env) or "")
+    except ValueError:
+        return None
+    return st if isinstance(st, dict) and "running" in st else None
+
+
+def remotes(code: Path, env) -> dict:
+    """The checkout's remotes, name to URL, each URL as _norm compares them."""
+    out = _run(["git", "-C", str(code), "remote", "-v"], env)
+    return {l.split()[0]: _norm(l.split()[1]) for l in (out or "").splitlines() if len(l.split()) > 1}
 
 
 class Report:
@@ -105,17 +147,13 @@ class Report:
 
     def component(self, c: dict):
         name, cmd = c["name"], c["command"]
-        found = shutil.which(cmd, path=self.env.get("PATH", ""))
-        if not found:
+        got = find(c, self.env)
+        if got is None:
             how = " (`office tools` installs it)" if {"release", "npm", "brew", "cask"} & c.keys() else ""
             self.row(name, "-", "-", "-", problems=[f"{cmd} is not on PATH{how}"])
             return
-        real = Path(found).resolve()
-        ver, own, problems = version(found, self.env, c.get("version_args")), owner(real, c.get("update")), []
-        cask = Path(found).parent.parent / "Caskroom" / c.get("cask", "")
-        if own is None and "cask" in c and cask.is_dir():
-            # a cask's app lives in /Applications; Homebrew's link to it is what says who owns it
-            own = f"Homebrew cask ({c['cask']})"
+        found, ver, own = got
+        real, own, problems = Path(found).resolve(), label(own), []
         if ver is None:
             problems.append(f"`{cmd} --version` gave no version")
         if own is None:
@@ -163,8 +201,7 @@ class Report:
             problems.append(f"no checkout at {self.show(code)} (firstmate.code)")
         elif rev is None:
             problems.append(f"git read no commit in {self.show(code)}")
-        remotes = _run(["git", "-C", str(code), "remote", "-v"], self.env) if rev else ""
-        urls = {_norm(l.split()[1]) for l in (remotes or "").splitlines() if len(l.split()) > 1}
+        urls = set(remotes(code, self.env).values()) if rev else set()
         if rev and _norm(source) not in urls:
             problems.append(f"no remote of the checkout is the configured source {_bare(source)}")
         if rev and rev not in tested:
@@ -237,13 +274,9 @@ class Report:
 
     def active(self, cfg: dict, session: str):
         """What the office's herdr session runs. Nothing is active when it is not running."""
-        env = {k: v for k, v in self.env.items() if k != "HERDR_SOCKET_PATH"}  # --session picks the socket
-        try:
-            st = json.loads(_run(["herdr", "--session", session, "status", "server", "--json"], env) or "")
-        except ValueError:
-            st = None
+        st = server_status(self.env, session)
         name = f"office session {session}"
-        if not isinstance(st, dict) or "running" not in st:
+        if st is None:
             self.fact(name, "unknown", problems=["`herdr status server` did not say whether it runs"])
             return
         if not st["running"]:

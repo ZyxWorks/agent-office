@@ -9,6 +9,7 @@ import sys
 from . import config as C
 from . import doctor, install, tools
 from . import notify
+from . import update
 
 VERSION = "1.0.0-dev"
 
@@ -27,12 +28,14 @@ office: Agent Office, one command for the whole agent setup.
                                      generic command-line tools
   office doctor                      read-only: each component's version, who updates it, and
                                      whether this release is tested with it
+  office update [--check] [--yes]    bring every component to the versions this release is
+                                     tested with, each through its owner; restarts nothing
   office help | version
 
 Also `fm`: open the office's Firstmate, and `fm restart` (see `fm --help`).
 
-Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, update,
-status) is planned. Until each one lands, any other verb runs the tmux office (0.x)
+Your config: ~/.config/agent-office/config.toml. The rest of 1.0 (on, break, off, status)
+is planned. Until each one lands, any other verb runs the tmux office (0.x)
 from bin/office-tmux: see docs/legacy-tmux/README.md. Run that way it is a separate process,
 so `office cd` cannot move your shell."""
 
@@ -91,6 +94,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return tools.run(rest, out=out, err=err)
     if verb == "doctor":
         return doctor.run(rest, out=out, err=err)
+    if verb == "update":
+        return update.run(rest, out=out, err=err)
     if verb == "config":
         return _config(rest, out, err)
     if verb == "notify":

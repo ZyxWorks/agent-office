@@ -88,7 +88,7 @@ jobs:
           sh -n bin/office-ctx
           sh -n bin/office-cwd
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
-            bin/office bin/install-probe bin/notify-probe bin/fm bin/fm-probe lib/agent_office/*.py
+            bin/office bin/install-probe bin/update-probe bin/notify-probe bin/fm bin/fm-probe lib/agent_office/*.py
           sh -n herdr/notify
 
       # tmux refuses to parse a config it cannot read, and a broken one would
@@ -130,6 +130,15 @@ jobs:
       - name: install-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
         run: /usr/bin/python3 bin/install-probe
+
+      # `office update`, each case in a throwaway HOME: fake brew, npm, herdr and curl on PATH, local
+      # bare repositories as the remotes. Needs git and Python only; no network, no herdr.
+      - name: update-probe
+        run: bin/update-probe
+
+      - name: update-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        run: /usr/bin/python3 bin/update-probe
 
       # `office notify` and the herdr hook, against a fake ntfy on localhost. No server, no network.
       - name: notify-probe

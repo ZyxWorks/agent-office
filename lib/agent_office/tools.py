@@ -76,6 +76,20 @@ class Failed(Exception):
     pass
 
 
+def call(argv, env, cwd=None) -> str:
+    """Run one owner's command to its end and give what it printed; Failed says why it did not work."""
+    try:
+        r = subprocess.run(argv, env=env, cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True,
+                           text=True, timeout=1800)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise Failed(f"`{' '.join(argv)}` did not run: {e}")
+    if r.returncode != 0:
+        tail = (r.stderr or r.stdout).strip().splitlines()[-5:]
+        raise Failed(f"`{' '.join(argv)}` failed (exit {r.returncode})" +
+                     "".join("\n      " + line for line in tail))
+    return r.stdout
+
+
 @dataclass
 class Step:
     kind: str                 # install | manual
@@ -171,15 +185,7 @@ class Tools:
         return self.show(link or dest)
 
     def _command(self, argv, c) -> str:
-        try:
-            r = subprocess.run(argv, env=self.env, stdin=subprocess.DEVNULL, capture_output=True,
-                               text=True, timeout=1800)
-        except (OSError, subprocess.SubprocessError) as e:
-            raise Failed(f"`{' '.join(argv)}` did not run: {e}")
-        if r.returncode != 0:
-            tail = (r.stderr or r.stdout).strip().splitlines()[-5:]
-            raise Failed(f"`{' '.join(argv)}` failed (exit {r.returncode})" +
-                         "".join("\n      " + line for line in tail))
+        call(argv, self.env)
         found = self.which(c["command"])
         if not found:
             raise Failed(f"installed, but {c['command']} is not on PATH. Add the folder "

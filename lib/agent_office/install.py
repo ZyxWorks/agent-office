@@ -302,6 +302,19 @@ def _confirm(prompt: str) -> bool:
         return False
 
 
+def wanted(env) -> tuple:
+    """What the config makes now: the starter when there is no config yet (else None), the herdr
+    config and the meter settings. Raises ConfigError."""
+    cfg_path = C.config_path(env)
+    starter = None
+    if cfg_path.exists() or cfg_path.is_symlink():  # a broken link is an error, not "no config"
+        cfg = C.load(cfg_path)
+    else:
+        starter = C.STARTER.read_bytes()
+        cfg = C.effective(C.tomllib.loads(starter.decode()), str(C.STARTER))
+    return starter, C.herdr_config(cfg), C.meter_settings(cfg)
+
+
 def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
     check_only = yes = False
     for a in args:
@@ -322,15 +335,8 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
 
     inst = Installer(env, out)
     cfg_path = C.config_path(inst.env)
-    starter = None
     try:
-        if cfg_path.exists() or cfg_path.is_symlink():  # a broken link is an error, not "no config"
-            cfg = C.load(cfg_path)
-        else:
-            starter = C.STARTER.read_bytes()
-            cfg = C.effective(C.tomllib.loads(starter.decode()), str(C.STARTER))
-        herdr_text = C.herdr_config(cfg)
-        meter_text = C.meter_settings(cfg)
+        starter, herdr_text, meter_text = wanted(inst.env)
     except C.ConfigError as e:
         print("office install: the config has problems. Nothing was changed.", file=err)
         for p in e.problems:
