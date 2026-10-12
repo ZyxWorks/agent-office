@@ -1,8 +1,8 @@
 # Getting started
 
-> **Status: in transition.** Agent Office 1.0 is herdr-first, and most of it is
-> **planned**. This guide shows the 1.0 flow as a contract, marked `planned`,
-> and the one piece you can set up today, marked `works today`. Using the tmux
+> **Status: in transition.** Agent Office 1.0 is herdr-first, and part of it is
+> still **planned**. This guide shows the 1.0 flow, each step marked `planned`
+> or `works today`. Using the tmux
 > office? Its guide is [docs/legacy-tmux/GETTING-STARTED.md](docs/legacy-tmux/GETTING-STARTED.md).
 
 ## 1. The words you need
@@ -28,13 +28,13 @@ Everything else is what `office tools` and `office install` are for.
 
 ## 3. The 1.0 flow
 
-`office tools` and `office install` work today. `office on` is planned.
+`office tools`, `office install` and `office on` work today.
 
 ```sh
 git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
 ~/agent-office/bin/office tools   # works today: herdr, treehouse and the agent tools you lack
 ~/agent-office/install.sh         # works today: the config, herdr's config, the office and fm commands
-office on                         # planned: open the office and its Firstmate
+office on                         # works today: open the office and its Firstmate
 ```
 
 `office tools` installs each missing tool at a pinned version through its
@@ -58,7 +58,10 @@ Firstmate is not installed by either: [clone it yourself](#today-firstmate).
 `office tools --workstation` also installs the optional
 [workstation tools](README.md#workstation-profile-optional) you lack.
 
-`office on` opens the office herdr session and one Firstmate inside it. Talk to
+`office on` opens the office herdr session and one Firstmate inside it. It
+needs Firstmate cloned and `firstmate.code` set first, and for the meter the
+plugin linked once (`herdr plugin link`, [below](#today-the-meter-by-hand)):
+`office install` does not link it yet. Talk to
 Firstmate like any agent: say what you want done. It starts workers, each in a
 treehouse worktree, and you see them in herdr's sidebar with their state and,
 from the meter, their context size and how long since each last wrote to its
@@ -68,15 +71,21 @@ The rest of the day:
 
 | you want to | command | status |
 |---|---|---|
-| walk away, leave it all running | `office break` | planned |
-| come back | `office on` | planned |
+| walk away, leave it all running | `office break` | works today |
+| come back | `office on` | works today |
 | jump to Firstmate | `fm` | works today, once the herdr session runs |
 | give Firstmate a fresh conversation, work saved first | `fm restart` | works today |
 | see what is installed, who updates it and whether it is tested | `office doctor` | works today |
-| see what is running | `office status` | planned |
+| see what is running | `office status` | works today |
 | update everything to a tested set | `office update` | planned |
-| go home, office stops | `office off` | planned |
-| stop every office on this machine that Agent Office owns | `office off --all` | planned |
+| go home, office stops | `office off` | works today |
+| stop every office on this machine that Agent Office owns | `office off --all` | works today |
+
+`office off` stops only a session `office on` started, and only after
+Firstmate confirmed it saved its work. `office break` detaches the terminals
+`office on` and `fm` attached; in a herdr you attached yourself, press the
+detach key (`office keys`). [The README](README.md#how-office-on-break-off-and-status-work)
+has the rules.
 
 Your settings live in one file, `~/.config/agent-office/config.toml`. The
 [README](README.md#one-config) shows its shape.
@@ -236,5 +245,5 @@ every key. `office keys` prints them all on one screen.
 `office tools` installs treehouse. Firstmate is a git checkout you clone
 yourself, from [its repo](https://github.com/kunchenguid/firstmate): follow its
 README, and set `firstmate.code` in your config to where you cloned it.
-`office doctor` checks the checkout. Wiring them into one office is what 1.0
-adds.
+`office doctor` checks the checkout, and `office on` starts it in the office's
+herdr session.

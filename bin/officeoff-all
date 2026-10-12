@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+# officeoff-all: `office off --all`, spelled as one word. The same code, lib/agent_office/lifecycle.py:
+# stop every office this installation started, after listing them and asking.
+# A link to this file in ~/.local/bin is how every shell finds it.
+import os
+import sys
+
+if sys.version_info < (3, 8):
+    sys.exit("officeoff-all: needs Python 3.8 or newer; this is " + sys.version.split()[0])
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+from agent_office import cli  # noqa: E402
+
+sys.exit(cli.main(["off", "--all", *sys.argv[1:]]))

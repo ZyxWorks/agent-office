@@ -19,8 +19,10 @@ One `office` command to install, start, stop and update the lot.
 > second kind is real. What is real today: the herdr meter plugin, the herdr
 > preset, opt-in phone notifications, the config file, `office install`, which
 > writes it all in place but starts nothing, `office tools`, which installs the
-> tools that are missing, `office doctor`, which reports what is installed, and
-> `fm` and `fm restart`. Every other `office` verb is still the tmux office (0.x).
+> tools that are missing, `office doctor`, which reports what is installed,
+> `fm` and `fm restart`, and the daily lifecycle: `office on`, `office break`,
+> `office off`, `office off --all` and `office status`. Every other `office`
+> verb is still the tmux office (0.x).
 > See [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
 
 [The product page](https://zyxworks.github.io/agent-office/) ·
@@ -129,13 +131,13 @@ What each part does today:
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
 | `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
-| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm` uses `office.session` and `[firstmate]` except `source`. Nothing else uses them yet: `office on` is planned |
+| `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm`, `office on`, `office off` and `office status` use `office.session` and `[firstmate]` except `source`. `treehouse.root` is only reported |
 
 The generated herdr config is written to
 `~/.local/state/agent-office/herdr/config.toml`, next to the preset's sound. It
 is not `~/.config/herdr/config.toml`, which `office install` never touches: a
-herdr you start yourself keeps your own config. `office on` (planned) is what
-will start herdr against the generated one.
+herdr you start yourself keeps your own config. `office on` is what starts
+herdr against the generated one.
 
 The rules the config follows:
 
@@ -156,20 +158,20 @@ The rules the config follows:
 | `office install` | check the config, write the generated herdr config and the `office` command, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. | works today |
 | `office tools` | install the tools the office uses that are missing, at pinned versions, each through its owner. A tool you have is left as it is. Shows the list and asks first. `--check` only plans; `--workstation` adds the optional workstation tools. | works today |
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect | works today |
-| `office on` | attach to or create the configured herdr session, and make sure one Firstmate is running for the configured home. Running it again focuses what is there. | planned |
-| `office break` | detach only. Firstmate, the workers and the terminals keep running. | planned |
-| `office off` | stop this office: show what will stop, let Firstmate persist and drain its workers, then stop the owned session and its meter. Repos and worktree pools are kept. | planned |
-| `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. | planned |
+| `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; attach. Running it again focuses what is there. Starts no workers. | works today |
+| `office break` | detach only: the terminals `office on` and `fm` attached. Firstmate, the workers and the terminals keep running. herdr has no detach command, so a herdr you attached yourself detaches with its key, which `office break` prints. | works today |
+| `office off` | stop this office: show what will stop, ask, let Firstmate save its work, and only when the save is confirmed stop the owned session and its meter. A session `office on` did not start is left running. It refuses while an agent in the session is working or waiting; asking Firstmate to drain its workers is planned. `--force`, confirmed separately on the terminal, stops when the save fails. Repos and worktree pools are kept. | works today |
+| `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. Anything left running makes it exit non-zero. | works today |
 | `office update` | update every component (the CLI, preset, meter, config, herdr, treehouse, Firstmate and the kunchenguid tools) to a tested set, each through its own updater. `--check` only plans. | planned |
 | `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. | works today |
-| `office status` | read-only: what is running, what the office owns, meter health, pending updates and restarts. | planned |
-| `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` (planned) will start it. | works today |
+| `office status` | read-only: what is running, what the office owns, meter health, pending restarts, and the result of the last `office off`. Unknown is never reported as healthy: it exits 1 on any problem. Pending updates are planned, with `office update`. | works today |
+| `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` starts it. | works today |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. | works today |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. | works today |
 
 Today, `office install`, `office config`, `office keys`, `office notify`, `office tools`, `office doctor`, `office help`,
-`office version`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
+`office version`, `office on`, `office break`, `office off`, `office status`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
 `doctor`, what runs and its RAM, is still there as `office list`.
@@ -252,6 +254,69 @@ adopts it, for you to run.
 One `fm` runs at a time per office: a second one, a start or a restart, is
 refused while the first runs.
 
+### How `office on`, `break`, `off` and `status` work
+
+**Ownership is a record, not a name.** `office on` starts the herdr server for
+`office.session` itself and writes
+`~/.local/state/agent-office/offices/<session>.json`: that server's process id,
+when the process started, its socket, and the Firstmate it was started for.
+`office off` stops a session only while the server behind the name is that
+recorded process. A session with no record, or with another server behind the
+name, is somebody else's: `office off` says so, leaves it running and exits 1.
+
+- **`office on`** first checks that the config is valid, that the generated
+  herdr config is the one your config makes now (if not: `office install`),
+  that herdr reports a version, and that the Firstmate checkout and home
+  exist. A herdr version this release is not tested with is a warning, and
+  `office doctor` has the details. Then it starts the session, or uses the one
+  that runs. A session it did not start is used as it is, with the config it
+  started with, and stays not owned. Firstmate is started or focused by the
+  same code as `fm`, and in a terminal outside herdr it attaches. It never
+  starts a worker.
+- **`office break`** detaches and stops nothing. herdr 0.9.1 has no command
+  that detaches a client, so `office on` and `fm` record the client they
+  become, and `office break` sends exactly those the hangup a closing terminal
+  window sends. A herdr you attached yourself is not on that record: for it,
+  `office break` prints the detach key.
+- **`office off`** lists what stops: the session and its server, Firstmate with
+  its checkout and home, every other agent in the session, the pane count, the
+  meter, the attached terminals. It asks, then asks Firstmate to save through
+  the same `/stow` contract as `fm restart`, and stops the session with
+  `herdr session stop` only when Firstmate answers that the save worked. A
+  failed, unclear, timed out or cancelled save stops nothing. So does an agent
+  in the session that is still working or waiting for an answer: today
+  `office off` only refuses and names it. Asking Firstmate to drain or cancel
+  its workers is planned. After the session it stops that session's meter,
+  checks both are gone, and clears the record. It never deletes a worktree,
+  empties a pool or touches a repo.
+- **`--force`** is for a save that cannot be confirmed. The save is still tried
+  first. If it fails, `office off --force` warns that unsaved conversations may
+  be lost and asks again, on the terminal, for the session name typed out.
+  `--yes` answers only the first question: without a terminal, nothing is
+  forced. A forced stop is the same `herdr session stop` of the same owned
+  session, nothing wider.
+- **`office off --all`** and **`officeoff-all`** do this for every recorded
+  office, and name the running herdr sessions they leave alone. Each office is
+  reported as stopped, already stopped, left, kept or incomplete; anything but
+  the first two makes the exit code 1.
+- **Typed inside the office.** Stopping a session ends every pane in it, the
+  one you typed `office off` in too. The stop runs in a helper outside every
+  session, and the result is written to
+  `~/.local/state/agent-office/last-off.json` before it is printed, so
+  `office status` shows it afterwards. Firstmate cannot run `office off` from
+  its own pane: it could not save while it waits for the command, so that is
+  refused.
+- **`office status`** shows whether the session runs, who started it, the herdr
+  config it started with and the meter (the same checks as `office doctor`),
+  Firstmate and the other agents with their state, the terminals attached by
+  `office on` or `fm`, whether herdr says its server needs a restart, other
+  offices this installation started, and the last `office off`.
+
+Not built yet: a session `office on` did not start cannot be adopted, so only
+its owner stops it. After `herdr update --handoff` replaces a running server,
+the record no longer names the process, and `office off` leaves that session
+running: stop it with `herdr session stop <name>`.
+
 ### What `office install` writes
 
 | path | what | when it exists already |
@@ -259,7 +324,7 @@ refused while the first runs.
 | `~/.config/agent-office/config.toml` | your config, from a starter | never touched again: it is yours |
 | `~/.local/state/agent-office/herdr/` | the generated herdr config and the preset's sound | updated if Agent Office wrote it and nobody changed it since; otherwise shown, backed up, asked |
 | `~/.local/state/agent-office/meter.json` | your `[meter]` keys, which the meter plugin reads on every pass | the same |
-| `~/.local/bin/office`, `~/.local/bin/fm` | links to `bin/office` and `bin/fm` in your checkout | the same: replaced only after a backup and a yes |
+| `~/.local/bin/office`, `~/.local/bin/fm`, `~/.local/bin/officeoff-all` | links to `bin/office`, `bin/fm` and `bin/officeoff-all` in your checkout | the same: replaced only after a backup and a yes |
 | `~/.zshrc` and the other zsh startup files | the line that loads the tmux office's `office` function removed: zsh finds a function before any command, so it would hide the 1.0 one | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove. A function or alias of your own named `fm` hides `fm` the same way: it is pointed out, never removed |
 
 `~/.tmux.conf` keeps its tmux office lines for now: the verbs 1.0 has not built
@@ -316,7 +381,7 @@ tested there, so it is not claimed.
 
 ## What works today
 
-Eight things are real right now:
+Nine things are real right now:
 
 1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
    context size, and its transcript age, in herdr's sidebar next to herdr's
@@ -349,7 +414,11 @@ Eight things are real right now:
 7. **`fm` and `fm restart`**: open the office's Firstmate, and restart it
    only after it has saved its work. See [How `fm` finds Firstmate](#how-fm-finds-firstmate).
    `bin/fm-probe` tests it against a throwaway herdr session.
-8. **The tmux office (0.x)**, documented in
+8. **`office on`, `break`, `off`, `off --all` and `status`**: start the office,
+   leave it, stop only what `office on` started, and see what runs. See
+   [How `office on`, `break`, `off` and `status` work](#how-office-on-break-off-and-status-work).
+   `bin/lifecycle-probe` tests them against throwaway herdr sessions.
+9. **The tmux office (0.x)**, documented in
    [docs/legacy-tmux](docs/legacy-tmux/README.md).
 
 ## The tmux office (legacy)

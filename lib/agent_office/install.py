@@ -6,7 +6,7 @@ What it writes, and nothing else:
 - herdr's config, generated from the preset and your [herdr] keys, under the state folder,
 - the meter's settings, your [meter] keys, under the state folder, where the meter plugin reads
   them on every pass,
-- the `office` and `fm` commands, links in ~/.local/bin,
+- the `office`, `fm` and `officeoff-all` commands, links in ~/.local/bin,
 - and it removes the line that loads the tmux office's (0.x) `office` function from your zsh
   startup files: zsh finds a function before any command on PATH, so while it is loaded the
   1.0 command is never reached.
@@ -258,6 +258,8 @@ class Installer:
                                     str(C.REPO / "bin" / "office"), "the office command"))
         steps.append(self.want_link(self.home / ".local" / "bin" / "fm",
                                     str(C.REPO / "bin" / "fm"), "the fm command"))
+        steps.append(self.want_link(self.home / ".local" / "bin" / "officeoff-all",
+                                    str(C.REPO / "bin" / "officeoff-all"), "the officeoff-all command"))
         # zsh reads ~/.zshenv first, and that is where ZDOTDIR is usually set for the rest
         dirs = [self.home, Path(self.env.get("ZDOTDIR") or self.home)]
         for path in dict.fromkeys(d / n for d in dirs for n in ZSH_STARTUP):
@@ -292,14 +294,20 @@ class Installer:
         return changed
 
 
-def _confirm(prompt: str) -> bool:
+def ask(prompt: str) -> Optional[str]:
+    """The line typed in answer on the terminal, or None when there is no terminal to ask on."""
     try:
-        with open("/dev/tty", "r+") as tty:
-            tty.write(prompt)
-            tty.flush()
-            return tty.readline().strip().lower() in ("y", "yes")
+        # unbuffered bytes: a terminal cannot seek, and Python refuses to open one for buffered
+        # reading and writing, which would read as "no terminal" on every terminal there is
+        with open("/dev/tty", "r+b", buffering=0) as tty:
+            tty.write(prompt.encode())
+            return tty.readline().decode(errors="replace").strip()
     except OSError:
-        return False
+        return None
+
+
+def _confirm(prompt: str) -> bool:
+    return (ask(prompt) or "").lower() in ("y", "yes")
 
 
 def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
@@ -382,8 +390,8 @@ usage: office install [--check] [--yes]
 
 Check your config, then write what the office needs, showing every change first:
 your config (a starter, only if there is none), herdr's config generated from the preset and
-your [herdr] keys, the meter's settings from your [meter] keys, the office and fm commands in
-~/.local/bin, and the line that loads the tmux office's (0.x) function removed from your zsh
+your [herdr] keys, the meter's settings from your [meter] keys, the office, fm and officeoff-all
+commands in ~/.local/bin, and the line that loads the tmux office's (0.x) function removed from your zsh
 startup files. Anything it replaces or edits is backed up first. It starts nothing and never
 touches ~/.config/herdr or ~/.tmux.conf. A running meter reads its new settings on its next
 pass; a running herdr needs a restart (or `herdr server reload-config`) to load its new config.
