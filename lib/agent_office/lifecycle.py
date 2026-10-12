@@ -451,7 +451,12 @@ def _detached(work) -> None:
             work()
         finally:
             os._exit(0)
-    os.waitpid(pid, 0)
+    # the helper cannot be called back, so Ctrl-C must not make this side say "nothing was stopped"
+    old = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        os.waitpid(pid, 0)
+    finally:
+        signal.signal(signal.SIGINT, old)
 
 
 def _why(why: list) -> str:
@@ -585,12 +590,17 @@ def off(args, env, out, err) -> int:
                 return 1
         run = Run(env, everything)
         code = 0
+        cancelled = False
         for t in ts:
-            try:
-                result, detail = _one(t, run, minutes, force, out)
-            except KeyboardInterrupt:
-                result, detail = "kept", ("cancelled. Nothing was stopped. A save already asked for keeps "
-                                          "running in Firstmate.")
+            if cancelled:  # Ctrl-C ends the whole command, not one office of it
+                result, detail = "kept", "cancelled before its turn. Nothing was stopped."
+            else:
+                try:
+                    result, detail = _one(t, run, minutes, force, out)
+                except KeyboardInterrupt:
+                    cancelled = True
+                    result, detail = "kept", ("cancelled. Nothing was stopped. A save already asked for keeps "
+                                              "running in Firstmate.")
             run.set(t.session, result, detail)
             good = result in ("stopped", "already stopped")
             print(f"{who}: office '{t.session}': {result if good else result.upper()}: {detail}",

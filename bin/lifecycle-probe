@@ -132,7 +132,11 @@ def on_tty(args, answers=(), until=None):
             try:
                 seen += os.read(fd, 65536)
             except OSError:
-                break
+                # Linux: reading a terminal whose program has ended is an error, not an empty read
+                if until:
+                    break
+                os.waitpid(pid, 0)
+                return None, seen.decode(errors="replace")
         if answers and answers[0][0].encode() in seen:
             os.write(fd, (answers.pop(0)[1] + "\n").encode())
         if until and until():

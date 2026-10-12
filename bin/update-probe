@@ -543,7 +543,7 @@ r = h.run("--yes")
 got = rows(r.stdout.split("Results:")[-1])
 check("herdr is updated on disk while the session runs the old one: pending, exit 1", r.returncode == 1 and re.match(
     r"pending: 0\.9\.0 -> 0\.9\.1 on disk, not yet active: the session office still runs herdr 0\.9\.0: restart the herdr "
-    r"session office when its agents can stop: `herdr --session office server stop`, then start it again",
+    r"session office when its agents can stop: `office off`, then `office on`",
     got.get("herdr", "")), r.stdout + r.stderr)
 check("the config it just wrote is not what the session started with: pending too",
       got.get("config", "").startswith("pending: written by office install on disk, not yet active: "), r.stdout)

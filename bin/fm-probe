@@ -117,7 +117,7 @@ try:
     config()
     r = fm()
     check("fm says the session is not running and how to start it", r.returncode == 1
-          and f"herdr session '{SESSION}' is not running" in r.stderr and f"herdr --session {SESSION}" in r.stderr,
+          and f"herdr session '{SESSION}' is not running" in r.stderr and "Start it with: office on" in r.stderr,
           r.stdout + r.stderr)
     r = fm("restart")
     check("so does fm restart", r.returncode == 1 and "is not running" in r.stderr, r.stdout + r.stderr)

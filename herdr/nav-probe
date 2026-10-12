@@ -1,5 +1,5 @@
 #!/bin/sh
-# nav-probe — every step nav has to get right, against a fake herdr. No herdr server.
+# nav-probe - every step nav has to get right, against a fake herdr. No herdr server.
 # Exit 0 = all pass.
 #
 # The fake office: space w1 has tab t1 (panes p1 | p2, side by side) and tab t2 (pane p3).
@@ -13,6 +13,7 @@ unset HERDR_SOCKET_PATH HERDR_PANE_ID HERDR_ACTIVE_PANE_ID
 
 cat >"$T/herdr" <<EOF
 #!/bin/sh
+[ -z "\${FAKE_DOWN:-}" ] || exit 1
 case "\$1 \$2" in
   "pane neighbor") # --direction D --pane P
     case "\$6 \$4" in
@@ -58,6 +59,11 @@ go gone right ""                  # a pane herdr no longer has
 : >"$T/did"
 HERDR_BIN_PATH=$T/herdr HERDR_ACTIVE_PANE_ID=p2 sh "$here/nav" right
 [ "$(cat "$T/did")" = "tab focus t2" ] || { echo "FAIL HERDR_ACTIVE_PANE_ID: got '$(cat "$T/did")'"; fail=1; }
+
+# a herdr that does not answer is not an edge: nav stops, and never walks on to another tab
+: >"$T/did"
+FAKE_DOWN=1 HERDR_BIN_PATH=$T/herdr HERDR_PANE_ID=p2 sh "$here/nav" right 2>/dev/null; [ $? -eq 1 ] || { echo "FAIL a herdr that fails must exit 1"; fail=1; }
+[ -s "$T/did" ] && { echo "FAIL a herdr that fails still moved: $(cat "$T/did")"; fail=1; }
 
 # wrong use says so and touches nothing
 : >"$T/did"

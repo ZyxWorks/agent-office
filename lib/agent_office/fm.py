@@ -141,8 +141,7 @@ class Office:
     def running(self) -> dict:
         srv = self.herdr.server()
         if not srv.get("running"):
-            raise Fail(f"herdr session '{self.session}' is not running. Start it with: "
-                       f"herdr --session {self.session}")
+            raise Fail(f"herdr session '{self.session}' is not running. Start it with: office on")
         return srv
 
     def agent(self) -> dict | None:

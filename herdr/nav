@@ -1,5 +1,5 @@
 #!/bin/sh
-# nav — one Shift+arrow walks panes, tabs and spaces, so the office needs no mouse.
+# nav - one Shift+arrow walks panes, tabs and spaces, so the office needs no mouse.
 #
 #     nav left|right   the pane on that side; at the edge, the tab before / after
 #     nav up|down      the pane on that side; at the edge, the space above / below
@@ -20,7 +20,9 @@ pane=${HERDR_ACTIVE_PANE_ID:-${HERDR_PANE_ID:-}}
 [ -n "$pane" ] || { echo "nav: no focused pane (run it from a herdr key binding)" >&2; exit 1; }
 
 # herdr names the pane on that side in neighbor_pane_id, and leaves it out at the edge
-next=$("$H" pane neighbor --direction "$dir" --pane "$pane" | jq -r '.result.neighbor.neighbor_pane_id // empty')
+# a herdr that did not answer is not an edge: stop, do not walk on to another tab or space
+side=$("$H" pane neighbor --direction "$dir" --pane "$pane") || { echo "nav: herdr did not answer" >&2; exit 1; }
+next=$(printf '%s' "$side" | jq -r '.result.neighbor.neighbor_pane_id // empty')
 if [ -n "$next" ]; then
   exec "$H" pane focus --direction "$dir" --pane "$pane" >/dev/null
 fi

@@ -97,7 +97,7 @@ check("the meter's settings, the defaults", json.loads((h.state / "meter.json").
 check("a manifest of what it owns", '"sha256"' in (h.state / "manifest.json").read_text())
 reg = json.loads((h.home / ".config" / "herdr" / "plugins.json").read_text())
 check("the meter plugin, linked into herdr by herdr, with the Shift+arrow actions",
-      [p["plugin_root"] for p in reg] == [str((REPO / "herdr").resolve())] or [p["plugin_root"] for p in reg] == [str(REPO / "herdr")]
+      [p["plugin_root"] for p in reg] in ([str((REPO / "herdr").resolve())], [str(REPO / "herdr")])
       and {"nav-left", "nav-right", "nav-up", "nav-down"} <= {a["id"] for a in reg[0]["actions"]}, json.dumps(reg)[:300])
 check("never your own herdr config", not (h.home / ".config" / "herdr" / "config.toml").exists())
 before = h.snapshot()

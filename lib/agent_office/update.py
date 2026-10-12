@@ -453,8 +453,8 @@ class Update:
         """What is on disk but not what the office's running session uses, by component. A
         stopped session runs nothing old; one herdr says nothing about counts for what changed."""
         st = doctor.server_status(self.env, self.session)
-        stop = (f"restart the herdr session {self.session} when its agents can stop: `herdr --session "
-                f"{self.session} server stop`, then start it again. office update never does that itself")
+        stop = (f"restart the herdr session {self.session} when its agents can stop: `office off`, then "
+                "`office on`. office update never does that itself")
         if st is None:
             return {n: f"herdr did not say whether the session {self.session} runs, so it may still run the "
                        "old one" for n in changed & {OFFICE, "herdr", "config", "firstmate"}}

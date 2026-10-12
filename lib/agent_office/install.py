@@ -268,7 +268,11 @@ class Installer:
         def go(backup=False):
             if backup:
                 self._backup(reg)
-            got = subprocess.run(["herdr", "plugin", "link", str(root)], env=self.env, capture_output=True, text=True)
+            try:
+                got = subprocess.run(["herdr", "plugin", "link", str(root)], env=self.env, capture_output=True,
+                                     text=True, stdin=subprocess.DEVNULL, timeout=60)
+            except subprocess.TimeoutExpired:
+                raise OSError(f"`herdr plugin link {root}` did not answer in 60 seconds") from None
             if got.returncode != 0:
                 raise OSError(f"`herdr plugin link {root}` failed: {(got.stderr or got.stdout).strip()}")
 
