@@ -82,6 +82,16 @@ description = "pane below, then the space below"
 # (the other one, "priority", reorders the list as agents change state).
 agent_panel_sort = "spaces"
 
+# The key strip, at the right end of the tab row. herdr's own prefix bar names four keys and
+# cannot be changed, so the keys you press most stay on screen here: Ctrl+Space, then the
+# letter. A capital letter is the key with Shift. On a narrow window herdr hides the strip and
+# keeps the tabs. preset/preset-probe checks every key on it against herdr.
+tab_bar_right = [
+  { type = "zoom" },
+  { type = "text", text = "^Space  n space · N tab · v split · q close · z zoom · ? keys" },
+]
+tab_bar_right_separator = "  "
+
 # Only "needs you" plays a sound. A worker finishing is routine under Firstmate, so its sound is
 # a silent mp3: herdr has no per-event off switch, and done_path overrides only the finished
 # sound. Relative paths resolve from this file's folder, so sounds/ travels with it.

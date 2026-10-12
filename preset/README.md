@@ -19,6 +19,11 @@ What it gives you:
 
 - **Keys** for an office with no mouse: Shift+arrow walks panes, tabs and
   spaces, and one letter each makes, closes and renames them (table below).
+- **Key strip**: the keys you press most stay on screen, at the right end of the
+  tab row: `^Space  n space · N tab · v split · q close · z zoom · ? keys`.
+  herdr's own bar for the prefix names four keys and cannot be changed, so the
+  strip does this job. `ZOOM` shows next to it while a pane is zoomed. Below
+  about 105 columns herdr hides the strip and keeps the tabs.
 - **Sidebar**: herdr's own state icon and state word stay. Between them the
   [meter](../herdr) adds context size and transcript age, how long since the
   agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. Without the meter those two stay blank.

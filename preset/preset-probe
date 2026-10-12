@@ -52,6 +52,9 @@ TEXT_KEYS = {
     ("Backspace", "CMD"): "\x15",   # delete line
     ("Backspace", "OPT"): "\x17",   # delete word
 }
+# The words on the key strip (ui.tab_bar_right in the preset) and the herdr action each one names.
+STRIP_WORDS = {"space": "new_workspace", "tab": "new_tab", "split": "split_vertical",
+               "close": "close_pane", "zoom": "zoom", "keys": "help"}
 # How keys.txt, the `office keys` sheet, names each of them.
 SHEET_TEXT_KEYS = {"cmd+left", "cmd+right", "opt+left", "opt+right", "cmd+backspace", "opt+backspace"}
 
@@ -277,6 +280,22 @@ def main():
           + (f": missing {', '.join(sorted(SHEET_TEXT_KEYS - tokens))}" if not SHEET_TEXT_KEYS <= tokens else ""))
     m = re.search(r"prefix = (\S+):", sheet)
     check(m is not None and m.group(1) == prefix, f"keys.txt names the prefix {prefix}")
+
+    # 4c. The key strip on the tab row: herdr's prefix bar cannot show the office's keys, so the
+    # strip does, and a strip that names a key herdr does not have is worse than no strip. It
+    # reads "^Space  n space · N tab ...": the prefix, then a key and a word for its action.
+    m = re.search(r'^tab_bar_right = \[.*?type = "text", text = "([^"]*)".*?^\]', text, re.S | re.M)
+    strip = m.group(1) if m else ""
+    check(bool(strip), "the preset has a key strip in tab_bar_right")
+    head, _, rest = strip.partition("  ")
+    check("ctrl+" + head.lstrip("^").lower() == prefix, f"the key strip names the prefix {prefix}: {head}")
+    for item in filter(None, (i.strip() for i in rest.split("·"))):
+        key, _, word = item.partition(" ")
+        action = STRIP_WORDS.get(word)
+        want = "prefix+" + ("shift+" + key.lower() if key.isupper() else key)
+        check(action is not None and eff.get(action) == [want],
+              f"the key strip's {item!r} is {want}"
+              + ("" if action is None else f" ({action}: {', '.join(eff.get(action, [])) or 'unset'})"))
 
     # 5. The look keeps herdr's native state, and the meter really publishes the tokens it uses.
     rows = re.search(r"^rows = \[(.*?)^\]", text, re.S | re.M)
