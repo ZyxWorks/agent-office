@@ -43,6 +43,9 @@ METER = os.path.join(ROOT, "herdr", "meter")
 PLUGIN = os.path.join(ROOT, "herdr", "herdr-plugin.toml")
 HERDR = os.environ.get("HERDR_BIN", "herdr")
 
+sys.path.insert(0, os.path.join(ROOT, "lib"))
+from agent_office import config as C  # noqa: E402
+
 # What the WezTerm example's Mac text keys must send: the readline keys agents read.
 TEXT_KEYS = {
     ("LeftArrow", "CMD"): "\x01",   # line start
@@ -52,9 +55,6 @@ TEXT_KEYS = {
     ("Backspace", "CMD"): "\x15",   # delete line
     ("Backspace", "OPT"): "\x17",   # delete word
 }
-# The words on the key strip (ui.tab_bar_right in the preset) and the herdr action each one names.
-STRIP_WORDS = {"space": "new_workspace", "tab": "new_tab", "split": "split_vertical",
-               "close": "close_pane", "zoom": "zoom", "keys": "help"}
 # How keys.txt, the `office keys` sheet, names each of them.
 SHEET_TEXT_KEYS = {"cmd+left", "cmd+right", "opt+left", "opt+right", "cmd+backspace", "opt+backspace"}
 
@@ -282,20 +282,20 @@ def main():
     check(m is not None and m.group(1) == prefix, f"keys.txt names the prefix {prefix}")
 
     # 4c. The key strip on the tab row: herdr's prefix bar cannot show the office's keys, so the
-    # strip does, and a strip that names a key herdr does not have is worse than no strip. It
-    # reads "^Space  n space · N tab ...": the prefix, then a key and a word for its action.
-    m = re.search(r'^tab_bar_right = \[.*?type = "text", text = "([^"]*)".*?^\]', text, re.S | re.M)
-    strip = m.group(1) if m else ""
-    check(bool(strip), "the preset has a key strip in tab_bar_right")
-    head, _, rest = strip.partition("  ")
-    check("ctrl+" + head.lstrip("^").lower() == prefix, f"the key strip names the prefix {prefix}: {head}")
-    for item in filter(None, (i.strip() for i in rest.split("·"))):
-        key, _, word = item.partition(" ")
-        action = STRIP_WORDS.get(word)
-        want = "prefix+" + ("shift+" + key.lower() if key.isupper() else key)
-        check(action is not None and eff.get(action) == [want],
-              f"the key strip's {item!r} is {want}"
-              + ("" if action is None else f" ({action}: {', '.join(eff.get(action, [])) or 'unset'})"))
+    # strip does, and a strip that names a key herdr does not have is worse than no strip. Its
+    # text must be exactly what the office builds from the preset's own keys, every action of
+    # the strip must be on it, and the README shows the same line.
+    preset_toml = C.read_toml(C.PRESET, CONFIG)
+    texts = [e.get("text") for e in preset_toml.get("ui", {}).get("tab_bar_right", []) if e.get("type") == "text"]
+    strip = texts[0] if len(texts) == 1 else ""
+    check(bool(strip), "the preset has one key strip in tab_bar_right")
+    built = C.key_strip(preset_toml["keys"])
+    check(strip == built, "the key strip is the preset's keys" + ("" if strip == built else f": want {built!r}"))
+    check(built.count("·") + 1 == len(C.STRIP), f"the key strip names all {len(C.STRIP)} of its actions")
+    for action, word in C.STRIP:
+        check(eff.get(action) == [C._first(preset_toml["keys"].get(action))],
+              f"the key strip's {word!r} is herdr's {action}: {', '.join(eff.get(action, [])) or 'unset'}")
+    check(f"`{strip}`" in doc, "README.md shows the key strip")
 
     # 5. The look keeps herdr's native state, and the meter really publishes the tokens it uses.
     rows = re.search(r"^rows = \[(.*?)^\]", text, re.S | re.M)

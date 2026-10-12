@@ -197,6 +197,52 @@ def merge(base: dict, over: dict) -> dict:
     return out
 
 
+# The key strip on the tab row: the herdr actions it names, in order, and the word for each.
+STRIP = (("new_workspace", "new space"), ("new_tab", "new tab"), ("split_vertical", "split"),
+         ("close_pane", "close pane"), ("zoom", "zoom"), ("help", "keys"))
+_STRIP_KEYS = {"minus": "-", "plus": "+", "comma": ",", "backtick": "`", "ampersand": "&"}
+
+
+def _first(binding) -> str:
+    """herdr takes one binding or a list of them; the strip shows the first."""
+    if isinstance(binding, list):
+        binding = binding[0] if binding else ""
+    return binding if isinstance(binding, str) else ""
+
+
+def key_strip(keys: dict) -> str:
+    """The key strip's text for a herdr [keys] table: "^Space  n new space · N new tab ...".
+
+    herdr's own bar for the prefix names four keys and cannot be changed, so the strip shows
+    the office's. It is built from the keys and never typed by hand, so a key you rebind in
+    [herdr.keys] is the key the strip shows. An action with no key, or with a key that needs
+    no prefix, is left out: every key on the strip comes after the prefix.
+    """
+    prefix = _first(keys.get("prefix"))
+    if prefix.startswith("ctrl+") and "+" not in prefix[5:]:
+        prefix = "^" + prefix[5:].capitalize()
+    items = []
+    for action, word in STRIP:
+        key = _first(keys.get(action))
+        if not key.startswith("prefix+"):
+            continue
+        key = key[len("prefix+"):]
+        if key.startswith("shift+") and len(key) == 7 and key[6].isalpha():
+            key = key[6].upper()
+        items.append(f"{_STRIP_KEYS.get(key, key)} {word}")
+    return f"{prefix}  " + " · ".join(items)
+
+
+def _restrip(herdr: dict):
+    """Write the key strip for herdr's merged keys into its tab_bar_right text entry."""
+    ui = herdr.get("ui")
+    entries = ui.get("tab_bar_right") if isinstance(ui, dict) else None
+    if isinstance(entries, list) and isinstance(herdr.get("keys"), dict):
+        text = key_strip(herdr["keys"])
+        ui["tab_bar_right"] = [dict(e, text=text) if isinstance(e, dict) and e.get("type") == "text" else e
+                               for e in entries]
+
+
 def effective(user: dict | None, where: str) -> dict:
     """Defaults, then the user's file over them. Raises ConfigError listing every problem."""
     defaults = read_toml(DEFAULTS, str(DEFAULTS))
@@ -214,7 +260,11 @@ def effective(user: dict | None, where: str) -> dict:
         problems.append(f"{where}: notify.url is required when notify.enabled is true")
     if problems:
         raise ConfigError(problems)
-    out["herdr"] = merge(read_toml(PRESET, str(PRESET)), (user or {}).get("herdr", {}))
+    mine = (user or {}).get("herdr", {})
+    out["herdr"] = merge(read_toml(PRESET, str(PRESET)), mine)
+    # a tab_bar_right of your own is yours; the preset's follows the keys you rebind
+    if not (isinstance(mine.get("ui"), dict) and "tab_bar_right" in mine["ui"]):
+        _restrip(out["herdr"])
     return out
 
 

@@ -20,10 +20,13 @@ What it gives you:
 - **Keys** for an office with no mouse: Shift+arrow walks panes, tabs and
   spaces, and one letter each makes, closes and renames them (table below).
 - **Key strip**: the keys you press most stay on screen, at the right end of the
-  tab row: `^Space  n space · N tab · v split · q close · z zoom · ? keys`.
+  tab row: `^Space  n new space · N new tab · v split · q close pane · z zoom · ? keys`.
+  Press Ctrl+Space, then the key; a capital letter is the key with Shift.
   herdr's own bar for the prefix names four keys and cannot be changed, so the
-  strip does this job. `ZOOM` shows next to it while a pane is zoomed. Below
-  about 105 columns herdr hides the strip and keeps the tabs.
+  strip does this job. `office install` builds it from your keys: a key you
+  rebind in `[herdr.keys]` is the key it shows. `ZOOM` shows next to it while a
+  pane is zoomed. herdr hides both when the tabs need the room, in a narrow
+  window or with many tabs; a zoomed tab still shows its own `Z`.
 - **Sidebar**: herdr's own state icon and state word stay. Between them the
   [meter](../herdr) adds context size and transcript age, how long since the
   agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. Without the meter those two stay blank.
