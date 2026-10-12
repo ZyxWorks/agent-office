@@ -3,7 +3,7 @@
 **A whole agent developer setup, out of one box.**
 
 [![CI](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml/badge.svg)](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml)
-[![Licence: MIT](https://img.shields.io/badge/licence-MIT-c9903f)](LICENSE)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-FFD23C)](LICENSE)
 ![Platform: macOS and Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-6a6c77)
 
 Agent Office is a small, opinionated distribution of the tools one developer
