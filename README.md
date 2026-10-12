@@ -13,22 +13,69 @@ worktrees, the **kunchenguid tools** around them, and a context **meter** and
 visual preset that make it all readable at a glance. One private config file.
 One `office` command to install, start, stop and update the lot.
 
-> **Status: in transition.** This README is the contract for Agent Office 1.0,
-> the herdr-first version. Most of it is **planned** and does not exist yet.
-> Every command below is marked `planned` or `works today`, and only the
-> second kind is real. What is real today: the herdr meter plugin, the herdr
-> preset, opt-in phone notifications, the config file, `office install`, which
-> writes it all in place but starts nothing, `office tools`, which installs the
-> tools that are missing, `office doctor`, which reports what is installed,
-> `office update`, which moves each component to the version this release
-> names, `fm` and `fm restart`, and the daily lifecycle: `office on`,
-> `office break`, `office off`, `office off --all` and `office status`. Every
-> other `office` verb is still the tmux office (0.x).
-> See [the tmux office (legacy)](#the-tmux-office-legacy) if you use that.
-
 [The product page](https://zyxworks.github.io/agent-office/) ·
 [Getting started](GETTING-STARTED.md) ·
+[Every key](preset/README.md#keys) ·
 [Contributing](CONTRIBUTING.md)
+
+```
+ spaces                          │  1   2   +
+ ○ api                           │┌───────────────────────┐┌──────────────────────┐
+   main                          ││ Firstmate             ││ a worker             │
+ · website                       ││                       ││                      │
+   main                          ││                       ││                      │
+─────────────────────────────────││                       ││                      │
+ agents                          ││                       ││                      │
+ ○ api                           ││                       ││                      │
+   firstmate · 88k · 3m · idle   ││                       ││                      │
+ ● api                           ││                       ││                      │
+   claude · 412k▲ · blocked      │└───────────────────────┘└──────────────────────┘
+```
+
+A sketch of the office, not a screenshot. On the left you see every agent: its state from herdr, and from the Agent
+Office meter how full its context is and how long it has been quiet. Amber
+means "this needs you". Shift+arrow walks you there. No mouse.
+
+## Quick start
+
+You need macOS or Linux, git, Node 22.19 or newer, and a coding agent you
+installed and signed in to yourself (Claude Code or Codex).
+
+```sh
+git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
+~/agent-office/bin/office tools   # herdr, treehouse and the agent tools you lack. Lists them and asks first
+~/agent-office/install.sh         # your config, herdr's config, the meter, the office and fm commands. Shows every change first
+herdr integration install claude  # herdr learns each agent's session, so the meter can read its size
+```
+
+Clone [Firstmate](https://github.com/kunchenguid/firstmate), and set
+`firstmate.code` in `~/.config/agent-office/config.toml` to where you put it.
+Then:
+
+```sh
+office on       # open the office and its Firstmate
+office break    # walk away. Everything keeps running
+office on       # come back
+office off      # go home. Firstmate saves its work first, then the office stops
+```
+
+[Getting started](GETTING-STARTED.md) has every step, and what to do when one
+fails.
+
+## Status
+
+Agent Office 1.0 is the herdr-first version. Every command in this README works
+today, and each has a probe that CI runs on macOS and Linux. Three things are not done,
+and the tools say so themselves:
+
+- **The tested list is short.** herdr 0.9.1 is the only version this release is
+  verified with. No Firstmate revision and no treehouse version is on the list
+  yet, so `office doctor` and `office update` report both as not tested and
+  exit 1. The office still starts and runs.
+- **`office off` does not drain workers.** It refuses while an agent is still
+  working or waiting, and names it. Asking Firstmate to drain them is planned.
+- **The tmux office (0.x)** still answers the verbs 1.0 has no version of. See
+  [the tmux office (legacy)](#the-tmux-office-legacy).
 
 ## Why
 
@@ -59,13 +106,13 @@ Two profiles. `core` is the office. `workstation` is optional.
 | component | what it does | owner |
 |---|---|---|
 | [herdr](https://herdr.dev) | terminal sessions, panes, tabs, and each agent's native state (working, idle, done, blocked) | herdr upstream |
-| Agent Office herdr preset | keys, sidebar, theme and a silent "done" sound, so the daily look is the default look, plus an optional WezTerm example with Mac text keys | this repo ([`preset/`](preset), works today by hand) |
-| Agent Office meter | a herdr plugin that shows how full each agent's context window is, and its transcript age, in the sidebar | this repo ([`herdr/`](herdr), works today) |
+| Agent Office herdr preset | keys for an office with no mouse, sidebar, theme and a silent "done" sound, plus an optional WezTerm example with Mac text keys | this repo ([`preset/`](preset)) |
+| Agent Office meter | a herdr plugin that shows how full each agent's context window is, and its transcript age, in the sidebar. It also carries the Shift+arrow keys | this repo ([`herdr/`](herdr)) |
 | [Firstmate](https://github.com/kunchenguid/firstmate) | supervises coding agents: dispatch, status, review, cleanup | Firstmate upstream |
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf`, `backpass` | [their upstreams](https://github.com/kunchenguid) |
 | other agent tools | `chrome-devtools-mcp` (Chrome's DevTools for agents, which `chrome-devtools-axi` drives), `acpx` (the Agent Client Protocol from the command line), `gh` (`gh-axi` drives GitHub through it) | their upstreams |
-| agent integrations | the skills the setup uses and herdr's Claude Code and Codex integrations | upstream tools; this repo wires them (planned) |
+| agent integrations | the skills the setup uses and herdr's Claude Code and Codex integrations | upstream tools. You run `herdr integration install claude` (or `codex`) once; `office doctor` checks it |
 
 `jq` is also required: the meter reads transcripts with it. The `office`
 command needs `python3`, 3.8 or newer; the one macOS ships is enough. The
@@ -96,8 +143,8 @@ All of it is driven by one private file:
 ~/.config/agent-office/config.toml
 ```
 
-`works today`: `office install` writes a starter the first time and checks the
-file on every run. The keys, with the release defaults
+`office install` writes a starter the first time and checks the file on every
+run. The keys, with the release defaults
 ([`config/defaults.toml`](config/defaults.toml)):
 
 ```toml
@@ -125,9 +172,9 @@ alarm_tokens = 600000
 agent_panel_sort = "spaces"
 ```
 
-What each part does today:
+What each part does:
 
-| keys | today |
+| keys | what it does |
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
@@ -138,7 +185,12 @@ The generated herdr config is written to
 `~/.local/state/agent-office/herdr/config.toml`, next to the preset's sound. It
 is not `~/.config/herdr/config.toml`, which `office install` never touches: a
 herdr you start yourself keeps your own config. `office on` is what starts
-herdr against the generated one.
+herdr against the generated one, and gives it to the window it opens, because
+herdr reads its keys there.
+
+herdr writes one line into the config it runs with: `onboarding = false`, once
+you have been through its first-run setup. Agent Office keeps that line and
+does not count it as a change by hand.
 
 The rules the config follows:
 
@@ -156,7 +208,7 @@ The rules the config follows:
 
 | command | what it does | status |
 |---|---|---|
-| `office install` | check the config, write the generated herdr config and the `office` command, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. | works today |
+| `office install` | check the config, write the generated herdr config and the `office` command, link the meter plugin into herdr, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. | works today |
 | `office tools` | install the tools the office uses that are missing, at pinned versions, each through its owner. A tool you have is left as it is. Shows the list and asks first. `--check` only plans; `--workstation` adds the optional workstation tools. | works today |
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect | works today |
 | `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; attach. Running it again focuses what is there. Starts no workers. | works today |
@@ -168,10 +220,10 @@ The rules the config follows:
 | `office status` | read-only: what is running, what the office owns, meter health, pending restarts, and the result of the last `office off`. Unknown is never reported as healthy: it exits 1 on any problem. Pending updates are planned, with `office update`. | works today |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` starts it. | works today |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. | works today |
-| `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. | works today |
+| `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. Inside the office, `ctrl+space` then `?` shows herdr's own list. | works today |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. | works today |
 
-Today, `office install`, `office config`, `office keys`, `office notify`, `office tools`, `office doctor`, `office update`, `office help`,
+`office install`, `office config`, `office keys`, `office notify`, `office tools`, `office doctor`, `office update`, `office help`,
 `office version`, `office on`, `office break`, `office off`, `office status`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
@@ -383,6 +435,7 @@ running: stop it with `herdr session stop <name>`.
 | `~/.config/agent-office/config.toml` | your config, from a starter | never touched again: it is yours |
 | `~/.local/state/agent-office/herdr/` | the generated herdr config and the preset's sound | updated if Agent Office wrote it and nobody changed it since; otherwise shown, backed up, asked |
 | `~/.local/state/agent-office/meter.json` | your `[meter]` keys, which the meter plugin reads on every pass | the same |
+| `~/.config/herdr/plugins.json` | the meter plugin's entry, written by herdr itself: `office install` runs `herdr plugin link` on the `herdr/` folder of your checkout. The sidebar numbers and Shift+arrow come from that plugin | linked again when this release has a newer plugin. A link to another folder is shown, backed up, asked. A plugin you disabled stays disabled |
 | `~/.local/bin/office`, `~/.local/bin/fm`, `~/.local/bin/officeoff-all` | links to `bin/office`, `bin/fm` and `bin/officeoff-all` in your checkout | the same: replaced only after a backup and a yes |
 | `~/.zshrc` and the other zsh startup files | the line that loads the tmux office's `office` function removed: zsh finds a function before any command, so it would hide the 1.0 one | shown as a diff, backed up, asked. A file that is a link (into a dotfiles repo, say) is never written through: you get the exact lines to remove. A function or alias of your own named `fm` hides `fm` the same way: it is pointed out, never removed |
 
@@ -438,51 +491,44 @@ the new stack has been tested there. Windows, including WSL2, is not supported
 by 1.0: the tmux office ran there, but the herdr-first stack has not been
 tested there, so it is not claimed.
 
-## What works today
+## No mouse needed
 
-Ten things are real right now:
+The prefix is `ctrl+space`: press it, let go, then the key.
 
-1. **The herdr meter plugin**, in [`herdr/`](herdr). It shows each agent's
-   context size, and its transcript age, in herdr's sidebar next to herdr's
-   own state. Setup by hand is in [Getting started](GETTING-STARTED.md#today-the-meter-by-hand).
-   It supports Claude Code, Codex, and Claude Code run against a local Ollama
-   model; any agent it cannot identify stays blank rather than guessing. Codex
-   is matched by the session id herdr's Codex integration reports; without it,
-   by directory, and two Codex agents in one directory show `?` rather than a
-   number that may be the other's. `herdr/meter-probe` tests it without a herdr
-   server.
-2. **The herdr preset**, in [`preset/`](preset): the office's keys, sidebar,
-   theme and silent "done" sound as a herdr `config.toml`, and an optional
-   WezTerm example with Mac text keys (Cmd and Option arrows). You copy it in
-   by hand; [its README](preset/README.md) lists every key, and `office keys`
-   prints them on one screen.
-   `preset/preset-probe` checks it against herdr itself.
-3. **The config and `office install`**: one `config.toml`, checked, and the
-   herdr config generated from it, written without overwriting anything you
-   made. See [What `office install` writes](#what-office-install-writes).
-   `bin/install-probe` tests it in throwaway homes.
-4. **Phone notifications**, opt-in: `office notify` and the meter plugin's
-   hook push "needs you" when an agent turns blocked. See
-   [Getting started](GETTING-STARTED.md#today-phone-notifications).
-   `bin/notify-probe` tests both against a fake ntfy.
-5. **`office doctor`**: what is installed, who updates it and whether this
-   release is tested with it. See [What `office doctor` checks](#what-office-doctor-checks).
-6. **`office tools`**: every tool of the office that is missing, installed at
-   a pinned version through its owner. See
-   [What `office tools` installs](#what-office-tools-installs).
-7. **`office update`**: each component moved to the version this release
-   names, through its owner, with an honest result for each. See
-   [What `office update` does](#what-office-update-does).
-   `bin/update-probe` tests it in throwaway homes with stand-in owners.
-8. **`fm` and `fm restart`**: open the office's Firstmate, and restart it
-   only after it has saved its work. See [How `fm` finds Firstmate](#how-fm-finds-firstmate).
-   `bin/fm-probe` tests it against a throwaway herdr session.
-9. **`office on`, `break`, `off`, `off --all` and `status`**: start the office,
-   leave it, stop only what `office on` started, and see what runs. See
-   [How `office on`, `break`, `off` and `status` work](#how-office-on-break-off-and-status-work).
-   `bin/lifecycle-probe` tests them against throwaway herdr sessions.
-10. **The tmux office (0.x)**, documented in
-   [docs/legacy-tmux](docs/legacy-tmux/README.md).
+| keys | what it does |
+|---|---|
+| `shift+arrow` (no prefix) | left and right: the pane on that side, then the tab before or after. Up and down: the pane on that side, then the space above or below |
+| `ctrl+space` `n` / `shift+n` | new space / new tab. For a tab herdr asks for a name: type one, or press Enter |
+| `ctrl+space` `c` / `shift+c` | close space / close tab |
+| `ctrl+space` `r` / `shift+r` | rename space / rename tab |
+| `ctrl+space` `v` / `minus` | new pane on the right / below |
+| `ctrl+space` `g` | go to an agent |
+| `ctrl+space` `s` | settings |
+| `ctrl+space` `d` | leave herdr. Everything keeps running |
+
+The same letter does the same thing one level down: plain for a space, with
+Shift for a tab. `office keys` prints them all on one screen, and
+[the preset's README](preset/README.md#keys) explains each.
+
+## How it is tested
+
+Every part has a probe, a script that runs it in a throwaway home and checks
+what it did. CI runs them all on every pull request. None of them touches your
+own herdr, config or office.
+
+| part | probe | against |
+|---|---|---|
+| the meter plugin: context size and transcript age for Claude Code, Codex, and Claude Code on a local Ollama model. An agent it cannot identify stays blank, never guessed | `herdr/meter-probe` | recorded transcripts, no herdr server |
+| Shift+arrow | `herdr/nav-probe` | a stand-in herdr |
+| the preset: keys, sidebar, theme, sound, the WezTerm example | `preset/preset-probe` | herdr and WezTerm themselves |
+| the config, `office install`, `office doctor`, `office tools` | `bin/install-probe` | throwaway homes, a real herdr, stand-in installers |
+| `office update` | `bin/update-probe` | throwaway homes, stand-in owners |
+| `fm` and `fm restart` | `bin/fm-probe` | a throwaway herdr session, a stand-in agent |
+| `office on`, `break`, `off`, `off --all`, `status` | `bin/lifecycle-probe` | throwaway herdr sessions, a stand-in agent |
+| phone notifications | `bin/notify-probe` | a stand-in ntfy server |
+
+What the probes do not cover yet: a real Firstmate with real workers, and the
+real npm, Homebrew and GitHub downloads. The probes use stand-ins for those.
 
 ## The tmux office (legacy)
 

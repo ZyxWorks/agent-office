@@ -248,13 +248,13 @@ class Report:
             else:
                 self.fact(name, f"{self.show(path)}, matches your config")
 
-    def meter_plugin(self, enabled: bool):
-        """The meter herdr links: the folder in its plugins.json, read like herdr reads it."""
+    def meter_plugin(self):
+        """The meter herdr links: the folder in its plugins.json, read like herdr reads it.
+
+        Checked with the meter off too: the preset's Shift+arrow is an action of the same plugin.
+        """
         name = "meter plugin, installed"
         here = _plugin_version(METER)
-        if not enabled:
-            self.fact(name, f"{here or 'unknown'}, not needed: meter.enabled = false")
-            return
         try:
             reg = json.loads((C.herdr_dirs(self.env)[0] / "plugins.json").read_text())
             entry = next((p for p in reg if isinstance(p, dict) and p.get("plugin_id") == METER_ID), None)
@@ -263,7 +263,7 @@ class Report:
         link = f"`herdr plugin link {self.show(METER)}`"
         if entry is None:
             self.fact(name, f"{here or 'unknown'}, not linked into herdr",
-                      problems=[f"herdr does not link the meter: {link} links it"])
+                      problems=[f"herdr does not link the meter plugin, which Shift+arrow needs too: {link} links it"])
             return
         root = Path(str(entry.get("plugin_root", "")))
         if not _same(root, METER):
@@ -473,7 +473,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
         rep.fact("workstation tools", f"{len(have)} of {len(extra)} installed"
                  + ("" if len(have) == len(extra) else " (optional: `office tools --workstation`)"))
     rep.installed(cfg)
-    rep.meter_plugin(cfg["meter"]["enabled"])
+    rep.meter_plugin()
     rep.active(cfg, cfg["office"]["session"])
     rep.print(out)
     return 1 if rep.problems else 0

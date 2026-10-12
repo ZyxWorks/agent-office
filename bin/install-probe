@@ -395,7 +395,7 @@ for want in ("treehouse: 3.1.0 is not a version this release is tested with (tes
     check(f"reports: {want}", want in r.stdout, r.stdout)
 for want in ("herdr config, installed: not written yet: run `office install`",
              "meter settings, installed: not written yet: run `office install`",
-             "meter plugin, installed: herdr does not link the meter: `herdr plugin link "):
+             "meter plugin, installed: herdr does not link the meter plugin, which Shift+arrow needs too: `herdr plugin link "):
     check(f"reports: {want}", want in r.stdout, r.stdout)
 check("14 problems, no more", "14 problem(s):" in r.stdout, r.stdout)
 check("a workstation tool's version from any line", re.search(r"ok +ripgrep +15\.2\.0 +Homebrew \(ripgrep\)", r.stdout)

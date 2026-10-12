@@ -1,9 +1,9 @@
 # The Agent Office preset
 
-`works today`, set up by hand. `office install` also writes it, merged with
-the `[herdr]` keys of your config, as a separate generated file; nothing starts
-herdr against that file until `office on` (planned). Until then, copy it by
-hand as below.
+`office install` writes this preset, merged with the `[herdr]` keys of your
+config, as a generated herdr config, and `office on` starts herdr with it. You
+do not copy anything. To use the preset in a herdr of your own, without the
+office, copy it by hand: [Set it up by hand](#set-it-up-by-hand).
 
 The daily look and keys of the office:
 
@@ -26,11 +26,13 @@ What it gives you:
   sound is silent.
 - **Theme**: monochrome. Amber means "this needs you", red means "act on this".
 - **Onboarding** is left alone: a new herdr user still gets herdr's first-run
-  setup.
+  setup, once. It takes the keys until you close it with Esc. herdr then writes
+  `onboarding = false` into the config, and `office install` keeps that line.
 
-## Set it up
+## Set it up by hand
 
-You need herdr 0.9.1 or newer. If you have no `~/.config/herdr/config.toml` yet:
+Only for a herdr you start yourself. `office install` and `office on` need none
+of this. You need herdr 0.9.1 or newer. If you have no `~/.config/herdr/config.toml` yet:
 
 ```sh
 mkdir -p ~/.config/herdr/sounds
@@ -44,9 +46,9 @@ Already have a config? Back it up, then copy in the sections you want.
 `done_path` is relative to the config file, so `sounds/silent.mp3` must sit
 next to it. Run `herdr config check` after.
 
-For `$ctx` and `$turn`, set up the meter: see
-[Getting started](../GETTING-STARTED.md#today-the-meter-by-hand). The preset
-already has the sidebar rows, so skip that step there.
+For `$ctx` and `$turn`, link the meter: see
+[Getting started](../GETTING-STARTED.md#the-preset-and-the-meter-in-a-herdr-of-your-own).
+The preset already has the sidebar rows that show them.
 
 ## Keys
 
@@ -65,7 +67,8 @@ is the bigger step and gets the easier key.
 
 herdr gives a key one action, and its own "jump to the pane" does nothing at the
 edge. So Shift+arrow is an action of the [meter plugin](../herdr) (`herdr/nav`).
-It needs the plugin linked (`herdr plugin link ~/agent-office/herdr`) and `jq`.
+It needs `jq` and the plugin linked: `office install` links it, and by hand it
+is `herdr plugin link ~/agent-office/herdr`.
 Without the plugin, use `prefix+arrow` for panes, `prefix+space` for tabs and
 `prefix+w` for spaces.
 
@@ -88,7 +91,7 @@ Shortcuts, Input Sources.
 | close the space (asks first) | `prefix+c` | `close_workspace` |
 | rename the space | `prefix+r` | `rename_workspace` |
 | pick a space from a list | `prefix+w` | `workspace_picker` |
-| new tab | `prefix+shift+n` | `new_tab` |
+| new tab (asks for a name: type one or press Enter) | `prefix+shift+n` | `new_tab` |
 | close the tab | `prefix+shift+c` | `close_tab` |
 | rename the tab | `prefix+shift+r` | `rename_tab` |
 | next tab | `prefix+space` | `next_tab` |
