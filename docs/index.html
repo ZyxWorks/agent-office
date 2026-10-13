@@ -98,22 +98,19 @@
   code { font-family: var(--mono); font-size: 0.9em; }
 
   /* The cube is two paths: a yellow hexagon, and over it one filled shape in the text colour
-     (outline, xyz axis and three open panels), so the yellow shows through the panels. One
-     draw-in at load, and no other motion. The wipe sits on the svg, so it covers both paths. */
+     (outline, xyz axis and three open panels), so the yellow shows through the panels. The mark
+     has no animation of its own at rest, so it can never be left at a hidden start state: the bar
+     it sits in lands, and that is the motion at load. */
   .mk { fill: currentColor; flex: none; }
   .mk-panels { fill: var(--signal); }
-  @media (prefers-reduced-motion: no-preference) {
-    .mk { animation: draw 560ms var(--ease) both; }
-  }
   @keyframes draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
-  /* The hop: the icon of a cell goes up in steps and comes back, once per hover. It is listed AFTER
-     `draw` on the marks, so the draw-in keeps its finished state and does not play again. */
+  /* The hop: the icon of a cell goes up in steps and comes back, once per hover. */
   @keyframes hop {
     0% { transform: translateY(-2px); } 25% { transform: translateY(-3px); }
     50% { transform: translateY(-2px); } 75%, 100% { transform: translateY(0); }
   }
   @media (prefers-reduced-motion: no-preference) {
-    a.cell:hover .mk { animation: draw 560ms var(--ease) both, hop 200ms step-end 1; }
+    a.cell:hover .mk { animation: hop 200ms step-end 1; }
   }
 
   /* --- the two buttons that are not the main one ---
@@ -145,7 +142,7 @@
 
   /* --- nav: one ruled bar. Every part is a cell as high as the bar, with an ink line between
      the cells and no gap. The page you are on is the ink cell. --- */
-  nav { display: flex; align-items: stretch; margin-top: 26px; min-height: 48px; background: var(--surface); border: 2px solid var(--ink); box-shadow: var(--shadow); }
+  nav { display: flex; align-items: stretch; margin-top: 26px; min-height: 50px; background: var(--surface); border: 3px solid var(--ink); box-shadow: var(--shadow); }
   .lockup { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
   .lockup .name { font-weight: 700; letter-spacing: -0.025em; font-size: 17px; }
   nav .lockup { display: flex; align-items: stretch; gap: 0; min-width: 0; }
@@ -174,13 +171,26 @@
   /* On the narrowest phones the label may break rather than push the bar wider than the page. */
   @media (max-width: 380px) { nav .right { white-space: normal; line-height: 1.25; text-align: center; } }
 
-  header { padding: 76px 0 4px; }
+  header { padding: 76px 0 4px; position: relative; }
+  /* Crop marks around the hero, from the nav bar to the end of the intro: two 8px ink lines at
+     each corner, 14px outside the column. One layer, so nothing moves and nothing can be clicked. */
+  header::before {
+    --m: linear-gradient(var(--ink), var(--ink));
+    content: ""; position: absolute; pointer-events: none; top: -64px; left: -14px; right: -14px; bottom: 4px;
+    background:
+      var(--m) 0 0 / 8px 2px, var(--m) 0 0 / 2px 8px,
+      var(--m) 100% 0 / 8px 2px, var(--m) 100% 0 / 2px 8px,
+      var(--m) 0 100% / 8px 2px, var(--m) 0 100% / 2px 8px,
+      var(--m) 100% 100% / 8px 2px, var(--m) 100% 100% / 2px 8px;
+    background-repeat: no-repeat;
+  }
+  @media (max-width: 480px) { header::before { display: none; } }
 
   /* --- the call to action --- */
   .cta { margin-top: 34px; }
   .cmd {
     display: flex; align-items: center; gap: 12px;
-    background: var(--surface); border: 2px solid var(--ink);
+    background: var(--surface); border: 3px solid var(--ink);
     box-shadow: var(--shadow); padding: 14px 14px 14px 16px; margin: 10px 0 10px;
   }
   /* A box that only shows a readout is a quiet block: it stands on a hatch, not on solid ink. */
@@ -226,7 +236,7 @@
 
   /* --- the numbers that do the selling --- */
   /* A ruled grid: the cells fill it, an ink line stands between them, and there is no gap. */
-  .stats, .facts { display: grid; background: var(--surface); border: 2px solid var(--ink); box-shadow: var(--shadow); }
+  .stats, .facts { display: grid; background: var(--surface); border: 3px solid var(--ink); box-shadow: var(--shadow); }
   .stats { grid-template-columns: repeat(3, 1fr); margin-top: 26px; }
   .stat, .fact { padding: 20px 18px 22px; border-left: 2px solid var(--ink); }
   .stat:first-child, .fact:first-child { border-left: 0; }
@@ -265,7 +275,7 @@
      quiet row that closes it. --- */
   footer { background: var(--deep); border-top: 2px solid var(--ink); }
   footer .shell { padding-top: 56px; padding-bottom: 72px; }
-  .foot-top { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border: 2px solid var(--ink); box-shadow: var(--shadow); }
+  .foot-top { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border: 3px solid var(--ink); box-shadow: var(--shadow); }
   .foot-brand { grid-column: 1 / -1; display: flex; align-items: stretch; border-bottom: 2px solid var(--ink); }
   .foot-brand .lockup { flex: none; padding: 18px; border-right: 2px solid var(--ink); }
   .tagline { align-self: center; color: var(--muted); font-size: 14.5px; margin: 0; padding: 16px 18px; max-width: 46ch; }
