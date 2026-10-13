@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office: several coding agents, one office</title>
 <meta name="description" content="The whole setup for running several coding agents at once, out of one box: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. MIT.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 112 112'><style>path.l{fill:%23111111}@media (prefers-color-scheme:dark){path.l{fill:%23F2F2F2}}</style><path fill='%23FFD23C' d='M60 12L101.6 36V84L60 108L18.4 84V36Z'/><path class='l' fill-rule='evenodd' d='M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='4 4 112 112'><style>path.l{fill:%23111111}@media (prefers-color-scheme:dark){path.l{fill:%23F2F2F2}}</style><path fill='%23FFD23C' d='M60 18L80.78 30L80.78 54L101.57 66L101.57 90L80.78 102L60 90L39.22 102L18.43 90L18.43 66L39.22 54L39.22 30Z'/><path class='l' fill-rule='evenodd' d='M60 13.09L85.03 27.55L85.03 51.55L105.82 63.55L105.82 92.45L80.78 106.91L60 94.91L39.22 106.91L14.18 92.45L14.18 63.55L34.97 51.55L34.97 27.55ZM60 22.91L76.53 32.45L76.53 49.06L60 58.61L43.47 49.06L43.47 32.45ZM82.93 60.15L97.32 68.45L97.32 87.55L80.78 97.09L66.4 88.79L66.4 69.7ZM37.07 60.15L53.6 69.7L53.6 88.79L39.22 97.09L22.68 87.55L22.68 68.45Z'/></svg>">
 <meta name="theme-color" content="#F4F4F4">
 <meta name="color-scheme" content="light">
 <meta property="og:title" content="Agent Office: several coding agents, one office">
@@ -114,7 +114,7 @@
      reads as a title rather than as a door, and a 44px tap target because a 27px line box is not
      one. */
   @media (max-width: 560px) {
-    .lockup .name, .lockup .crumb { display: none; }
+    .lockup .name, .lockup .crumb, .lockup .pm { display: none; }
     .lockup .up { padding: 9px 4px; margin: -9px -4px; }
     .lockup .up::before { content: "\2190"; color: var(--muted); font-weight: 400; }
   }
@@ -206,6 +206,7 @@
         <span>ZyxWorks</span>
       </a>
       <span class="crumb">/</span>
+      <svg class="mk pm" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 18L80.78 30L80.78 54L101.57 66L101.57 90L80.78 102L60 90L39.22 102L18.43 90L18.43 66L39.22 54L39.22 30Z"/><path fill-rule="evenodd" d="M60 13.09L85.03 27.55L85.03 51.55L105.82 63.55L105.82 92.45L80.78 106.91L60 94.91L39.22 106.91L14.18 92.45L14.18 63.55L34.97 51.55L34.97 27.55ZM60 22.91L76.53 32.45L76.53 49.06L60 58.61L43.47 49.06L43.47 32.45ZM82.93 60.15L97.32 68.45L97.32 87.55L80.78 97.09L66.4 88.79L66.4 69.7ZM37.07 60.15L53.6 69.7L53.6 88.79L39.22 97.09L22.68 87.55L22.68 68.45Z"/></svg>
       <span class="name">agent office</span>
     </div>
     <a class="right" href="https://github.com/ZyxWorks/agent-office">Source on GitHub</a>

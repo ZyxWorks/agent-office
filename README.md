@@ -1,3 +1,5 @@
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/logo/mark-on-dark.svg"><img src="docs/logo/mark-on-light.svg" width="72" height="72" alt="Agent Office logo"></picture>
+
 # Agent Office
 
 **A whole agent developer setup, out of one box.**
