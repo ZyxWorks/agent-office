@@ -231,7 +231,8 @@
   .cmd button:hover::after, .cmd button:focus-visible::after, .cmd button:active::after, .cmd button.copied::after {
     inset: calc(var(--z-cta-travel) * -1) 0 0 calc(var(--z-cta-travel) * -1);
   }
-  .os { font-size: 12.5px; color: var(--faint); margin: 24px 0 0; }
+  /* The label over a command box: the same small mono upper case as a section label, as on murmurflow. */
+  .os { font-size: 12px; line-height: 1.5; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); margin: 24px 0 0; }
   .after { color: var(--muted); font-size: 15px; margin-top: 22px; }
   kbd {
     font-family: var(--mono); font-size: 0.84em; background: var(--surface);
