@@ -1,4 +1,4 @@
-/* Zyx tokens - B Textmarker - from the Zyx Brand Studio, hand edited 2026-10-13: quiet print (radius 0, solid shadows), light by default, then hard print (the main button clicks down and turns yellow, blocks stand, cells fill from the left) */
+/* Zyx tokens - B Textmarker - from the Zyx Brand Studio, hand edited 2026-10-13: quiet print (radius 0, solid shadows), light by default, then hard print (the main button clicks down and turns yellow, blocks stand, one hover for every control: pressed in, nothing slides) */
 :root {
   --z-ground: #F4F4F4;
   --z-surface: #FFFFFF;
