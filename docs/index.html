@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office: several coding agents, one office</title>
 <meta name="description" content="The whole setup for running several coding agents at once, out of one box: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. MIT.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120' fill='none'><path d='M60 12L101.6 36V84L60 108L18.4 84V36Z' fill='%23FFD23C' stroke='%23111111' stroke-width='10.5' stroke-linejoin='round'/><path d='M60 60V30M60 60L34 75M60 60L86 75' stroke='%23111111' stroke-width='14.7' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 112 112'><path fill='%23FFD23C' d='M60 12L101.6 36V84L60 108L18.4 84V36Z'/><path fill='%23111111' fill-rule='evenodd' d='M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM54.05 20.34L22.68 38.45V74.68L54.05 56.56ZM65.95 20.34V56.56L97.32 74.68V38.45ZM60 66.87L28.63 84.98L60 103.09L91.37 84.98Z'/></svg>">
 <meta name="theme-color" content="#F4F4F4" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0D0D0D" media="(prefers-color-scheme: dark)">
 <meta name="color-scheme" content="light dark">
@@ -77,15 +77,13 @@
   strong { color: var(--ink); font-weight: 700; }
   code { font-family: var(--mono); font-size: 0.9em; }
 
-  /* The cube: fine hexagon outline, the xyz axis inside at 1.4 times its weight. One draw-in at
-     load, and no other motion. */
-  .mk { stroke: currentColor; stroke-width: 10.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-  .mk .axis { stroke-width: 14.7; }
+  /* The cube is one filled shape: outline, xyz axis and three open panels in a single path. One
+     draw-in at load, and no other motion. */
+  .mk { fill: currentColor; flex: none; }
   @media (prefers-reduced-motion: no-preference) {
-    .mk path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 560ms var(--ease) forwards; }
-    .mk .axis { animation-delay: 180ms; }
+    .mk { animation: draw 560ms var(--ease) both; }
   }
-  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
 
   /* --- nav --- */
   nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 26px 0 0; }
@@ -200,10 +198,7 @@
   <nav>
     <div class="lockup">
       <a class="up" href="https://zyxworks.com/open-source">
-        <svg class="mk" viewBox="0 0 120 120" width="26" height="26" fill="none" aria-hidden="true">
-          <path pathLength="1" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/>
-          <path class="axis" pathLength="1" d="M60 60V30M60 60L34 75M60 60L86 75"/>
-        </svg>
+        <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM54.05 20.34L22.68 38.45V74.68L54.05 56.56ZM65.95 20.34V56.56L97.32 74.68V38.45ZM60 66.87L28.63 84.98L60 103.09L91.37 84.98Z"/></svg>
         <span>ZyxWorks</span>
       </a>
       <span class="crumb">/</span>
@@ -393,10 +388,7 @@
     <div class="foot-top">
       <div>
         <a class="lockup" href="https://zyxworks.com/">
-          <svg class="mk" viewBox="0 0 120 120" width="26" height="26" fill="none" aria-hidden="true">
-            <path pathLength="1" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/>
-            <path class="axis" pathLength="1" d="M60 60V30M60 60L34 75M60 60L86 75"/>
-          </svg>
+          <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM54.05 20.34L22.68 38.45V74.68L54.05 56.56ZM65.95 20.34V56.56L97.32 74.68V38.45ZM60 66.87L28.63 84.98L60 103.09L91.37 84.98Z"/></svg>
           <span class="name">ZyxWorks</span>
         </a>
         <p class="tagline">A product studio and forward deployed engineering practice.
