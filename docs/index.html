@@ -46,8 +46,8 @@
     --signal: #ffd23c; --on-signal: #14130f; --btn-line: #111111;
     /* A main block stands on this: the nav bar, a command box, a ruled grid, the footer grid. */
     --shadow: 4px 4px 0 var(--ink);
-    /* The main button (copy) stands on a yellow shadow and moves into it when pressed. */
-    --shadow-cta: 5px 5px 0 var(--signal); --shadow-cta-in: 3px 3px 0 var(--signal); --shadow-cta-down: 0 0 0 var(--signal);
+    /* The main button (copy) stands on a yellow shadow and goes all the way down onto it on hover. */
+    --shadow-cta: 5px 5px 0 var(--signal); --shadow-cta-down: 0 0 0 var(--signal);
     --sans: "Atkinson Hyperlegible Next", Verdana, system-ui, sans-serif;
     --mono: "Atkinson Hyperlegible Mono", ui-monospace, Menlo, monospace;
     --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -129,14 +129,14 @@
   /* --- a cell that is a link: the hover fills all of it, the press inverts it --- */
   a.cell, .col a {
     --fill: var(--ground);
-    background: var(--surface) linear-gradient(var(--fill), var(--fill)) no-repeat 0 0 / 0 100%;
+    background: var(--surface) linear-gradient(var(--fill), var(--fill)) no-repeat 0 100% / 100% 0;
   }
   a.cell { color: var(--ink); text-decoration: none; }
   a.cell:hover, .col a:hover { background-size: 100% 100%; }
   a.cell:active { --fill: var(--ink); color: var(--surface); }
-  /* The fill is one smooth wipe from the left; the text colour flips half way. It leaves at once. */
+  /* The fill rises from the bottom in one smooth move; the text colour flips half way. It leaves at once. */
   @media (prefers-reduced-motion: no-preference) {
-    a.cell:hover, .col a:hover { transition: background-size 180ms cubic-bezier(.2, .7, .2, 1), color 0s 90ms; }
+    a.cell:hover, .col a:hover { transition: background-size 160ms cubic-bezier(.2, .7, .2, 1), color 0s 80ms; }
   }
   a.cell:focus-visible, nav .right:focus-visible, .col a:focus-visible { outline-offset: -5px; }
 
@@ -212,14 +212,15 @@
     font-size: 13px; line-height: 1; min-height: 42px; min-width: 86px; padding: 0 16px; cursor: pointer;
     color: var(--surface); background: var(--ink); border: 2px solid var(--btn-line);
     box-shadow: var(--shadow-cta);
-    transition: box-shadow 120ms ease-out, transform 120ms ease-out;
+    transition: box-shadow 120ms ease-out, transform 120ms ease-out, background-color 120ms ease-out, color 120ms ease-out;
   }
-  /* It stands on its yellow shadow. Hover moves it 2px into the shadow, a press lands it fully;
-     it never lifts. After a copy it is an inverted block for a moment. */
-  .cmd button.copied { background: var(--surface); color: var(--ink); }
-  .cmd button:hover { box-shadow: var(--shadow-cta-in); transform: translate(2px, 2px); }
-  .cmd button:active { box-shadow: var(--shadow-cta-down); transform: translate(5px, 5px); }
-  @media (prefers-reduced-motion: reduce) { .cmd button:hover, .cmd button:active { transform: none; box-shadow: var(--shadow-cta); transition: none; } }
+  /* It stands on its yellow shadow. On hover and on keyboard focus it goes all the way down onto
+     the shadow and turns yellow itself, with ink text; a press is the same state. After a copy it
+     stays down and yellow for a moment, so "copied" reads as ink on yellow. */
+  .cmd button:hover, .cmd button:focus-visible, .cmd button:active, .cmd button.copied {
+    background: var(--signal); color: var(--ink); box-shadow: var(--shadow-cta-down); transform: translate(5px, 5px);
+  }
+  @media (prefers-reduced-motion: reduce) { .cmd button, .cmd button:hover, .cmd button:focus-visible, .cmd button:active, .cmd button.copied { transform: none; transition: none; } }
   .os { font-size: 12.5px; color: var(--faint); margin: 24px 0 0; }
   .after { color: var(--muted); font-size: 15px; margin-top: 22px; }
   kbd {
@@ -571,7 +572,7 @@
     d.querySelectorAll("nav,.cmd,.stats,.facts,.foot-top,section").forEach(function (t) { o.observe(t); });
   }
   d.getElementById("year").textContent = new Date().getFullYear();
-  // Copy button: an inverted "copied" block for a moment.
+  // Copy button: "copied" as ink on yellow for a moment.
   d.querySelectorAll("[data-copy]").forEach(function (b) {
     b.onclick = function () {
       navigator.clipboard.writeText(d.getElementById(b.dataset.copy).textContent).then(function () {
