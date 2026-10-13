@@ -6,9 +6,8 @@
 <title>Agent Office: several coding agents, one office</title>
 <meta name="description" content="The whole setup for running several coding agents at once, out of one box: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. MIT.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 112 112'><style>path.l{fill:%23111111}@media (prefers-color-scheme:dark){path.l{fill:%23F2F2F2}}</style><path fill='%23FFD23C' d='M60 12L101.6 36V84L60 108L18.4 84V36Z'/><path class='l' fill-rule='evenodd' d='M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z'/></svg>">
-<meta name="theme-color" content="#F4F4F4" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0D0D0D" media="(prefers-color-scheme: dark)">
-<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F4F4F4">
+<meta name="color-scheme" content="light">
 <meta property="og:title" content="Agent Office: several coding agents, one office">
 <meta property="og:description" content="The whole setup for running coding agents side by side, out of one box. You see which one needs you, and you never reach for the mouse.">
 <meta property="og:type" content="website">
@@ -23,8 +22,7 @@
   ONE FILE plus three font files, no build step and no external request, which is what lets GitHub
   Pages serve this straight out of /docs.
 
-  The brand is Zyx Textmarker, the same as the ZyxWorks index: pure neutrals, light first and dark
-  when the visitor's system asks for it, Atkinson Hyperlegible Next and Mono self-hosted, the cube
+  The brand is Zyx Textmarker, the same as the ZyxWorks index: pure neutrals, light only, Atkinson Hyperlegible Next and Mono self-hosted, the cube
   mark, 2px borders and hard offset shadows. Yellow is a highlighter: the panels of the cube and the copy buttons. It is
   never a link colour, a text colour on the light ground or a page background.
 -->
@@ -35,7 +33,7 @@
   @font-face { font-family: "Atkinson Hyperlegible Mono"; font-weight: 200 800; font-display: swap; src: url("fonts/atkinson-hyperlegible-mono-latin-wght-normal.woff2") format("woff2"); }
 
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
     --ground: #f4f4f4; --surface: #ffffff; --line: #dcdcdc; --line-strong: #bbbbbb; --ctl: #8a8a8a;
     --ink: #111111; --muted: #444444; --faint: #666666;
     --signal: #ffd23c; --on-signal: #14130f; --btn-line: #111111;
@@ -43,14 +41,6 @@
     --sans: "Atkinson Hyperlegible Next", Verdana, system-ui, sans-serif;
     --mono: "Atkinson Hyperlegible Mono", ui-monospace, Menlo, monospace;
     --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --ground: #0d0d0d; --surface: #151515; --line: #2a2a2a; --line-strong: #404040; --ctl: #6e6e6e;
-      --ink: #f2f2f2; --muted: #b3b3b3; --faint: #8f8f8f;
-      --btn-line: transparent;
-      --shadow: 4px 4px 0 rgba(255, 255, 255, 0.1);
-    }
   }
   *, *::before, *::after { box-sizing: border-box; }
   html { background: var(--ground); -webkit-text-size-adjust: 100%; }
