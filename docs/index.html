@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office: several coding agents, one office</title>
 <meta name="description" content="The whole setup for running several coding agents at once, out of one box: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. MIT.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 112 112'><path fill='%23FFD23C' d='M60 12L101.6 36V84L60 108L18.4 84V36Z'/><path fill='%23111111' fill-rule='evenodd' d='M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM54.05 20.34L22.68 38.45V74.68L54.05 56.56ZM65.95 20.34V56.56L97.32 74.68V38.45ZM60 66.87L28.63 84.98L60 103.09L91.37 84.98Z'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 112 112'><style>path.l{fill:%23111111}@media (prefers-color-scheme:dark){path.l{fill:%23F2F2F2}}</style><path fill='%23FFD23C' d='M60 12L101.6 36V84L60 108L18.4 84V36Z'/><path class='l' fill-rule='evenodd' d='M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z'/></svg>">
 <meta name="theme-color" content="#F4F4F4" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0D0D0D" media="(prefers-color-scheme: dark)">
 <meta name="color-scheme" content="light dark">
@@ -25,7 +25,7 @@
 
   The brand is Zyx Textmarker, the same as the ZyxWorks index: pure neutrals, light first and dark
   when the visitor's system asks for it, Atkinson Hyperlegible Next and Mono self-hosted, the cube
-  mark, 2px borders and hard offset shadows. Yellow is a highlighter: the copy buttons only. It is
+  mark, 2px borders and hard offset shadows. Yellow is a highlighter: the panels of the cube and the copy buttons. It is
   never a link colour, a text colour on the light ground or a page background.
 -->
 <style>
@@ -77,9 +77,11 @@
   strong { color: var(--ink); font-weight: 700; }
   code { font-family: var(--mono); font-size: 0.9em; }
 
-  /* The cube is one filled shape: outline, xyz axis and three open panels in a single path. One
-     draw-in at load, and no other motion. */
+  /* The cube is two paths: a yellow hexagon, and over it one filled shape in the text colour
+     (outline, xyz axis and three open panels), so the yellow shows through the panels. One
+     draw-in at load, and no other motion. The wipe sits on the svg, so it covers both paths. */
   .mk { fill: currentColor; flex: none; }
+  .mk-panels { fill: var(--signal); }
   @media (prefers-reduced-motion: no-preference) {
     .mk { animation: draw 560ms var(--ease) both; }
   }
@@ -198,7 +200,7 @@
   <nav>
     <div class="lockup">
       <a class="up" href="https://zyxworks.com/open-source">
-        <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM54.05 20.34L22.68 38.45V74.68L54.05 56.56ZM65.95 20.34V56.56L97.32 74.68V38.45ZM60 66.87L28.63 84.98L60 103.09L91.37 84.98Z"/></svg>
+        <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
         <span>ZyxWorks</span>
       </a>
       <span class="crumb">/</span>
@@ -388,7 +390,7 @@
     <div class="foot-top">
       <div>
         <a class="lockup" href="https://zyxworks.com/">
-          <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM54.05 20.34L22.68 38.45V74.68L54.05 56.56ZM65.95 20.34V56.56L97.32 74.68V38.45ZM60 66.87L28.63 84.98L60 103.09L91.37 84.98Z"/></svg>
+          <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
           <span class="name">ZyxWorks</span>
         </a>
         <p class="tagline">A product studio and forward deployed engineering practice.
