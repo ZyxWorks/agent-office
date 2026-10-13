@@ -1,4 +1,4 @@
-/* Zyx tokens - B Textmarker - from the Zyx Brand Studio, hand edited 2026-10-13: quiet print (radius 0, solid shadows), light by default, then hard print (the main button clicks down and turns yellow, blocks stand, one hover for every control: pressed in, nothing slides), 2026-10-14: the inner shadow of a press is grey (--z-press), a click presses deeper for a moment and no longer fills with ink */
+/* Zyx tokens - B Textmarker - from the Zyx Brand Studio, hand edited 2026-10-13: quiet print (radius 0, solid shadows), light by default, then hard print (the main button clicks down and turns yellow, blocks stand, one hover for every control: pressed in, nothing slides), 2026-10-14: the inner shadow of a press is grey (--z-press), a click presses deeper for a moment and no longer fills with ink; the main button stays in place under the pointer (--z-cta-travel is 0) and its inner shadow is grey too */
 :root {
   --z-ground: #F4F4F4;
   --z-surface: #FFFFFF;
@@ -53,9 +53,9 @@
   --z-u: 5px;
   --z-shadow-card: 3px 3px 0 var(--z-ink);
   --z-shadow-cta: inset 0 0 0 var(--z-ink), 5px 5px 0 var(--z-signal);
-  --z-cta-travel: 5px;
-  --z-shadow-cta-down: inset 3px 3px 0 var(--z-ink), 0 0 0 var(--z-signal);
-  --z-shadow-cta-deep: inset 5px 5px 0 var(--z-ink), 0 0 0 var(--z-signal);
+  --z-cta-travel: 0px;
+  --z-shadow-cta-down: inset 3px 3px 0 var(--z-press), 0 0 0 var(--z-signal);
+  --z-shadow-cta-deep: inset 5px 5px 0 var(--z-press), 0 0 0 var(--z-signal);
   --z-block-travel: 4px;
   --z-hero-travel: 6px;
   --z-shadow-block: var(--z-block-travel) var(--z-block-travel) 0 var(--z-ink);
