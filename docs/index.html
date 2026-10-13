@@ -28,7 +28,7 @@
 
   The look is "hard print": flat fields of ink, white and grey with hard edges between them. A group
   of siblings is a ruled grid with no gaps, a section starts at a full-width ink rule, the main button
-  floats on its shadow and a secondary button is pressed in. The grids are tight; the page around
+  stands on its shadow and presses into it and a secondary button is pressed in. The grids are tight; the page around
   them stays calm.
 -->
 <script>if ("IntersectionObserver" in window) document.documentElement.className = "js";</script>
@@ -47,7 +47,7 @@
     /* A main block stands on this: the nav bar, a command box, a ruled grid, the footer grid. */
     --shadow: 4px 4px 0 var(--ink);
     /* The main button (copy) stands on a yellow shadow and moves into it when pressed. */
-    --shadow-cta: 3px 3px 0 var(--signal); --shadow-cta-far: 4px 4px 0 var(--signal); --shadow-cta-near: 1px 1px 0 var(--signal);
+    --shadow-cta: 5px 5px 0 var(--signal); --shadow-cta-in: 3px 3px 0 var(--signal); --shadow-cta-down: 0 0 0 var(--signal);
     --sans: "Atkinson Hyperlegible Next", Verdana, system-ui, sans-serif;
     --mono: "Atkinson Hyperlegible Mono", ui-monospace, Menlo, monospace;
     --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -134,9 +134,9 @@
   a.cell { color: var(--ink); text-decoration: none; }
   a.cell:hover, .col a:hover { background-size: 100% 100%; }
   a.cell:active { --fill: var(--ink); color: var(--surface); }
-  /* The fill is a wipe from the left in four steps. It leaves at once. */
+  /* The fill is one smooth wipe from the left; the text colour flips half way. It leaves at once. */
   @media (prefers-reduced-motion: no-preference) {
-    a.cell:hover, .col a:hover { transition: background-size 160ms steps(4), color 0s 80ms; }
+    a.cell:hover, .col a:hover { transition: background-size 180ms cubic-bezier(.2, .7, .2, 1), color 0s 90ms; }
   }
   a.cell:focus-visible, nav .right:focus-visible, .col a:focus-visible { outline-offset: -5px; }
 
@@ -154,7 +154,7 @@
   .lockup .crumb { display: none; }
   /* GitHub carries weight because the licence is the pitch: a cell of its own at the end of the
      bar rather than a word in a corner. Not yellow, though. Yellow is the copy button, and a page
-     with two primary buttons has none. This one is pressed in; the copy button floats on yellow. */
+     with two primary buttons has none. This one is pressed in; the copy button stands on yellow. */
   nav .right { display: flex; align-items: center; margin-left: auto; font-size: 13.5px; border-left: 2px solid var(--ink); }
   /* On a phone the WAY BACK is what survives, not the page you are already on. This used to hide
      `.up span` and the separator, which left a bare 22px glyph as the only route to the index: no
@@ -193,12 +193,6 @@
     background: var(--surface); border: 3px solid var(--ink);
     box-shadow: var(--shadow); padding: 14px 14px 14px 16px; margin: 10px 0 10px;
   }
-  /* A box that only shows a readout is a quiet block: it stands on a hatch, not on solid ink. */
-  .cmd.quiet { position: relative; box-shadow: none; margin-bottom: 18px; }
-  .cmd.quiet::after {
-    content: ""; position: absolute; z-index: -1; top: 4px; left: 4px; right: -8px; bottom: -8px;
-    background: repeating-linear-gradient(135deg, var(--ink) 0 1px, transparent 1px 5px);
-  }
   /* The block caret after the command of every morning. It blinks three times when the box comes
      into view or is hovered, and then it stands. */
   #c2::after { content: ""; display: inline-block; width: 0.6em; height: 1.15em; margin-left: 6px; vertical-align: -0.2em; background: var(--ink); }
@@ -218,14 +212,14 @@
     font-size: 13px; line-height: 1; min-height: 42px; min-width: 86px; padding: 0 16px; cursor: pointer;
     color: var(--surface); background: var(--ink); border: 2px solid var(--btn-line);
     box-shadow: var(--shadow-cta);
-    transition: box-shadow 90ms steps(2), transform 90ms steps(2);
+    transition: box-shadow 120ms ease-out, transform 120ms ease-out;
   }
-  /* It floats: up and away from its shadow on hover, down into it when pressed, in two steps each
-     way. After a copy it is an inverted block for a moment. */
+  /* It stands on its yellow shadow. Hover moves it 2px into the shadow, a press lands it fully;
+     it never lifts. After a copy it is an inverted block for a moment. */
   .cmd button.copied { background: var(--surface); color: var(--ink); }
-  .cmd button:hover { box-shadow: var(--shadow-cta-far); transform: translate(-1px, -1px); }
-  .cmd button:active { box-shadow: var(--shadow-cta-near); transform: translate(2px, 2px); }
-  @media (prefers-reduced-motion: reduce) { .cmd button:hover, .cmd button:active { transform: none; box-shadow: var(--shadow-cta); } }
+  .cmd button:hover { box-shadow: var(--shadow-cta-in); transform: translate(2px, 2px); }
+  .cmd button:active { box-shadow: var(--shadow-cta-down); transform: translate(5px, 5px); }
+  @media (prefers-reduced-motion: reduce) { .cmd button:hover, .cmd button:active { transform: none; box-shadow: var(--shadow-cta); transition: none; } }
   .os { font-size: 12.5px; color: var(--faint); margin: 24px 0 0; }
   .after { color: var(--muted); font-size: 15px; margin-top: 22px; }
   kbd {
@@ -316,8 +310,8 @@
   @keyframes stamp { from { transform: scale(0); } }
   @media (prefers-reduced-motion: no-preference) {
     /* A main block lands on its shadow in two steps. */
-    .js :is(nav, .cmd:not(.quiet), .stats, .facts, .foot-top):not(.in) { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
-    .js :is(nav, .cmd:not(.quiet), .stats, .facts, .foot-top).in { animation: land 180ms step-end var(--d, 0ms) backwards; }
+    .js :is(nav, .cmd, .stats, .facts, .foot-top):not(.in) { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
+    .js :is(nav, .cmd, .stats, .facts, .foot-top).in { animation: land 180ms step-end var(--d, 0ms) backwards; }
     /* The rule of a section draws from the left, then its square stamps in. */
     .js section:not(.in)::after { clip-path: inset(0 100% 0 0); }
     .js section.in::after { animation: draw 320ms steps(4) var(--d, 0ms) backwards; }
@@ -412,7 +406,7 @@
     <p>Every agent has one line in the sidebar. herdr knows whether it is working, idle, done or
     blocked. The Agent Office meter adds the two numbers that decide what you do next:
     <strong>how full its context is, and how long it has been quiet</strong>.</p>
-    <div class="cmd quiet"><div class="line"><code>claude · 412k▲ · 47m · idle</code></div></div>
+    <div class="cmd"><div class="line"><code>claude · 412k▲ · 47m · idle</code></div></div>
     <div class="scroll">
       <table>
         <thead><tr><th>you see</th><th>it means</th></tr></thead>
