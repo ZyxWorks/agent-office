@@ -133,15 +133,12 @@
   a.pill { --py: 11px; --px: 17px; display: inline-block; font-size: 15px; border: var(--z-bw) solid var(--ink); }
 
   /* --- a cell that is a link: the hover fills all of it, the press inverts it --- */
-  a.cell, .col a {
-    --fill: var(--ground);
-    background: var(--surface) linear-gradient(var(--fill), var(--fill)) var(--z-wipe-pos) / var(--z-wipe-rest) no-repeat;
-  }
+  a.cell, .col a { background: var(--surface); transition: box-shadow var(--z-d-press) ease-out; }
   a.cell { color: var(--ink); text-decoration: none; }
-  a.cell:hover, .col a:hover { background-size: var(--z-wipe-full); transition: background-size var(--z-d-wipe) var(--z-ease-wipe), color 0s calc(var(--z-d-wipe) / 2); }
-  a.cell:active { --fill: var(--ink); color: var(--surface); }
-  /* The fill comes in from the left in one smooth move and the text colour flips half way; it leaves
-     at once. Direction and time are brand tokens, and the time is 0 under reduced motion. */
+  a.cell:hover, .col a:hover, a.cell:focus-visible, .col a:focus-visible { box-shadow: var(--z-shadow-in); }
+  a.cell:active, .col a:active { background: var(--ink); color: var(--surface); box-shadow: none; }
+  /* One hover for every control (brand sheet): the cell is pressed in, the hard inner ink shadow.
+     Nothing slides in. A press turns it to ink at once. */
   a.cell:focus-visible, nav .right:focus-visible, .col a:focus-visible { outline-offset: -5px; }
 
   /* --- nav: one ruled bar. Every part is a cell as high as the bar, with an ink line between
@@ -297,7 +294,6 @@
   /* The icon of a link cell: a small arrow at its end, which steps 3px to the right when the cell is hovered. The
      second `content` gives it an empty alt text; the first is for a browser that does not know that. */
   .col a::after { content: "\2192"; content: "\2192" / ""; flex: none; font-family: var(--mono); font-size: 14px; line-height: 1; }
-  .col a:hover { color: var(--surface); }
   .col a:hover::after { transform: translateX(3px); }
   @media (prefers-reduced-motion: no-preference) { .col a:hover::after { transition: transform 120ms steps(3); } }
   @media (prefers-reduced-motion: reduce) { .col a:hover::after { transform: none; } }
