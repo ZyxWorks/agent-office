@@ -1,4 +1,4 @@
-/* Zyx tokens - B Textmarker - from the Zyx Brand Studio, hand edited 2026-10-13: quiet print (radius 0, solid shadows), light by default, then hard print (the main button clicks down and turns yellow, blocks stand, cells fill from the bottom) */
+/* Zyx tokens - B Textmarker - from the Zyx Brand Studio, hand edited 2026-10-13: quiet print (radius 0, solid shadows), light by default, then hard print (the main button clicks down and turns yellow, blocks stand, cells fill from the left) */
 :root {
   --z-ground: #F4F4F4;
   --z-surface: #FFFFFF;
@@ -53,12 +53,16 @@
   --z-shadow-card: 3px 3px 0 var(--z-ink);
   --z-shadow-cta: 5px 5px 0 var(--z-signal);
   --z-cta-travel: 5px;
-  --z-shadow-block: 4px 4px 0 var(--z-ink);
-  --z-shadow-hero: 6px 6px 0 var(--z-ink);
+  --z-shadow-cta-down: 0 0 0 var(--z-signal);
+  --z-block-travel: 4px;
+  --z-hero-travel: 6px;
+  --z-shadow-block: var(--z-block-travel) var(--z-block-travel) 0 var(--z-ink);
+  --z-shadow-hero: var(--z-hero-travel) var(--z-hero-travel) 0 var(--z-ink);
   --z-shadow-in: inset 3px 3px 0 var(--z-ink);
   --z-shadow-key: 0 2px 0 var(--z-ink);
   --z-bw-block: 3px;
   --z-bw-rule: 2px;
+  --z-bw-hair: 1px;
   --z-shadow-win: 0 0 0 1px rgba(0,0,0,.9), 10px 10px 0 rgba(0,0,0,.10);
   --z-shadow-pop: 3px 3px 0 var(--z-ink);
   --z-bevel: none;
