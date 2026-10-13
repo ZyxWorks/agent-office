@@ -69,10 +69,9 @@ tell the office where it is:
 code = "/path/to/firstmate"
 ```
 
-Run `office doctor` to see what is installed and what is missing. Today it
-ends with problems even on a good setup, because no Firstmate revision and no
-treehouse version is on this release's tested list yet. Read the list: those
-two lines are expected.
+Run `office doctor` to see what is installed and what is missing. It reports
+Firstmate and treehouse as not tested, because no revision of either is on this
+release's tested list, and exits 1. Those two lines are expected.
 
 ## 4. Open the office
 
