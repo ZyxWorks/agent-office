@@ -31,6 +31,7 @@
   floats on its shadow and a secondary button is pressed in. The grids are tight; the page around
   them stays calm.
 -->
+<script>if ("IntersectionObserver" in window) document.documentElement.className = "js";</script>
 <style>
   /* Self-hosted, copied from the ZyxWorks index. No Google Fonts request, ever. */
   @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 200 800; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
@@ -43,7 +44,8 @@
     --ground: #f4f4f4; --surface: #ffffff; --deep: #ececec; --line: #dcdcdc; --line-strong: #bbbbbb; --ctl: #8a8a8a;
     --ink: #111111; --muted: #444444; --faint: #666666;
     --signal: #ffd23c; --on-signal: #14130f; --btn-line: #111111;
-    --shadow: 3px 3px 0 var(--ink);
+    /* A main block stands on this: the nav bar, a command box, a ruled grid, the footer grid. */
+    --shadow: 4px 4px 0 var(--ink);
     /* The main button (copy) stands on a yellow shadow and moves into it when pressed. */
     --shadow-cta: 3px 3px 0 var(--signal); --shadow-cta-far: 4px 4px 0 var(--signal); --shadow-cta-near: 1px 1px 0 var(--signal);
     --sans: "Atkinson Hyperlegible Next", Verdana, system-ui, sans-serif;
@@ -66,9 +68,12 @@
   section { padding: 68px 0; position: relative; }
   section::before {
     content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: calc(50% - 50vw); width: 100vw;
-    background: var(--ground); border-top: 2px solid var(--ink);
+    background: var(--ground);
   }
   section:nth-of-type(odd)::before { background: var(--surface); }
+  section::after { content: ""; position: absolute; top: 0; left: calc(50% - 50vw); width: 100vw; height: 2px; background: var(--ink); }
+  body { counter-reset: sec; }
+  section { counter-increment: sec; }
   .mono { font-family: var(--mono); }
 
   h1 { font-size: clamp(40px, 8.4vw, 66px); line-height: 1.04; letter-spacing: -0.022em; margin: 0; font-weight: 700; }
@@ -79,7 +84,10 @@
     text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink);
   }
   h2 { margin: 0 0 28px; }
-  h2::before, .col h4::before { content: ""; flex: none; width: 8px; height: 8px; background: var(--ink); }
+  /* On a section the count comes first ("01"), then the square; `order` puts both before the words. */
+  h2::after, .col h4::before { content: ""; flex: none; width: 8px; height: 8px; background: var(--ink); }
+  h2::before { content: counter(sec, decimal-leading-zero); content: counter(sec, decimal-leading-zero) / ""; order: -2; }
+  h2::after { order: -1; }
   h3 { font-size: 21px; letter-spacing: -0.022em; font-weight: 700; margin: 0 0 8px; }
   p { margin: 0 0 16px; color: var(--muted); }
   p.lead { font-size: 21px; color: var(--muted); margin-top: 22px; max-width: 44ch; }
@@ -106,7 +114,6 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     a.cell:hover .mk { animation: draw 560ms var(--ease) both, hop 200ms step-end 1; }
-    .col a:hover::after { animation: hop 200ms step-end 1; }
   }
 
   /* --- the two buttons that are not the main one ---
@@ -123,14 +130,22 @@
   a.pill { --py: 11px; --px: 17px; display: inline-block; font-size: 15px; border: 2px solid var(--ink); }
 
   /* --- a cell that is a link: the hover fills all of it, the press inverts it --- */
-  a.cell { color: var(--ink); text-decoration: none; background: var(--surface); }
-  a.cell:hover { background: var(--ground); color: var(--ink); }
-  a.cell:active { background: var(--ink); color: var(--surface); }
+  a.cell, .col a {
+    --fill: var(--ground);
+    background: var(--surface) linear-gradient(var(--fill), var(--fill)) no-repeat 0 0 / 0 100%;
+  }
+  a.cell { color: var(--ink); text-decoration: none; }
+  a.cell:hover, .col a:hover { background-size: 100% 100%; }
+  a.cell:active { --fill: var(--ink); color: var(--surface); }
+  /* The fill is a wipe from the left in four steps. It leaves at once. */
+  @media (prefers-reduced-motion: no-preference) {
+    a.cell:hover, .col a:hover { transition: background-size 160ms steps(4), color 0s 80ms; }
+  }
   a.cell:focus-visible, nav .right:focus-visible, .col a:focus-visible { outline-offset: -5px; }
 
   /* --- nav: one ruled bar. Every part is a cell as high as the bar, with an ink line between
      the cells and no gap. The page you are on is the ink cell. --- */
-  nav { display: flex; align-items: stretch; margin-top: 26px; min-height: 48px; background: var(--surface); border: 2px solid var(--ink); }
+  nav { display: flex; align-items: stretch; margin-top: 26px; min-height: 48px; background: var(--surface); border: 2px solid var(--ink); box-shadow: var(--shadow); }
   .lockup { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
   .lockup .name { font-weight: 700; letter-spacing: -0.025em; font-size: 17px; }
   nav .lockup { display: flex; align-items: stretch; gap: 0; min-width: 0; }
@@ -168,6 +183,21 @@
     background: var(--surface); border: 2px solid var(--ink);
     box-shadow: var(--shadow); padding: 14px 14px 14px 16px; margin: 10px 0 10px;
   }
+  /* A box that only shows a readout is a quiet block: it stands on a hatch, not on solid ink. */
+  .cmd.quiet { position: relative; box-shadow: none; margin-bottom: 18px; }
+  .cmd.quiet::after {
+    content: ""; position: absolute; z-index: -1; top: 4px; left: 4px; right: -8px; bottom: -8px;
+    background: repeating-linear-gradient(135deg, var(--ink) 0 1px, transparent 1px 5px);
+  }
+  /* The block caret after the command of every morning. It blinks three times when the box comes
+     into view or is hovered, and then it stands. */
+  #c2::after { content: ""; display: inline-block; width: 0.6em; height: 1.15em; margin-left: 6px; vertical-align: -0.2em; background: var(--ink); }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes blink-again { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: no-preference) {
+    .js .cmd.in #c2::after { animation: blink 300ms step-end calc(var(--d, 0ms) + 240ms) 3; }
+    .js .cmd:hover #c2::after, .cmd:hover #c2::after { animation: blink-again 300ms step-end 3; }
+  }
   /* The COMMAND scrolls, not the row: a copy button that scrolls out of sight with a long install
      line is a copy button nobody finds on a phone. */
   .cmd .line { flex: 1; min-width: 0; overflow-x: auto; }
@@ -175,12 +205,14 @@
   .cmd code { line-height: 1.5; color: var(--ink); white-space: pre; font-size: 13.5px; }
   .cmd button {
     flex: none; font: inherit; font-family: var(--mono); font-weight: 700;
-    font-size: 13px; line-height: 1; min-height: 42px; padding: 0 16px; cursor: pointer;
+    font-size: 13px; line-height: 1; min-height: 42px; min-width: 86px; padding: 0 16px; cursor: pointer;
     color: var(--surface); background: var(--ink); border: 2px solid var(--btn-line);
     box-shadow: var(--shadow-cta);
-    transition: box-shadow 120ms var(--ease), transform 120ms var(--ease);
+    transition: box-shadow 90ms steps(2), transform 90ms steps(2);
   }
-  /* It floats: up and away from its shadow on hover, down into it when pressed. */
+  /* It floats: up and away from its shadow on hover, down into it when pressed, in two steps each
+     way. After a copy it is an inverted block for a moment. */
+  .cmd button.copied { background: var(--surface); color: var(--ink); }
   .cmd button:hover { box-shadow: var(--shadow-cta-far); transform: translate(-1px, -1px); }
   .cmd button:active { box-shadow: var(--shadow-cta-near); transform: translate(2px, 2px); }
   @media (prefers-reduced-motion: reduce) { .cmd button:hover, .cmd button:active { transform: none; box-shadow: var(--shadow-cta); } }
@@ -194,7 +226,7 @@
 
   /* --- the numbers that do the selling --- */
   /* A ruled grid: the cells fill it, an ink line stands between them, and there is no gap. */
-  .stats, .facts { display: grid; background: var(--surface); border: 2px solid var(--ink); }
+  .stats, .facts { display: grid; background: var(--surface); border: 2px solid var(--ink); box-shadow: var(--shadow); }
   .stats { grid-template-columns: repeat(3, 1fr); margin-top: 26px; }
   .stat, .fact { padding: 20px 18px 22px; border-left: 2px solid var(--ink); }
   .stat:first-child, .fact:first-child { border-left: 0; }
@@ -233,7 +265,7 @@
      quiet row that closes it. --- */
   footer { background: var(--deep); border-top: 2px solid var(--ink); }
   footer .shell { padding-top: 56px; padding-bottom: 72px; }
-  .foot-top { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border: 2px solid var(--ink); }
+  .foot-top { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border: 2px solid var(--ink); box-shadow: var(--shadow); }
   .foot-brand { grid-column: 1 / -1; display: flex; align-items: stretch; border-bottom: 2px solid var(--ink); }
   .foot-brand .lockup { flex: none; padding: 18px; border-right: 2px solid var(--ink); }
   .tagline { align-self: center; color: var(--muted); font-size: 14.5px; margin: 0; padding: 16px 18px; max-width: 46ch; }
@@ -242,13 +274,17 @@
   .col h4 { margin: 0; padding: 0 14px; min-height: 40px; background: var(--ground); border-bottom: 2px solid var(--ink); }
   .col a {
     display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 8px 14px;
+    --fill: var(--ink);
     color: var(--muted); text-decoration: none; font-size: 14.5px; line-height: 1.3; border-top: 1px solid var(--ink);
   }
   .col h4 + a { border-top: 0; }
-  /* The icon of a link cell: a small arrow at its end, which hops when the cell is hovered. The
+  /* The icon of a link cell: a small arrow at its end, which steps 3px to the right when the cell is hovered. The
      second `content` gives it an empty alt text; the first is for a browser that does not know that. */
   .col a::after { content: "\2192"; content: "\2192" / ""; flex: none; font-family: var(--mono); font-size: 14px; line-height: 1; }
-  .col a:hover { background: var(--ink); color: var(--surface); }
+  .col a:hover { color: var(--surface); }
+  .col a:hover::after { transform: translateX(3px); }
+  @media (prefers-reduced-motion: no-preference) { .col a:hover::after { transition: transform 120ms steps(3); } }
+  @media (prefers-reduced-motion: reduce) { .col a:hover::after { transform: none; } }
   @media (max-width: 700px) {
     .foot-top { grid-template-columns: 1fr; }
     .foot-brand { flex-direction: column; }
@@ -258,9 +294,25 @@
     .col + .col { border-top: 2px solid var(--ink); }
   }
   .copyright {
-    padding: 12px 14px; background: var(--ground); border: 2px solid var(--ink); border-top: 0;
+    grid-column: 1 / -1; padding: 12px 14px; background: var(--ground); border-top: 2px solid var(--ink);
     font-family: var(--mono);
     font-size: 12px; color: var(--faint);
+  }
+
+  /* --- what happens once, when a part first comes into view ---
+     The script in the head arms this with `.js`, the one at the end sets `.in` and a small delay
+     `--d`. Without a script, or with reduced motion, none of it applies and every part is simply there. */
+  @keyframes land { 0% { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); } 50% { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); } }
+  @keyframes stamp { from { transform: scale(0); } }
+  @media (prefers-reduced-motion: no-preference) {
+    /* A main block lands on its shadow in two steps. */
+    .js :is(nav, .cmd:not(.quiet), .stats, .facts, .foot-top):not(.in) { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
+    .js :is(nav, .cmd:not(.quiet), .stats, .facts, .foot-top).in { animation: land 180ms step-end var(--d, 0ms) backwards; }
+    /* The rule of a section draws from the left, then its square stamps in. */
+    .js section:not(.in)::after { clip-path: inset(0 100% 0 0); }
+    .js section.in::after { animation: draw 320ms steps(4) var(--d, 0ms) backwards; }
+    .js section:not(.in) h2::after { transform: scale(0); }
+    .js section.in h2::after { animation: stamp 120ms steps(2) calc(var(--d, 0ms) + 320ms) backwards; }
   }
   .disclaimer { font-size: 12.5px; color: var(--faint); margin-top: 14px; font-family: var(--sans); }
 </style>
@@ -350,7 +402,7 @@
     <p>Every agent has one line in the sidebar. herdr knows whether it is working, idle, done or
     blocked. The Agent Office meter adds the two numbers that decide what you do next:
     <strong>how full its context is, and how long it has been quiet</strong>.</p>
-    <div class="cmd"><div class="line"><code>claude · 412k▲ · 47m · idle</code></div></div>
+    <div class="cmd quiet"><div class="line"><code>claude · 412k▲ · 47m · idle</code></div></div>
     <div class="scroll">
       <table>
         <thead><tr><th>you see</th><th>it means</th></tr></thead>
@@ -486,25 +538,43 @@
         <a href="https://zyxworks.com/legal#privacy">Privacy</a>
         <a href="https://zyxworks.com/legal#imprint">Imprint</a>
       </div>
-    </div>
-    <div class="copyright">
-      &copy; <span id="year">2026</span> ZYXWORKS &middot; ZYX &middot; FORWARD DEPLOYED AI FOR YOUR COMPANY
+      <div class="copyright">
+        &copy; <span id="year">2026</span> ZYXWORKS &middot; ZYX &middot; FORWARD DEPLOYED AI FOR YOUR COMPANY
+      </div>
     </div>
   </div>
 </footer>
 
 <script>
-  document.getElementById("year").textContent = new Date().getFullYear();
-
-  // Copy button.
-  document.querySelectorAll("[data-copy]").forEach(function (button) {
-    button.addEventListener("click", function () {
-      var text = document.getElementById(button.dataset.copy).textContent;
-      navigator.clipboard.writeText(text).then(function () {
-        button.textContent = "copied";
-        setTimeout(function () { button.textContent = "copy"; }, 1600);
+  var d = document;
+  // Scroll-in: each part gets `.in` once, with a small delay per part of the same batch.
+  if (d.documentElement.className && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    var o = new IntersectionObserver(function (es) {
+      var i = 0;
+      es.forEach(function (e) {
+        var t = e.target;
+        if (!e.isIntersecting) return;
+        o.unobserve(t); t.style.setProperty("--d", 70 * i++ + "ms"); t.classList.add("in");
+        // A stat counts up to its number in at most 8 steps.
+        if (t.matches(".stats")) t.querySelectorAll(".n").forEach(function (n) {
+          var v = +n.textContent, s = Math.min(v, 8), k = 0;
+          if (!(v > 0)) return;
+          n.textContent = 0;
+          var h = setInterval(function () { n.textContent = Math.round(v * ++k / s); k < s || clearInterval(h); }, 400 / s);
+        });
       });
     });
+    d.querySelectorAll("nav,.cmd,.stats,.facts,.foot-top,section").forEach(function (t) { o.observe(t); });
+  }
+  d.getElementById("year").textContent = new Date().getFullYear();
+  // Copy button: an inverted "copied" block for a moment.
+  d.querySelectorAll("[data-copy]").forEach(function (b) {
+    b.onclick = function () {
+      navigator.clipboard.writeText(d.getElementById(b.dataset.copy).textContent).then(function () {
+        b.textContent = "copied"; b.className = "copied";
+        setTimeout(function () { b.textContent = "copy"; b.className = ""; }, 1200);
+      });
+    };
   });
 </script>
 
