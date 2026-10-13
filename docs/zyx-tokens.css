@@ -51,9 +51,9 @@
   --z-small: 12.5px;
   --z-u: 5px;
   --z-shadow-card: 3px 3px 0 var(--z-ink);
-  --z-shadow-cta: 5px 5px 0 var(--z-signal);
+  --z-shadow-cta: inset 0 0 0 var(--z-ink), 5px 5px 0 var(--z-signal);
   --z-cta-travel: 5px;
-  --z-shadow-cta-down: 0 0 0 var(--z-signal);
+  --z-shadow-cta-down: inset 3px 3px 0 var(--z-ink), 0 0 0 var(--z-signal);
   --z-block-travel: 4px;
   --z-hero-travel: 6px;
   --z-shadow-block: var(--z-block-travel) var(--z-block-travel) 0 var(--z-ink);
@@ -72,11 +72,6 @@
   --z-d3: 560ms;
   --z-ease: cubic-bezier(.2,.8,.2,1);
   --z-d-press: 120ms;
-  --z-d-wipe: 160ms;
-  --z-ease-wipe: cubic-bezier(.2,.7,.2,1);
-  --z-wipe-pos: 0 0;
-  --z-wipe-rest: 0 100%;
-  --z-wipe-full: 100% 100%;
   --z-s1: 5px;
   --z-s2: 10px;
   --z-s3: 15px;
@@ -114,5 +109,5 @@
   --z-focus: #F2F2F2;
 }
 @media (prefers-reduced-motion: reduce) {
-  :root { --z-d1: 0ms; --z-d2: 0ms; --z-d3: 0ms; --z-d-press: 0ms; --z-d-wipe: 0ms; --z-cta-travel: 0px; }
+  :root { --z-d1: 0ms; --z-d2: 0ms; --z-d3: 0ms; --z-d-press: 0ms; --z-cta-travel: 0px; }
 }
