@@ -28,7 +28,7 @@
 
   The look is "hard print": flat fields of ink, white and grey with hard edges between them. A group
   of siblings is a ruled grid with no gaps, a section starts at a full-width ink rule, the main button
-  stands on its shadow and presses into it and a secondary button is pressed in. The grids are tight; the page around
+  stands on its shadow and presses into it and a secondary button is pressed in; a click presses deeper for a moment. The grids are tight; the page around
   them stays calm.
 -->
 <script>if ("IntersectionObserver" in window) document.documentElement.className = "js";</script>
@@ -120,25 +120,26 @@
   }
 
   /* --- the two buttons that are not the main one ---
-     Pressed in: no shadow at rest, a hard inset shadow on hover with the label 1px down and right,
-     and inverted while it is held. `--push` moves the label without moving the box. */
+     Pressed in: no shadow at rest, a hard grey inset shadow on hover with the label 1px down and
+     right, and pressed deeper at once while it is held. `--push` moves the label without moving the box. */
   nav .right, a.pill {
     --py: 8px; --px: 14px; --push: 0px;
     color: var(--ink); text-decoration: none; white-space: nowrap; background: var(--surface);
     padding: calc(var(--py) + var(--push)) calc(var(--px) - var(--push)) calc(var(--py) - var(--push)) calc(var(--px) + var(--push));
+    transition: box-shadow var(--z-d-press) ease-out;
   }
   nav .right:hover, a.pill:hover { box-shadow: var(--z-shadow-in); }
-  nav .right:active, a.pill:active { background: var(--ink); color: var(--surface); box-shadow: none; }
+  nav .right:active, a.pill:active { box-shadow: var(--z-shadow-in-deep); transition-duration: 0s; }
   @media (prefers-reduced-motion: no-preference) { nav .right:hover, a.pill:hover { --push: 1px; } }
   a.pill { --py: 11px; --px: 17px; display: inline-block; font-size: 15px; border: var(--z-bw) solid var(--ink); }
 
-  /* --- a cell that is a link: the hover fills all of it, the press inverts it --- */
+  /* --- a cell that is a link: the hover presses all of it in, the click presses it deeper --- */
   a.cell, .col a { background: var(--surface); transition: box-shadow var(--z-d-press) ease-out; }
   a.cell { color: var(--ink); text-decoration: none; }
   a.cell:hover, .col a:hover, a.cell:focus-visible, .col a:focus-visible { box-shadow: var(--z-shadow-in); }
-  a.cell:active, .col a:active { background: var(--ink); color: var(--surface); box-shadow: none; }
-  /* One hover for every control (brand sheet): the cell is pressed in, the hard inner ink shadow.
-     Nothing slides in. A press turns it to ink at once. */
+  a.cell:active, .col a:active { box-shadow: var(--z-shadow-in-deep); transition-duration: 0s; }
+  /* One hover for every control (brand sheet): the cell is pressed in, the hard inner grey shadow.
+     Nothing slides in. A click presses it deeper at once and fills nothing; ink fill is for states only. */
   a.cell:focus-visible, nav .right:focus-visible, .col a:focus-visible { outline-offset: -5px; }
 
   /* --- nav: one ruled bar. Every part is a cell as high as the bar, with an ink line between
@@ -165,7 +166,9 @@
      one. */
   @media (max-width: 560px) {
     .lockup .here { display: none; }
-    .lockup .up { padding: 0 10px; }
+    /* The way back takes the room the page name left, so no empty cell stands between two rules. */
+    nav .lockup { flex: 1; }
+    .lockup .up { flex: 1; min-width: 0; padding: 0 10px; border-right: 0; }
     .lockup .up::before { content: "\2190"; font-weight: 400; }
     nav .right { --px: 10px; font-size: 12.5px; }
   }
@@ -216,12 +219,13 @@
     transition: box-shadow var(--z-d-press) ease-out, transform var(--z-d-press) ease-out, background-color var(--z-d-press) ease-out, color var(--z-d-press) ease-out;
   }
   /* It stands on its yellow shadow. On hover and on keyboard focus it goes all the way down onto
-     the shadow and turns yellow itself, with ink text; a press is the same state. After a copy it
+     the shadow and turns yellow itself, with ink text; a click presses it deeper at once. After a copy it
      stays down and yellow for a moment, so "copied" reads as ink on yellow. */
   .cmd button:hover, .cmd button:focus-visible, .cmd button:active, .cmd button.copied {
     background: var(--signal); color: var(--on-signal); box-shadow: var(--shadow-cta-down);
     transform: translate(var(--z-cta-travel), var(--z-cta-travel));
   }
+  .cmd button:active { box-shadow: var(--z-shadow-cta-deep); transition-duration: 0s; }
   /* The place a click lands stays still: while the button is down, its hit area reaches back over
      the strip it moved away from. Nothing of it is visible. Travel is 0 under reduced motion. */
   .cmd button::after { content: ""; position: absolute; inset: 0; }
@@ -241,6 +245,7 @@
   /* A ruled grid: the cells fill it, an ink line stands between them, and there is no gap. */
   .stats, .facts { display: grid; background: var(--surface); border: var(--z-bw-block) solid var(--ink); box-shadow: var(--shadow); }
   .stats { grid-template-columns: repeat(3, 1fr); margin-top: 26px; }
+  .facts { grid-template-columns: repeat(2, 1fr); margin: 26px 0 8px; }
   .stat, .fact { padding: 20px 18px 22px; border-left: var(--z-bw) solid var(--ink); }
   .stat:first-child, .fact:first-child { border-left: 0; }
   @media (max-width: 600px) {
@@ -267,7 +272,6 @@
   th, table.short td:last-child { white-space: nowrap; }
   .note { font-size: 14px; color: var(--faint); margin-top: 18px; }
 
-  .facts { grid-template-columns: repeat(2, 1fr); margin: 26px 0 8px; }
   .fact strong { display: block; margin-bottom: 6px; }
   .fact span { color: var(--muted); font-size: 15px; }
 
