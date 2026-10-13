@@ -126,6 +126,7 @@
     --py: 8px; --px: 14px; --push: 0px;
     color: var(--ink); text-decoration: none; white-space: nowrap; background: var(--surface);
     padding: calc(var(--py) + var(--push)) calc(var(--px) - var(--push)) calc(var(--py) - var(--push)) calc(var(--px) + var(--push));
+    transition: box-shadow var(--z-d-press) ease-out;
   }
   nav .right:hover, a.pill:hover { box-shadow: var(--z-shadow-in); }
   nav .right:active, a.pill:active { box-shadow: var(--z-shadow-in-deep); transition-duration: 0s; }
