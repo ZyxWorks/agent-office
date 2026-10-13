@@ -230,7 +230,7 @@
   li { padding: 13px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 16px; }
 
   /* --- footer: one ruled grid. The studio on top, three lists of link cells under it, and an
-     ink strip that closes it. --- */
+     quiet row that closes it. --- */
   footer { background: var(--deep); border-top: 2px solid var(--ink); }
   footer .shell { padding-top: 56px; padding-bottom: 72px; }
   .foot-top { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border: 2px solid var(--ink); }
@@ -245,8 +245,9 @@
     color: var(--muted); text-decoration: none; font-size: 14.5px; line-height: 1.3; border-top: 1px solid var(--ink);
   }
   .col h4 + a { border-top: 0; }
-  /* The icon of a link cell: a small square at its end, which hops when the cell is hovered. */
-  .col a::after { content: ""; flex: none; width: 6px; height: 6px; background: currentColor; }
+  /* The icon of a link cell: a small arrow at its end, which hops when the cell is hovered. The
+     second `content` gives it an empty alt text; the first is for a browser that does not know that. */
+  .col a::after { content: "\2192"; content: "\2192" / ""; flex: none; font-family: var(--mono); font-size: 14px; line-height: 1; }
   .col a:hover { background: var(--ink); color: var(--surface); }
   @media (max-width: 700px) {
     .foot-top { grid-template-columns: 1fr; }
@@ -257,9 +258,9 @@
     .col + .col { border-top: 2px solid var(--ink); }
   }
   .copyright {
-    padding: 12px 14px; background: var(--ink); border: 2px solid var(--ink); border-top: 0;
+    padding: 12px 14px; background: var(--ground); border: 2px solid var(--ink); border-top: 0;
     font-family: var(--mono);
-    font-size: 12px; color: var(--surface);
+    font-size: 12px; color: var(--faint);
   }
   .disclaimer { font-size: 12.5px; color: var(--faint); margin-top: 14px; font-family: var(--sans); }
 </style>
