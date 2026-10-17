@@ -80,6 +80,8 @@
      has no animation of its own at rest; it hops once when its cell is hovered (zyx-hop). */
   .mk { fill: currentColor; flex: none; }
   .mk-panels { fill: var(--z-icon-fill); }
+  /* Brand rule: the lines are ink on every ground. On the ink cell the mark sits in a white box. */
+  .zyx-cell-ink > .mk { box-sizing: content-box; padding: 3px; background: var(--z-surface); fill: var(--z-ink); }
 
   /* --- nav: one ruled bar (zyx-stand) of cells (zyx-cell). Every part is a cell as high as the bar,
      with an ink line between the cells and no gap. The page you are on is the ink cell. --- */
