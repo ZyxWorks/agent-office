@@ -23,11 +23,12 @@
   what lets GitHub Pages serve this straight out of /docs.
 
   The look comes from @zyxworks/ui (repo ZyxWorks/ui): tokens, the self-hosted Atkinson Hyperlegible
-  Next and Mono, and every shared part (cell, grid, stand, main and second button, eyebrow, rule,
-  label, rows, table, crop marks, link, arrow). ui/ is a copy written by
-  `npm run ship -- <this repo> --static docs/ui` in the library repo; never edit it by hand. Below is
-  only what belongs to this page: its layout, the hero, the full-width section bands, the command
-  boxes and the scroll-in. Every colour, edge, shadow and time reads var(--z-*).
+  Next and Mono, and every shared part (bar, cell, grid, stand, main and second button, eyebrow, rule,
+  label, rows, table, crop marks, command and its copy button, footer, link, arrow, the ZyxWorks mark
+  and the scroll-in). ui/ is a copy written by `npm run ship -- <this repo> --static docs/ui` in the
+  library repo; never edit it by hand. Below is only what belongs to this page: its layout, the hero,
+  the full-width section bands and the product's own mark. Every colour, edge, shadow and time reads
+  var(--z-*).
 
   Light only: no data-theme is set anywhere, so the dark values never apply. Yellow is a
   highlighter: the panels of the cube and the copy buttons, which stand on the yellow shadow of the
@@ -35,16 +36,19 @@
 
   The look is "hard print": a group of siblings is a ruled grid with no gaps, a section starts at a
   full-width ink rule, the main button stands on its shadow, and every other control is pressed in
-  on hover and pressed deeper while clicked.
+  on hover and pressed deeper while clicked. What happens once, when a part first comes into view
+  (a block lands on its shadow, a rule draws, a square stamps in, a caret blinks), is the library's
+  reveal: data-zyx-reveal and ui/reveal.js. Without a script, or with reduced motion, every part is
+  simply there.
 -->
-<script>if ("IntersectionObserver" in window) document.documentElement.className = "js";</script>
 <link rel="stylesheet" href="ui/zyx/fonts.css">
 <link rel="stylesheet" href="ui/zyx/zyx-ui.css">
+<script src="ui/reveal.js" defer></script>
+<script src="ui/copy.js" defer></script>
 <style>
   /* --- own identity: what is this page's and not the library's --- */
   :root { --shell: 820px; }
 
-  *, *::before, *::after { box-sizing: border-box; }
   /* The section bands run the full window width; clip keeps them from scrolling sideways. */
   html { overflow-x: clip; }
   body { margin: 0; font-size: 17px; line-height: 1.6; }
@@ -57,11 +61,10 @@
   }
   .shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px; }
 
-  /* A section is a band as wide as the window: white and ground take turns, and a full-width ink
-     rule (zyx-rule) marks the edge. Local change: the library's rule is as wide as its box; here it
-     runs the full window width. The band is drawn behind the text column, so the column never moves. */
+  /* A section is a band as wide as the window: white and ground take turns, and a window-wide ink
+     rule (zyx-rule zyx-rule-bleed) marks the edge. The band is drawn behind the text column, so the
+     column never moves. */
   section { padding: 66px 0 68px; }
-  section.zyx-rule::before { left: calc(50% - 50vw); right: auto; width: 100vw; }
   section::after {
     content: ""; position: absolute; z-index: -1; top: calc(var(--z-bw-rule) * -1); bottom: 0; left: calc(50% - 50vw); width: 100vw;
     background: var(--z-ground);
@@ -69,82 +72,37 @@
   section:nth-of-type(odd)::after { background: var(--z-surface); }
 
   h1 { font-size: clamp(40px, 8.4vw, 66px); line-height: 1.04; letter-spacing: var(--z-dt); margin: 0; font-weight: 700; }
-  /* A section label (zyx-eyebrow-n): its number, a solid ink square, its name. */
-  h2.zyx-eyebrow { margin: 0 0 28px; }
   p.lead { font-size: 21px; margin-top: 22px; max-width: 44ch; }
   /* Local change: a link in this page's grey prose is ink, so it can be found without the underline. */
   .zyx-link { color: var(--z-ink); }
 
-  /* The cube is two paths: a yellow hexagon, and over it one filled shape in the text colour
-     (outline, xyz axis and three open panels), so the yellow shows through the panels. The mark
-     has no animation of its own at rest; it hops once when its cell is hovered (zyx-hop). */
-  .mk { fill: currentColor; flex: none; }
-  .mk-panels { fill: var(--z-icon-fill); }
-  /* Brand rule: the lines are ink on every ground. On the ink cell the mark sits in a white box. */
-  .zyx-cell-ink > .mk { box-sizing: content-box; padding: 3px; background: var(--z-surface); fill: var(--z-ink); }
+  /* The product's own glyph (the ZyxWorks cube is the library's zyx-mark): a yellow shape under one
+     filled shape of ink lines, so the yellow shows through. Brand rule: the lines are ink on every
+     ground, so on the ink cell of the bar the glyph sits in a white box. */
+  .mk { flex: none; box-sizing: content-box; padding: 3px; background: var(--z-mark-paper); fill: var(--z-mark-line); }
+  .mk-panels { fill: var(--z-cube); }
 
-  /* --- nav: one ruled bar (zyx-stand) of cells (zyx-cell). Every part is a cell as high as the bar,
-     with an ink line between the cells and no gap. The page you are on is the ink cell. --- */
-  nav { display: flex; align-items: stretch; margin-top: 26px; min-height: 50px; }
-  .lockup { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
-  .lockup .name { font-weight: 700; letter-spacing: var(--z-wm-track); font-size: 17px; }
-  nav .lockup { display: flex; align-items: stretch; gap: 0; min-width: 0; }
-  .lockup .up, .lockup .here { display: inline-flex; align-items: center; gap: 10px; padding: 0 14px; font-weight: 700; letter-spacing: var(--z-wm-track); font-size: 17px; text-decoration: none; }
-  .lockup .up, .lockup .here { border-right: var(--z-bw) solid var(--z-ink); }
-  /* The slash of the breadcrumb is the ink line between the two cells now. It stays in the markup
-     for a reader that has no styles. */
-  .lockup .crumb { display: none; }
-  /* GitHub carries weight because the licence is the pitch: a cell of its own at the end of the
-     bar rather than a word in a corner. Not yellow, though. Yellow is the copy button, and a page
-     with two primary buttons has none. This one is pressed in; the copy button stands on yellow. */
-  nav .right {
-    display: flex; align-items: center; margin-left: auto; padding: 8px 14px; font-size: 13.5px;
-    white-space: nowrap; text-decoration: none; border-left: var(--z-bw) solid var(--z-ink);
-  }
-  /* On a phone the WAY BACK is what survives, not the page you are already on. This used to hide
-     `.up span` and the separator, which left a bare 22px glyph as the only route to the index: no
-     label, no arrow, and nothing saying it was a link at all. The page you are on is in the <h1>
-     and in the tab title, so it is the half that can go. An arrow, because a lockup on its own
-     reads as a title rather than as a door, and a 44px tap target because a 27px line box is not
-     one. */
-  @media (max-width: 560px) {
-    .lockup .here { display: none; }
-    /* The way back takes the room the page name left, so no empty cell stands between two rules. */
-    nav .lockup { flex: 1; }
-    .lockup .up { flex: 1; min-width: 0; padding: 0 10px; border-right: 0; }
-    .lockup .up::before { content: "\2190"; content: "\2190" / ""; font-weight: 400; }
-    nav .right { padding-inline: 10px; font-size: 12.5px; }
-  }
-  /* On the narrowest phones the label may break rather than push the bar wider than the page. */
-  @media (max-width: 380px) { nav .right { white-space: normal; line-height: 1.25; text-align: center; } }
+  /* --- the bar (zyx-bar): the way up to ZyxWorks, this page as the ink cell, and the source at the
+     end. GitHub carries weight because the licence is the pitch: a cell of its own rather than a
+     word in a corner. Not yellow, though. Yellow is the copy button, and a page with two primary
+     buttons has none. --- */
+  nav { margin-top: 26px; }
 
   /* Crop marks around the hero (zyx-crop), from the nav bar to the end of the intro. Local change:
-     they reach up past the nav bar, which sits outside the header. Off on a small phone, where they would touch the edge. */
-  header { padding: 76px 0 4px; }
-  header.zyx-crop::before { inset: -64px -14px 4px; }
+     they reach up past the nav bar, which sits outside the header. */
+  header { padding: 76px 0 4px; --zyx-crop-inset: -64px -14px 4px; }
+  /* Off on a small phone, where they would touch the edge. The library has no switch for this yet. */
   @media (max-width: 480px) { header.zyx-crop::before { display: none; } }
 
   /* --- the call to action --- */
   .cta { margin-top: 34px; }
-  /* A command box stands on the block shadow (zyx-stand). */
-  .cmd { display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 16px; margin: 10px 0 10px; }
-  /* The block caret after the command of every morning. It blinks three times (zyx-blink) when
-     the box comes into view, and then it stands. */
-  #c2::after { content: ""; display: inline-block; width: 0.6em; height: 1.15em; margin-left: 6px; vertical-align: -0.2em; background: var(--z-ink); }
-  @media (prefers-reduced-motion: no-preference) {
-    .js .cmd.in #c2::after { animation: zyx-blink var(--z-d2) step-end calc(var(--d, 0ms) + var(--z-d2)) 3; }
-  }
-  /* The COMMAND scrolls, not the row: a copy button that scrolls out of sight with a long install
-     line is a copy button nobody finds on a phone. */
-  .cmd .line { flex: 1; min-width: 0; overflow-x: auto; }
-  .cmd code { line-height: 1.5; color: var(--z-ink); white-space: pre; font-size: 13.5px; }
+  /* The room around a command box (zyx-cmd, standing on the block shadow with zyx-stand). */
+  .cmd { margin: 10px 0; }
   /* The copy button is the main button (zyx-main): it stands on its yellow shadow, and on hover
-     and keyboard focus it is pressed in and turns yellow. Local: mono words, like the command
-     beside it, and a fixed width so "copy" and "copied" do not change its size. */
-  .cmd .zyx-btn { min-width: 86px; font-family: var(--z-font-mono); font-weight: 700; }
-  /* Local change: after a copy it stays pressed and yellow for a moment, so "copied" reads as ink
-     on yellow, also on a phone with no hover. The library's main button has no "done" state yet. */
-  .cmd .zyx-main.copied {
+     and keyboard focus it is pressed in and turns yellow. Local change: after a copy (copy.js sets
+     data-done) it stays pressed and yellow for a moment, so "copied" reads as ink on yellow, also on
+     a phone with no hover. The library's done state is for the second button (zyx-push) only. */
+  .zyx-cmd-copy.zyx-main[data-done] {
     border-color: var(--z-on-signal); background: var(--z-signal); color: var(--z-on-signal); box-shadow: var(--z-shadow-cta-down);
   }
   /* The label over a command box (zyx-label). */
@@ -162,12 +120,9 @@
   .stat .l { color: var(--z-muted); font-size: 15px; margin-top: 10px; }
   .punch { font-size: 19px; color: var(--z-ink); margin: 34px 0 0; max-width: 50ch; letter-spacing: -0.015em; }
 
-  /* Tables (zyx-table). Local: the last column is the key or the command, the one thing a row is
-     for, so it is right-aligned ink mono; a short table keeps it on one line. */
-  .zyx-table { width: 100%; }
-  .zyx-table :is(td, th):last-child { text-align: right; font-family: var(--z-font-mono); padding-left: 18px; }
-  .zyx-table td:last-child { color: var(--z-ink); }
-  .zyx-table.short td:last-child { white-space: nowrap; }
+  /* Tables (zyx-table). The last column is the key or the command, the one thing a row is for, so
+     it is right-aligned ink mono (zyx-table-num); a short table keeps it on one line. */
+  .short td:last-child { white-space: nowrap; }
   .note { font-size: 14px; color: var(--z-faint); margin-top: 18px; }
 
   .fact strong { display: block; margin-bottom: 6px; }
@@ -176,76 +131,46 @@
   /* The list of what it does not do (zyx-rows), in this page's grey prose. */
   .zyx-rows > li { color: var(--z-muted); font-size: 16px; }
 
-  /* --- footer: one ruled grid that stands (zyx-grid + zyx-stand). The studio on top, three lists
-     of link cells (zyx-cells, zyx-cell, zyx-arrow) under it, and a quiet row that closes it. --- */
+  /* --- footer: the library's footer (zyx-foot, standing) on a raised band as wide as the window. --- */
   footer { background: var(--z-raised); }
   footer .shell { padding-top: 56px; padding-bottom: 72px; }
-  .foot-top { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .foot-brand { grid-column: 1 / -1; display: flex; align-items: stretch; }
-  .foot-brand .lockup { flex: none; padding: 18px; border-right: var(--z-bw) solid var(--z-ink); }
-  .tagline { align-self: center; font-size: 14.5px; margin: 0; padding: 16px 18px; max-width: 46ch; }
-  .col .zyx-label { min-height: 40px; padding: 0 14px; background: var(--z-ground); }
-  .col .zyx-cell {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--z-row); padding: 8px 14px;
-    color: var(--z-muted); text-decoration: none; font-size: 14.5px; line-height: 1.3;
-  }
-  @media (max-width: 700px) {
-    .foot-top { grid-template-columns: minmax(0, 1fr); }
-    .foot-brand { flex-direction: column; }
-    .foot-brand .lockup { border-right: 0; border-bottom: var(--z-bw) solid var(--z-ink); }
-    .tagline { align-self: auto; }
-  }
-  .copyright { grid-column: 1 / -1; padding: 12px 14px; background-color: var(--z-ground); font-family: var(--z-font-mono); font-size: 12px; color: var(--z-faint); }
-
-  /* --- what happens once, when a part first comes into view ---
-     The script in the head arms this with `.js`, the one at the end sets `.in` and a small delay
-     `--d`. Only the library's motions are used: a block lands on its shadow (zyx-land), the rule of
-     a section draws from the left (zyx-rule), then its square stamps in (zyx-square). Until `.in`
-     is set they wait, and setting it starts them. Without a script, or with reduced motion, none of
-     it applies and every part is simply there. */
-  @media (prefers-reduced-motion: no-preference) {
-    .js .zyx-stand.in { animation: zyx-land var(--z-d2) step-end var(--d, 0ms) 1 backwards; }
-    .js section.zyx-rule:not(.in)::before { animation: none; scale: 0 1; }
-    .js section.zyx-rule.in::before { animation-delay: var(--d, 0ms); animation-fill-mode: backwards; }
-    .js section:not(.in) .zyx-eyebrow-n::after { scale: 0; }
-    .js section.in .zyx-eyebrow-n::after { animation: zyx-square var(--z-d1) step-end calc(var(--d, 0ms) + var(--z-d2)) 1 backwards; }
-  }
 </style>
 </head>
 <body>
 
 <div class="shell">
 
-  <nav class="zyx-stand">
-    <div class="lockup">
-      <a class="up zyx-cell" href="https://zyxworks.com/open-source">
-        <svg class="mk zyx-hop" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
-        <span>ZyxWorks</span>
-      </a>
-      <span class="crumb">/</span>
-      <span class="here zyx-cell zyx-cell-ink" aria-current="page">
-        <svg class="mk pm" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 18L80.78 30L80.78 54L101.57 66L101.57 90L80.78 102L60 90L39.22 102L18.43 90L18.43 66L39.22 54L39.22 30Z"/><path fill-rule="evenodd" d="M60 13.09L85.03 27.55L85.03 51.55L105.82 63.55L105.82 92.45L80.78 106.91L60 94.91L39.22 106.91L14.18 92.45L14.18 63.55L34.97 51.55L34.97 27.55ZM60 22.91L76.53 32.45L76.53 49.06L60 58.61L43.47 49.06L43.47 32.45ZM82.93 60.15L97.32 68.45L97.32 87.55L80.78 97.09L66.4 88.79L66.4 69.7ZM37.07 60.15L53.6 69.7L53.6 88.79L39.22 97.09L22.68 87.55L22.68 68.45Z"/></svg>
-        <span class="name">agent office</span>
-      </span>
+  <nav class="zyx-bar zyx-stand" aria-label="Site" data-zyx-reveal>
+    <a class="zyx-bar-up zyx-cell" href="https://zyxworks.com/open-source">
+      <svg class="zyx-mark zyx-hop" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="zyx-mark-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path class="zyx-mark-lines" fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
+      <span>ZyxWorks</span>
+    </a>
+    <span class="zyx-bar-here zyx-cell zyx-cell-ink" aria-current="page">
+      <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 18L80.78 30L80.78 54L101.57 66L101.57 90L80.78 102L60 90L39.22 102L18.43 90L18.43 66L39.22 54L39.22 30Z"/><path fill-rule="evenodd" d="M60 13.09L85.03 27.55L85.03 51.55L105.82 63.55L105.82 92.45L80.78 106.91L60 94.91L39.22 106.91L14.18 92.45L14.18 63.55L34.97 51.55L34.97 27.55ZM60 22.91L76.53 32.45L76.53 49.06L60 58.61L43.47 49.06L43.47 32.45ZM82.93 60.15L97.32 68.45L97.32 87.55L80.78 97.09L66.4 88.79L66.4 69.7ZM37.07 60.15L53.6 69.7L53.6 88.79L39.22 97.09L22.68 87.55L22.68 68.45Z"/></svg>
+      <span>agent office</span>
+    </span>
+    <div class="zyx-bar-end">
+      <a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office">Source on GitHub</a>
     </div>
-    <a class="right zyx-cell" href="https://github.com/ZyxWorks/agent-office">Source on GitHub</a>
   </nav>
 
-  <header id="top" class="zyx-crop">
+  <header id="top" class="zyx-crop" data-zyx-reveal>
     <h1>Several agents.<br>One office.</h1>
     <p class="lead">The whole setup for running coding agents side by side, out of one box. You see
     which one needs you, and you never reach for the mouse.</p>
 
     <div class="cta">
       <p class="os zyx-label">macOS or Linux, paste into a terminal</p>
-      <div class="cmd zyx-stand">
-        <div class="line"><code id="c1">git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office && ~/agent-office/bin/office tools && ~/agent-office/install.sh</code></div>
-        <button type="button" class="zyx-btn zyx-main" data-copy="c1">copy</button>
+      <div class="cmd zyx-cmd zyx-stand">
+        <div class="zyx-cmd-line" tabindex="0"><code>git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office && ~/agent-office/bin/office tools && ~/agent-office/install.sh</code></div>
+        <button type="button" class="zyx-btn zyx-main zyx-cmd-copy" data-zyx-copy data-done-label="copied">copy</button>
+        <span class="zyx-sr" role="status"></span>
       </div>
       <p class="os zyx-label">then, every morning</p>
-      <div class="cmd zyx-stand">
-        <div class="line"><code id="c2">office on</code></div>
-        <button type="button" class="zyx-btn zyx-main" data-copy="c2">copy</button>
+      <div class="cmd zyx-cmd zyx-stand" style="--zyx-reveal-delay: var(--z-d1)">
+        <div class="zyx-cmd-line" tabindex="0"><code>office on</code></div>
+        <button type="button" class="zyx-btn zyx-main zyx-cmd-copy" data-zyx-copy data-done-label="copied">copy</button>
+        <span class="zyx-sr" role="status"></span>
       </div>
       <p class="after"><code>office tools</code> lists every tool you lack and asks before it installs
       one, each at a pinned version from its own maker. <code>install.sh</code> shows every file it
@@ -263,7 +188,7 @@
 
   </header>
 
-  <section class="zyx-rule">
+  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>What was in the way</span></h2>
     <p>Running three or four coding agents at once is normal now. The tools for it exist, and they
     are good: <a class="zyx-link" href="https://herdr.dev">herdr</a> runs the terminal and knows each agent's state,
@@ -292,14 +217,14 @@
     several windows.</p>
   </section>
 
-  <section class="zyx-rule">
+  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>Which one needs you</span></h2>
     <p>Every agent has one line in the sidebar. herdr knows whether it is working, idle, done or
     blocked. The Agent Office meter adds the two numbers that decide what you do next:
     <strong>how full its context is, and how long it has been quiet</strong>.</p>
-    <div class="cmd zyx-stand"><div class="line"><code>claude · 412k▲ · 47m · idle</code></div></div>
+    <div class="cmd zyx-cmd zyx-stand"><div class="zyx-cmd-line" tabindex="0"><code>claude · 412k▲ · 47m · idle</code></div></div>
     <div class="zyx-table-wrap">
-      <table class="zyx-table">
+      <table class="zyx-table zyx-table-num">
         <thead><tr><th>you see</th><th>it means</th></tr></thead>
         <tbody>
           <tr><td><code>412k</code></td><td>tokens in this agent's context right now</td></tr>
@@ -315,7 +240,7 @@
     Both limits are yours to set in the config.</p>
   </section>
 
-  <section class="zyx-rule">
+  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>No mouse</span></h2>
     <p>One key walks the whole office. <kbd>Shift</kbd>+<kbd>&larr;</kbd> and
     <kbd>Shift</kbd>+<kbd>&rarr;</kbd> go to the pane on that side, and from the last pane to the
@@ -324,7 +249,7 @@
     <p>Everything else is <kbd>Ctrl</kbd>+<kbd>Space</kbd>, then one letter. <strong>A small letter
     is for the space, the same letter with Shift is for the tab.</strong></p>
     <div class="zyx-table-wrap">
-      <table class="zyx-table short">
+      <table class="zyx-table zyx-table-num short">
         <thead><tr><th>you want to</th><th>after Ctrl+Space</th></tr></thead>
         <tbody>
           <tr><td>make a new space, or a new tab</td><td>n &nbsp; N</td></tr>
@@ -341,10 +266,10 @@
     sheet against herdr itself on every push, so it cannot drift from what the keys really do.</p>
   </section>
 
-  <section class="zyx-rule">
+  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>The day</span></h2>
     <div class="zyx-table-wrap">
-      <table class="zyx-table short">
+      <table class="zyx-table zyx-table-num short">
         <thead><tr><th>you want to</th><th>you type</th></tr></thead>
         <tbody>
           <tr><td>open the office and its Firstmate</td><td>office on</td></tr>
@@ -361,7 +286,7 @@
     worktree, and reports back. You watch the sidebar.</p>
   </section>
 
-  <section class="zyx-rule">
+  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>What it does not do</span></h2>
     <ul class="zyx-rows">
       <li><strong>No rewrite.</strong> herdr, Firstmate, treehouse and the tools around them stay with their own makers and keep their own update paths. Agent Office owns the install, the one config, the tested set of versions and the daily commands.</li>
@@ -382,7 +307,7 @@
   <!-- The studio pitch. This page is the widest-reaching thing ZyxWorks publishes, and a visitor
        who likes Agent Office enough to install it is exactly the visitor worth telling about the
        paid work. -->
-  <section class="zyx-rule">
+  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>Who builds this</span></h2>
     <p><strong><a class="zyx-link" href="https://zyxworks.com">ZyxWorks</a></strong> is a product studio and forward
     deployed engineering practice. Agent Office is one of the tools we built for our own work and gave
@@ -404,54 +329,57 @@
 
 </div>
 
-<footer class="zyx-rule">
+<footer class="zyx-rule" data-zyx-reveal>
   <div class="shell">
-    <div class="foot-top zyx-grid zyx-grid-wide zyx-stand">
-      <div class="foot-brand">
-        <a class="lockup zyx-cell" href="https://zyxworks.com/">
-          <svg class="mk zyx-hop" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
-          <span class="name">ZyxWorks</span>
+    <div class="zyx-foot zyx-stand" style="--zyx-foot-cols: 3">
+      <div class="zyx-foot-brand">
+        <a class="zyx-lockup" href="https://zyxworks.com/">
+          <svg class="zyx-mark" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="zyx-mark-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path class="zyx-mark-lines" fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
+          <span>ZyxWorks</span>
         </a>
-        <p class="tagline">A product studio and forward deployed engineering practice.
+        <p>A product studio and forward deployed engineering practice.
         Agent Office is one of the things we built for ourselves and gave away.</p>
       </div>
-      <div class="col zyx-cells">
+      <div class="zyx-foot-col">
         <h2 class="zyx-label">Product</h2>
-        <a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office">Source<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
-        <a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office#readme">Docs<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
-        <a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office/issues">Issues<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
+        <ul role="list" class="zyx-cells">
+          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office">Source<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office#readme">Docs<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office/issues">Issues<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+        </ul>
       </div>
-      <div class="col zyx-cells">
+      <div class="zyx-foot-col">
         <h2 class="zyx-label">Studio</h2>
-        <a class="zyx-cell" href="https://zyxworks.com/open-source">Our other tools<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
-        <a class="zyx-cell" href="https://zyxworks.com">What we do for companies<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
-        <a class="zyx-cell" href="https://zyxworks.com/">Zyx<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
+        <ul role="list" class="zyx-cells">
+          <li><a class="zyx-cell" href="https://zyxworks.com/open-source">Our other tools<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+          <li><a class="zyx-cell" href="https://zyxworks.com">What we do for companies<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+          <li><a class="zyx-cell" href="https://zyxworks.com/">Zyx<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+        </ul>
       </div>
-      <div class="col zyx-cells">
+      <div class="zyx-foot-col">
         <h2 class="zyx-label">Legal</h2>
-        <a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office/blob/main/LICENSE">MIT licence<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
-        <a class="zyx-cell" href="https://zyxworks.com/legal#privacy">Privacy<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
-        <a class="zyx-cell" href="https://zyxworks.com/legal#imprint">Imprint<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a>
+        <ul role="list" class="zyx-cells">
+          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office/blob/main/LICENSE">MIT licence<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+          <li><a class="zyx-cell" href="https://zyxworks.com/legal#privacy">Privacy<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+          <li><a class="zyx-cell" href="https://zyxworks.com/legal#imprint">Imprint<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
+        </ul>
       </div>
-      <div class="copyright">
-        &copy; <span id="year">2026</span> ZYXWORKS &middot; ZYX &middot; FORWARD DEPLOYED AI FOR YOUR COMPANY
-      </div>
+      <p class="zyx-foot-legal">&copy; <span id="year">2026</span> ZYXWORKS &middot; ZYX &middot; FORWARD DEPLOYED AI FOR YOUR COMPANY</p>
     </div>
   </div>
 </footer>
 
 <script>
   var d = document;
-  // Scroll-in: each part gets `.in` once, with a small delay per part of the same batch.
-  if (d.documentElement.className && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  d.getElementById("year").textContent = new Date().getFullYear();
+  // A stat counts up to its number in at most 8 steps, once, when it first comes into view. The rest
+  // of the scroll-in is the library's (ui/reveal.js).
+  if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     var o = new IntersectionObserver(function (es) {
-      var i = 0;
       es.forEach(function (e) {
-        var t = e.target;
         if (!e.isIntersecting) return;
-        o.unobserve(t); t.style.setProperty("--d", 70 * i++ + "ms"); t.classList.add("in");
-        // A stat counts up to its number in at most 8 steps.
-        if (t.matches(".stats")) t.querySelectorAll(".n").forEach(function (n) {
+        o.unobserve(e.target);
+        e.target.querySelectorAll(".n").forEach(function (n) {
           var v = +n.textContent, s = Math.min(v, 8), k = 0;
           if (!(v > 0)) return;
           n.textContent = 0;
@@ -459,18 +387,8 @@
         });
       });
     });
-    d.querySelectorAll("nav,.cmd,.stats,.facts,.foot-top,section").forEach(function (t) { o.observe(t); });
+    d.querySelectorAll(".stats").forEach(function (t) { o.observe(t); });
   }
-  d.getElementById("year").textContent = new Date().getFullYear();
-  // Copy button: "copied" as ink on yellow for a moment.
-  d.querySelectorAll("[data-copy]").forEach(function (b) {
-    b.onclick = function () {
-      navigator.clipboard.writeText(d.getElementById(b.dataset.copy).textContent).then(function () {
-        b.textContent = "copied"; b.classList.add("copied");
-        setTimeout(function () { b.textContent = "copy"; b.classList.remove("copied"); }, 1200);
-      });
-    };
-  });
 </script>
 
 </body>
