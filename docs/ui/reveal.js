@@ -1,4 +1,4 @@
-/* @zyxworks/ui 0.2.0 (build fe7b4c85b875), dist/reveal.js. Built by scripts/build.mjs from react/reveal.ts: do not edit. */
+/* @zyxworks/ui 0.2.2 (build b45451696a4f), dist/reveal.js. Built by scripts/build.mjs from react/reveal.ts: do not edit. */
 (() => {
 // Reveal: a `[data-zyx-reveal]` section waits until it is seen, then plays its draw-in once
 // (css/site.css). No imports: the build also ships this as a plain `reveal.js` for a static page.
@@ -14,15 +14,20 @@ function reveal(root = document) {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
         return () => { };
     const play = (el) => el.setAttribute("data-zyx-reveal", "on");
-    // The bottom 8% of the window does not count, so a section plays when it is really in view.
-    const io = new IntersectionObserver((entries) => {
+    // A section plays when it passes a line 8% above the bottom of the window, so it is really in
+    // view. All above the window counts too, so a section that a fast jump carries past still plays.
+    // A short last part (a footer) may never pass that line, so all of it in view also plays it.
+    const seen = (entries, by) => {
         for (const e of entries) {
-            if (!e.isIntersecting)
+            if (!e.isIntersecting || (by === whole && e.intersectionRatio < 0.99))
                 continue;
             play(e.target);
-            io.unobserve(e.target);
+            line.unobserve(e.target);
+            whole.unobserve(e.target);
         }
-    }, { rootMargin: "0px 0px -8% 0px" });
+    };
+    const line = new IntersectionObserver(seen, { rootMargin: "100000px 0px -8% 0px" });
+    const whole = new IntersectionObserver(seen, { threshold: 1 });
     const waiting = [...root.querySelectorAll('[data-zyx-reveal]:not([data-zyx-reveal="on"])')];
     if (root instanceof Element && root.matches('[data-zyx-reveal]:not([data-zyx-reveal="on"])'))
         waiting.unshift(root);
@@ -32,10 +37,12 @@ function reveal(root = document) {
     for (const el of waiting) {
         if (el.getBoundingClientRect().top < fold)
             play(el);
-        else
-            io.observe(el);
+        else {
+            line.observe(el);
+            whole.observe(el);
+        }
     }
-    return () => io.disconnect();
+    return () => { line.disconnect(); whole.disconnect(); };
 }
 const run = () => reveal();
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run, { once: true });

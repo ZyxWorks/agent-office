@@ -49,8 +49,6 @@
   /* --- own identity: what is this page's and not the library's --- */
   :root { --shell: 820px; }
 
-  /* The section bands run the full window width; clip keeps them from scrolling sideways. */
-  html { overflow-x: clip; }
   body { margin: 0; font-size: 17px; line-height: 1.6; }
   /* Element defaults of this page's prose. They sit in the library's base layer, so a library
      part on the same element (a label on a <p>, a button on an <a>) still wins. */
@@ -61,19 +59,16 @@
   }
   .shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px; }
 
-  /* A section is a band as wide as the window: white and ground take turns, and a window-wide ink
+  /* A section is a band as wide as the window (zyx-band): white and ground take turns, and a window-wide ink
      rule (zyx-rule zyx-rule-bleed) marks the edge. The band is drawn behind the text column, so the
      column never moves. */
   section { padding: 66px 0 68px; }
-  section::after {
-    content: ""; position: absolute; z-index: -1; top: calc(var(--z-bw-rule) * -1); bottom: 0; left: calc(50% - 50vw); width: 100vw;
-    background: var(--z-ground);
-  }
-  section:nth-of-type(odd)::after { background: var(--z-surface); }
+  section { --zyx-band: var(--z-ground); }
+  section:nth-of-type(odd) { --zyx-band: var(--z-surface); }
 
   h1 { font-size: clamp(40px, 8.4vw, 66px); line-height: 1.04; letter-spacing: var(--z-dt); margin: 0; font-weight: 700; }
   p.lead { font-size: 21px; margin-top: 22px; max-width: 44ch; }
-  /* Local change: a link in this page's grey prose is ink, so it can be found without the underline. */
+  /* zyx-ui-allow: a link in this page's grey prose is ink, so it can be found without the underline */
   .zyx-link { color: var(--z-ink); }
 
   /* The product's own glyph (the ZyxWorks cube is the library's zyx-mark): a yellow shape under one
@@ -91,20 +86,13 @@
   /* Crop marks around the hero (zyx-crop), from the nav bar to the end of the intro. Local change:
      they reach up past the nav bar, which sits outside the header. */
   header { padding: 76px 0 4px; --zyx-crop-inset: -64px -14px 4px; }
-  /* Off on a small phone, where they would touch the edge. The library has no switch for this yet. */
-  @media (max-width: 480px) { header.zyx-crop::before { display: none; } }
 
   /* --- the call to action --- */
   .cta { margin-top: 34px; }
   /* The room around a command box (zyx-cmd, standing on the block shadow with zyx-stand). */
   .cmd { margin: 10px 0; }
-  /* The copy button is the main button (zyx-main): it stands on its yellow shadow, and on hover
-     and keyboard focus it is pressed in and turns yellow. Local change: after a copy (copy.js sets
-     data-done) it stays pressed and yellow for a moment, so "copied" reads as ink on yellow, also on
-     a phone with no hover. The library's done state is for the second button (zyx-push) only. */
-  .zyx-cmd-copy.zyx-main[data-done] {
-    border-color: var(--z-on-signal); background: var(--z-signal); color: var(--z-on-signal); box-shadow: var(--z-shadow-cta-down);
-  }
+  /* The copy button is the main button (zyx-main): it stands on its yellow shadow, and on hover,
+     keyboard focus and after a copy it is pressed in and turns yellow. */
   /* The label over a command box (zyx-label). */
   .os { margin: 24px 0 0; }
   .after { font-size: 15px; margin-top: 22px; }
@@ -128,7 +116,7 @@
   .fact strong { display: block; margin-bottom: 6px; }
   .fact span { color: var(--z-muted); font-size: 15px; }
 
-  /* The list of what it does not do (zyx-rows), in this page's grey prose. */
+  /* zyx-ui-allow: the list of what it does not do (zyx-rows) is in this page's grey prose */
   .zyx-rows > li { color: var(--z-muted); font-size: 16px; }
 
   /* --- footer: the library's footer (zyx-foot, standing) on a raised band as wide as the window. --- */
@@ -154,7 +142,7 @@
     </div>
   </nav>
 
-  <header id="top" class="zyx-crop" data-zyx-reveal>
+  <header id="top" class="zyx-crop zyx-crop-wide" data-zyx-reveal>
     <h1>Several agents.<br>One office.</h1>
     <p class="lead">The whole setup for running coding agents side by side, out of one box. You see
     which one needs you, and you never reach for the mouse.</p>
@@ -188,7 +176,7 @@
 
   </header>
 
-  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
+  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>What was in the way</span></h2>
     <p>Running three or four coding agents at once is normal now. The tools for it exist, and they
     are good: <a class="zyx-link" href="https://herdr.dev">herdr</a> runs the terminal and knows each agent's state,
@@ -217,7 +205,7 @@
     several windows.</p>
   </section>
 
-  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
+  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>Which one needs you</span></h2>
     <p>Every agent has one line in the sidebar. herdr knows whether it is working, idle, done or
     blocked. The Agent Office meter adds the two numbers that decide what you do next:
@@ -240,7 +228,7 @@
     Both limits are yours to set in the config.</p>
   </section>
 
-  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
+  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>No mouse</span></h2>
     <p>One key walks the whole office. <kbd>Shift</kbd>+<kbd>&larr;</kbd> and
     <kbd>Shift</kbd>+<kbd>&rarr;</kbd> go to the pane on that side, and from the last pane to the
@@ -266,7 +254,7 @@
     sheet against herdr itself on every push, so it cannot drift from what the keys really do.</p>
   </section>
 
-  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
+  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>The day</span></h2>
     <div class="zyx-table-wrap">
       <table class="zyx-table zyx-table-num short">
@@ -286,7 +274,7 @@
     worktree, and reports back. You watch the sidebar.</p>
   </section>
 
-  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
+  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>What it does not do</span></h2>
     <ul class="zyx-rows">
       <li><strong>No rewrite.</strong> herdr, Firstmate, treehouse and the tools around them stay with their own makers and keep their own update paths. Agent Office owns the install, the one config, the tested set of versions and the daily commands.</li>
@@ -307,7 +295,7 @@
   <!-- The studio pitch. This page is the widest-reaching thing ZyxWorks publishes, and a visitor
        who likes Agent Office enough to install it is exactly the visitor worth telling about the
        paid work. -->
-  <section class="zyx-rule zyx-rule-bleed" data-zyx-reveal>
+  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
     <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>Who builds this</span></h2>
     <p><strong><a class="zyx-link" href="https://zyxworks.com">ZyxWorks</a></strong> is a product studio and forward
     deployed engineering practice. Agent Office is one of the tools we built for our own work and gave
@@ -331,7 +319,7 @@
 
 <footer class="zyx-rule" data-zyx-reveal>
   <div class="shell">
-    <div class="zyx-foot zyx-stand" style="--zyx-foot-cols: 3">
+    <div class="zyx-foot zyx-foot-stack zyx-stand" style="--zyx-foot-cols: 3">
       <div class="zyx-foot-brand">
         <a class="zyx-lockup" href="https://zyxworks.com/">
           <svg class="zyx-mark" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="zyx-mark-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path class="zyx-mark-lines" fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>

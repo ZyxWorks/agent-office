@@ -1,4 +1,4 @@
-/* @zyxworks/ui 0.2.0 (build fe7b4c85b875), brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
+/* @zyxworks/ui 0.2.2 (build b45451696a4f), brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
 @layer zyx-tokens, zyx-base, zyx-components;
 
 @layer zyx-tokens {
@@ -65,6 +65,8 @@
   --z-mark-line: #111;
   /* The white box a mark sits in on an ink or dark ground (an ink cell, a dark scope): white in both themes, so the lines stay ink. */
   --z-mark-paper: #fff;
+  /* The small mono label: a column head, a count, a label over a pop-up. Below `small`. */
+  --z-micro: 11px;
   --z-muted: #444;
   --z-ok: #2f6b3a;
   --z-ok-soft: #e4f1e6;
@@ -90,6 +92,7 @@
   --z-s6: 40px;
   --z-s7: 60px;
   --z-s8: 80px;
+  --z-shadow-bar: inset 3px 0px var(--z-ink);
   --z-shadow-block: var(--z-block-travel) var(--z-block-travel) var(--z-ink);
   /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
   --z-shadow-card: 3px 3px var(--z-edge);
@@ -171,6 +174,7 @@
   --z-on-chrome: #f2f2f2;
   --z-on-signal: #14130f;
   --z-raised: #1e1e1e;
+  --z-shadow-bar: inset 3px 0px var(--z-ink);
   --z-shadow-block: var(--z-block-travel) var(--z-block-travel) var(--z-ink);
   /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
   --z-shadow-card: 3px 3px var(--z-edge);
@@ -244,6 +248,7 @@
   --z-on-chrome: #f2f2f2;
   --z-on-signal: #14130f;
   --z-raised: #1e1e1e;
+  --z-shadow-bar: inset 3px 0px var(--z-ink);
   --z-shadow-block: var(--z-block-travel) var(--z-block-travel) var(--z-ink);
   /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
   --z-shadow-card: 3px 3px var(--z-edge);
@@ -516,10 +521,12 @@
   .zyx-chip {
     display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.125rem 0.5rem;
     border: var(--z-bw-hair) solid var(--z-ink); border-radius: var(--z-r-chip); background: var(--z-surface);
-    color: var(--z-ink); font-family: var(--z-font-mono); font-size: 0.6875rem; font-weight: 700;
+    color: var(--z-ink); font-family: var(--z-font-mono); font-size: var(--z-micro); font-weight: 700;
     line-height: 1.5; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
   }
   .zyx-chip-solid { background: var(--z-ink); color: var(--z-on-brand); }
+  /* A chip that names a thing in its own spelling ("macOS"): no upper case. */
+  .zyx-chip-case { letter-spacing: 0; text-transform: none; }
 
   /* What waits for a person, as a count you can press: the signal fill. As a link (`a.zyx-pill`, or
    * any pill with `href`) it goes to the queue and presses in like every control; a pill that is not a
@@ -541,14 +548,14 @@
 
   /* A group label: small mono upper case behind a solid ink square. */
   .zyx-label {
-    display: flex; align-items: center; gap: 0.5rem; margin: 0; font-family: var(--z-font-mono); font-size: 11px;
+    display: flex; align-items: center; gap: 0.5rem; margin: 0; font-family: var(--z-font-mono); font-size: var(--z-micro);
     line-height: 1.5rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--z-ink);
   }
   .zyx-label::before { content: ""; flex: none; width: 6px; height: 6px; background: var(--z-ink); }
   /* A count: a solid inverted block that flips when it appears or changes (key it by its number). */
   .zyx-count {
     display: inline-block; min-width: 1.25rem; padding: 0 0.375rem; background: var(--z-ink); color: var(--z-surface);
-    font-size: 11px; line-height: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center;
+    font-size: var(--z-micro); line-height: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center;
     animation: zyx-flip var(--z-d1) step-end 1;
   }
   /* The letter disc of an agent, readable on an inverted cell too. */
@@ -787,8 +794,7 @@
 
 /* Chosen in a long list: the cell is a grey step and a 3px ink bar stands on its edge. */
 .zyx-cell:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) {
-  /* zyx-ui-allow: the 3px chosen bar is a mark on the edge, not a shadow */
-  background: var(--z-raised); box-shadow: inset 3px 0 0 var(--z-ink); font-weight: 700;
+  background: var(--z-raised); box-shadow: var(--z-shadow-bar); font-weight: 700;
 }
 /* A chosen cell shows its state, not a press. */
 .zyx-cell:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on])::after { border-width: 0; }
@@ -841,6 +847,8 @@
    * `--zyx-crop-inset` is where they stand, as `inset` reads it (one to four values; negative is
    * outside the box), for a hero whose marks reach past its nav bar: `--zyx-crop-inset: -64px -14px 4px`. */
   .zyx-crop { --zyx-crop-inset: -14px; position: relative; }
+  /* `zyx-crop-wide`: the marks show only from 480px, where there is room for them beside the text. */
+  @media (width < 480px) { .zyx-crop-wide::before { display: none; } }
   .zyx-crop::before {
     --m: linear-gradient(var(--z-ink), var(--z-ink));
     content: ""; position: absolute; inset: var(--zyx-crop-inset); pointer-events: none; background-repeat: no-repeat;
@@ -917,7 +925,7 @@
   .zyx-counted { counter-reset: zyx-section; }
   .zyx-counted .zyx-section-title::before {
     counter-increment: zyx-section; content: counter(zyx-section, decimal-leading-zero); order: -1;
-    font-family: var(--z-font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    font-family: var(--z-font-mono); font-size: var(--z-micro); font-weight: 700; letter-spacing: 0.08em;
   }
 
   /* A list with an ink tick in front of each line. Never the signal. */
@@ -946,7 +954,7 @@
   .zyx-table > thead { border-bottom: var(--z-bw) solid var(--z-edge); }
   .zyx-table > tbody > tr + tr { border-top: var(--z-bw-hair) solid var(--z-line); }
   .zyx-table th {
-    padding: 0.875rem 0.75rem; text-align: left; font-family: var(--z-font-mono); font-size: 11px; line-height: 1.5rem;
+    padding: 0.875rem 0.75rem; text-align: left; font-family: var(--z-font-mono); font-size: var(--z-micro); line-height: 1.5rem;
     font-weight: 700; letter-spacing: 0.08em; white-space: nowrap; text-transform: uppercase; color: var(--z-ink);
   }
   .zyx-table td { padding: 0.75rem; font-size: 0.875rem; line-height: 1.5rem; color: var(--z-muted); }
@@ -1002,7 +1010,7 @@
     font-family: var(--z-font-text); font-size: 0.875rem; line-height: 1.5;
   }
   .zyx-pop-title {
-    margin: 0 0 0.25rem; font-family: var(--z-font-mono); font-size: 0.6875rem; line-height: 1.4; font-weight: 700;
+    margin: 0 0 0.25rem; font-family: var(--z-font-mono); font-size: var(--z-micro); line-height: 1.4; font-weight: 700;
     letter-spacing: 0.08em; text-transform: uppercase; color: var(--z-muted);
   }
   .zyx-pop-body { margin: 0; }
@@ -1063,6 +1071,7 @@
  *   zyx-foot        the footer: a ruled grid of a brand cell, link columns and the legal line
  *   zyx-faq         questions on `zyx-fold`; `data-numbered` puts a number in front of each
  *   zyx-rule-bleed  a `zyx-rule` whose line runs the full window width, with no side scroll
+ *   zyx-band        a section whose ground runs the full window width, with no side scroll
  *
  * The rest look is in `zyx-components`. What changes with a state (a revealed section, a copied
  * command) is unlayered, like the states in controls.css.
@@ -1198,6 +1207,11 @@
     grid-column: 1 / -1; padding: 0.75rem 0.875rem; font-family: var(--z-font-mono); font-size: 0.75rem; line-height: 1.5;
   }
   .zyx-foot > .zyx-foot-legal { background: var(--z-ground); color: var(--z-faint); }
+  /* `zyx-foot-stack`, for a narrow page column: the brand takes its own row, its words beside the
+   * lockup, and the link columns share the full width under it. */
+  .zyx-foot-stack { grid-template-columns: repeat(var(--zyx-foot-cols, 3), minmax(0, 1fr)); }
+  .zyx-foot-stack > .zyx-foot-brand { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 2rem; }
+  .zyx-foot-stack > .zyx-foot-brand :where(p) { flex: 1 1 20rem; margin: 0; }
   /* A tablet: the brand on its own row, two columns under it; a lone last column takes the row. */
   @media (max-width: 48rem) {
     .zyx-foot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1240,12 +1254,24 @@
     left: 50%; right: 50%; background: none; border-image: linear-gradient(var(--z-edge) 0 0) fill 0 / 0 / 0 100vmax;
     clip-path: inset(0 -100vmax); animation-name: zyx-rule-bleed;
   }
+
+  /* ---- Band ---- */
+
+  /* A section whose ground runs the whole window width while its text stays in the column: the same
+   * border image with outset, so no side scroll and no layout change. `--zyx-band` is the ground
+   * (default `--z-raised`); white and ground can take turns with `--zyx-band: var(--z-surface)`. */
+  .zyx-band { border-image: linear-gradient(var(--zyx-band, var(--z-raised)) 0 0) fill 0 / 0 / 0 100vmax; }
 }
 
 /* ---- States (unlayered) ---- */
 
 /* Copied: the button is inverted for a moment, also on a phone with no hover. */
 .zyx-btn.zyx-push[data-done] { border-color: var(--z-ink); background: var(--z-ink); color: var(--z-surface); box-shadow: none; translate: none; }
+/* The main button keeps its hover look for that moment: pressed in and yellow, also on a phone with no hover. */
+.zyx-btn.zyx-main[data-done] {
+  translate: var(--z-cta-travel) var(--z-cta-travel); box-shadow: var(--z-shadow-cta-down);
+  border-color: var(--z-on-signal); background: var(--z-signal); color: var(--z-on-signal);
+}
 
 /*
  * Reveal. A `[data-zyx-reveal]` section waits until it is seen, then plays once (`="on"`): its rule
@@ -1253,19 +1279,21 @@
  * the caret blinks. `--zyx-reveal-delay` holds one element back. Only under `html.zyx-js`, which
  * the reveal script sets, and only with motion: with no script or with less motion all of it shows.
  * A paused animation waits on its first frame, so a block waits where `zyx-land` starts it.
+ * A reveal inside a reveal waits on its own: the wait rules weigh more than the play rules, and
+ * each one stops the animation, so a section that plays does not play what still waits in it.
  */
 @media (prefers-reduced-motion: no-preference) {
   :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]).zyx-rule, html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) .zyx-rule)::before {
     animation: none; scale: 0 1;
   }
   :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]).zyx-eyebrow-n, html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) .zyx-eyebrow-n)::after {
-    scale: 0;
+    animation: none; scale: 0;
   }
   :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]), html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) *):is(.zyx-stand, .zyx-card-stand, .zyx-window) {
     animation: zyx-land var(--z-d2) step-end var(--zyx-reveal-delay, 0s) 1 backwards; animation-play-state: paused;
   }
   :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]), html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) *).zyx-marker {
-    background-size: 0 100%;
+    animation: none; background-size: 0 100%;
   }
   html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) .zyx-cmd-line > code::after { animation-play-state: paused; }
 
@@ -1283,6 +1311,14 @@
   }
   :is(html.zyx-js [data-zyx-reveal="on"], html.zyx-js [data-zyx-reveal="on"] *).zyx-marker {
     animation: zyx-marker-wipe var(--z-d2) steps(4, end) calc(var(--z-d1) + var(--zyx-reveal-delay, 0s)) 1 backwards;
+  }
+}
+
+/* A drawn mark that also hops (motion.css): the hop is added after the draw, so the draw keeps its
+ * place in the list and does not play again when the pointer leaves. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :is(.zyx-cell, .zyx-push, .zyx-row):hover .zyx-mark-draw.zyx-hop {
+    animation: zyx-mark-draw var(--z-d3) steps(4, end) 1 both, zyx-hop var(--z-d1) step-end 1;
   }
 }
 
