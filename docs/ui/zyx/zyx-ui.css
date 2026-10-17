@@ -1,4 +1,4 @@
-/* @zyxworks/ui 0.1.0, brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
+/* @zyxworks/ui 0.2.0 (build fe7b4c85b875), brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
 @layer zyx-tokens, zyx-base, zyx-components;
 
 @layer zyx-tokens {
@@ -24,7 +24,11 @@
   --z-ctl: #8a8a8a;
   /* The panels of the Zyx mark: Zyx yellow in light and dark and on every install. A white-label colour replaces the signal, never this. */
   --z-cube: #ffd23c;
+  /* One round of the one loop (`zyx-loading`, three squares one after the other). */
+  --z-d-loop: 900ms;
   --z-d-press: 120ms;
+  /* The stagger between small parts that move one after the other (the icons of a row hop in turn). */
+  --z-d-step: 60ms;
   --z-d1: 180ms;
   --z-d2: 200ms;
   --z-d3: 280ms;
@@ -59,6 +63,8 @@
   --z-mark-box: #fff0;
   /* The lines of the mark: ink on every ground. */
   --z-mark-line: #111;
+  /* The white box a mark sits in on an ink or dark ground (an ink cell, a dark scope): white in both themes, so the lines stay ink. */
+  --z-mark-paper: #fff;
   --z-muted: #444;
   --z-ok: #2f6b3a;
   --z-ok-soft: #e4f1e6;
@@ -72,6 +78,8 @@
   --z-r-win: 0px;
   --z-raised: #ededed;
   --z-row: 42px;
+  /* The big button of a marketing page (`zyx-btn-lg`): 48px, a thumb's height. A tool screen keeps `row` (42px). */
+  --z-row-lg: 48px;
   /* Founder, 2026-10-15: the third button (tertiary) is a small press inside a line of text (Undo, Trust what it read, Go on, Show earlier). A 42 px control stood in a 12 px line like a second screen. Square, 1 px ink edge, small words, the same one hover (pressed in). */
   --z-row-sm: 28px;
   --z-s1: 5px;
@@ -91,12 +99,20 @@
   --z-shadow-cta-down: inset 3px 3px var(--z-on-signal), 0px 0px var(--z-signal);
   /* One colour, one meaning: this needs a human, act here. The approve button, the dot that leads to one, the count of what waits. Never a chip, a badge, a border or a status. One exception (founder decision 2026-10-13): the small solid shadow under the main ink button is yellow. Yellow never fills a large area. */
   --z-shadow-cta-near: 2px 2px var(--z-signal);
+  /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
+  --z-shadow-drop: 3px 3px var(--z-edge);
+  /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
+  --z-shadow-drop-near: 1px 1px var(--z-edge);
   --z-shadow-focus: 3px 3px var(--z-ink);
   --z-shadow-hero: var(--z-hero-travel) var(--z-hero-travel) var(--z-ink);
   --z-shadow-in: inset 3px 3px var(--z-ink);
+  --z-shadow-in-bad: inset 3px 3px var(--z-bad);
+  --z-shadow-in-bad-deep: inset 5px 5px var(--z-bad);
   --z-shadow-in-deep: inset 5px 5px var(--z-ink);
   --z-shadow-in-signal: inset 3px 3px var(--z-on-signal);
   --z-shadow-in-signal-deep: inset 5px 5px var(--z-on-signal);
+  --z-shadow-in-sm: inset 2px 2px var(--z-ink);
+  --z-shadow-in-sm-deep: inset 3px 3px var(--z-ink);
   --z-shadow-key: 0px 2px var(--z-ink);
   /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
   --z-shadow-near: 2px 2px var(--z-edge);
@@ -146,6 +162,8 @@
   --z-mark-box: #fff;
   /* The lines of the mark: ink on every ground. */
   --z-mark-line: #111;
+  /* The white box a mark sits in on an ink or dark ground (an ink cell, a dark scope): white in both themes, so the lines stay ink. */
+  --z-mark-paper: #fff;
   --z-muted: #b3b3b3;
   --z-ok: #86c994;
   --z-ok-soft: #16281a;
@@ -162,12 +180,20 @@
   --z-shadow-cta-down: inset 3px 3px var(--z-on-signal), 0px 0px var(--z-signal);
   /* One colour, one meaning: this needs a human, act here. The approve button, the dot that leads to one, the count of what waits. Never a chip, a badge, a border or a status. One exception (founder decision 2026-10-13): the small solid shadow under the main ink button is yellow. Yellow never fills a large area. */
   --z-shadow-cta-near: 2px 2px var(--z-signal);
+  /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
+  --z-shadow-drop: 3px 3px var(--z-edge);
+  /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
+  --z-shadow-drop-near: 1px 1px var(--z-edge);
   --z-shadow-focus: 3px 3px var(--z-ink);
   --z-shadow-hero: var(--z-hero-travel) var(--z-hero-travel) var(--z-ink);
   --z-shadow-in: inset 3px 3px var(--z-ink);
+  --z-shadow-in-bad: inset 3px 3px var(--z-bad);
+  --z-shadow-in-bad-deep: inset 5px 5px var(--z-bad);
   --z-shadow-in-deep: inset 5px 5px var(--z-ink);
   --z-shadow-in-signal: inset 3px 3px var(--z-on-signal);
   --z-shadow-in-signal-deep: inset 5px 5px var(--z-on-signal);
+  --z-shadow-in-sm: inset 2px 2px var(--z-ink);
+  --z-shadow-in-sm-deep: inset 3px 3px var(--z-ink);
   --z-shadow-key: 0px 2px var(--z-ink);
   /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
   --z-shadow-near: 2px 2px var(--z-edge);
@@ -209,6 +235,8 @@
   --z-mark-box: #fff;
   /* The lines of the mark: ink on every ground. */
   --z-mark-line: #111;
+  /* The white box a mark sits in on an ink or dark ground (an ink cell, a dark scope): white in both themes, so the lines stay ink. */
+  --z-mark-paper: #fff;
   --z-muted: #b3b3b3;
   --z-ok: #86c994;
   --z-ok-soft: #16281a;
@@ -225,12 +253,20 @@
   --z-shadow-cta-down: inset 3px 3px var(--z-on-signal), 0px 0px var(--z-signal);
   /* One colour, one meaning: this needs a human, act here. The approve button, the dot that leads to one, the count of what waits. Never a chip, a badge, a border or a status. One exception (founder decision 2026-10-13): the small solid shadow under the main ink button is yellow. Yellow never fills a large area. */
   --z-shadow-cta-near: 2px 2px var(--z-signal);
+  /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
+  --z-shadow-drop: 3px 3px var(--z-edge);
+  /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
+  --z-shadow-drop-near: 1px 1px var(--z-edge);
   --z-shadow-focus: 3px 3px var(--z-ink);
   --z-shadow-hero: var(--z-hero-travel) var(--z-hero-travel) var(--z-ink);
   --z-shadow-in: inset 3px 3px var(--z-ink);
+  --z-shadow-in-bad: inset 3px 3px var(--z-bad);
+  --z-shadow-in-bad-deep: inset 5px 5px var(--z-bad);
   --z-shadow-in-deep: inset 5px 5px var(--z-ink);
   --z-shadow-in-signal: inset 3px 3px var(--z-on-signal);
   --z-shadow-in-signal-deep: inset 5px 5px var(--z-on-signal);
+  --z-shadow-in-sm: inset 2px 2px var(--z-ink);
+  --z-shadow-in-sm-deep: inset 3px 3px var(--z-ink);
   --z-shadow-key: 0px 2px var(--z-ink);
   /* The edge of a card, a control and a ruled line: ink on the light ground, a strong line on the dark one. */
   --z-shadow-near: 2px 2px var(--z-edge);
@@ -249,7 +285,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root {
---z-d-press: 0ms;
+/* One round of the one loop (`zyx-loading`, three squares one after the other). */
+    --z-d-loop: 0ms;
+    --z-d-press: 0ms;
+    /* The stagger between small parts that move one after the other (the icons of a row hop in turn). */
+    --z-d-step: 0ms;
     --z-d1: 0ms;
     --z-d2: 0ms;
     --z-d3: 0ms;
@@ -266,6 +306,8 @@
  * Values come only from the tokens (`--z-*`).
  */
 @layer zyx-base {
+  /* A width is the whole box: \`width: 100%\` with side room never pushes a page wider than the window. */
+  :where(*, *::before, *::after) { box-sizing: border-box; }
   :where(html) { -webkit-text-size-adjust: 100%; }
   :where(body) {
     background: var(--z-ground);
@@ -337,6 +379,8 @@
  */
 :focus-visible { outline: var(--z-bw) solid var(--z-focus); outline-offset: 2px; }
 .zyx-bare:focus-visible { outline: none; }
+/* A row in a list that scrolls in its own box: the box would cut an outer ring off, so it is drawn inside. */
+.zyx-focus-inset:focus-visible { outline: var(--z-bw) solid var(--z-focus); outline-offset: calc(var(--z-bw) * -1); }
 
 /* Square scrollbars. WebKit and Blink draw the parts; Firefox has only a colour and a width. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -347,9 +391,21 @@
   * { scrollbar-width: thin; scrollbar-color: var(--z-ctl) transparent; }
 }
 
-/* Less motion asked for: every animation and transition is off and the end state shows. */
+/*
+ * Less motion asked for: every animation and transition is off and the end state shows, on every
+ * element and every pseudo element. `!important` because a state and a page rule are unlayered.
+ * A press still changes its shadow and its fill, but nothing travels: the 1px a button moves into its
+ * shadow, the arrow's step and the shape that sinks into its drop shadow stay where they are. The
+ * parts that draw in (the rule, the squares, the marker) show their end state, also when a page holds
+ * them back until they are seen.
+ */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *, *::before, *::after, *::marker, ::backdrop {
+    animation: none !important; transition: none !important; scroll-behavior: auto !important;
+  }
+  :is(.zyx-push, .zyx-icon, .zyx-pill, .zyx-main, .zyx-main-signal, .zyx-clack, .zyx-arrow, .zyx-press-drop) { translate: none !important; }
+  :is(.zyx-rule, .zyx-eyebrow, .zyx-eyebrow-n, .zyx-section-title)::before, .zyx-eyebrow-n::after, .zyx-square { scale: none !important; transform: none !important; }
+  .zyx-marker { background-size: 100% 100% !important; }
 }
 
 /* ---- css/controls.css ---- */
@@ -379,6 +435,11 @@
   .zyx-btn-sm {
     min-height: var(--z-row-sm); padding: 0.125rem 0.625rem; border-width: var(--z-bw-hair);
     font-size: 0.75rem; line-height: 1.25rem;
+  }
+  /* The big button of a marketing page: 48px for a thumb, the body size, full weight, a little more
+   * room at the sides. A tool screen keeps the 42px one. Two classes, so it wins over `zyx-main`'s weight. */
+  .zyx-btn.zyx-btn-lg {
+    min-height: var(--z-row-lg); padding-inline: 1.25rem; font-size: var(--z-text); line-height: 1.5rem; font-weight: 700;
   }
 
   /* The second button, a chip, a suggestion: no shadow at rest, pressed in on hover, inverted when chosen. */
@@ -460,7 +521,9 @@
   }
   .zyx-chip-solid { background: var(--z-ink); color: var(--z-on-brand); }
 
-  /* What waits for a person, as a count you can press: the signal fill. */
+  /* What waits for a person, as a count you can press: the signal fill. As a link (`a.zyx-pill`, or
+   * any pill with `href`) it goes to the queue and presses in like every control; a pill that is not a
+   * link or a button stands still. */
   .zyx-pill {
     display: inline-flex; flex-shrink: 0; align-items: center; padding: 0.125rem 0.625rem;
     border: var(--z-bw-hair) solid var(--z-edge); background: var(--z-signal); color: var(--z-on-signal);
@@ -502,7 +565,7 @@
   /* A link in running text: a thick underline that gets thicker under the pointer. */
   .zyx-link { color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
   /* An arrow at the end of a link cell: it steps to the right under the pointer. */
-  .zyx-arrow { margin-left: 0.5rem; font-family: var(--z-font-mono); transition: translate 120ms steps(3, end); }
+  .zyx-arrow { margin-left: 0.5rem; font-family: var(--z-font-mono); transition: translate var(--z-d-press) steps(3, end); }
   /* A square plus that turns into an ink minus when its control is open. */
   .zyx-plus {
     display: inline-grid; place-items: center; width: 1rem; height: 1rem; border: var(--z-bw-hair) solid var(--z-ink);
@@ -515,23 +578,43 @@
     background: var(--z-brand); color: var(--z-on-brand); font-weight: 700;
   }
   .zyx-skip:focus { top: 0.75rem; }
+
+  /* A press that is a shape, not a box (an icon, the mark): it stands on a hard drop shadow that
+   * follows its outline. Put it on the shape itself, or on the shape inside a link or a button: the
+   * press of its control presses it. */
+  .zyx-press-drop {
+    filter: drop-shadow(var(--z-shadow-drop));
+    transition: filter var(--z-d-press) ease-out, translate var(--z-d-press) ease-out;
+  }
 }
 
 /* ---- States (unlayered) ---- */
 
 @media (hover: hover) {
   .zyx-push:hover:not(:disabled, [aria-disabled="true"]) { box-shadow: var(--z-shadow-in); translate: 1px 1px; }
-  .zyx-push-bad:hover:not(:disabled, [aria-disabled="true"]) { box-shadow: inset 3px 3px 0 var(--z-bad); }
-  .zyx-icon:hover:not(:disabled) { box-shadow: inset 2px 2px 0 var(--z-ink); translate: 1px 1px; }
-  .zyx-pill:hover { translate: 1px 1px; box-shadow: var(--z-shadow-in-signal); }
+  .zyx-push-bad:hover:not(:disabled, [aria-disabled="true"]) { box-shadow: var(--z-shadow-in-bad); }
+  .zyx-icon:hover:not(:disabled) { box-shadow: var(--z-shadow-in-sm); translate: 1px 1px; }
+  :is(a[href], button:not(:disabled), [href]).zyx-pill:hover { translate: 1px 1px; box-shadow: var(--z-shadow-in-signal); }
+  /* The shape sinks 2px into its drop shadow, as a button sinks into its own. */
+  .zyx-press-drop:hover:not(:disabled, :disabled *),
+  :is(a[href], button:not(:disabled), [role="button"], summary):hover .zyx-press-drop {
+    filter: drop-shadow(var(--z-shadow-drop-near)); translate: 2px 2px;
+  }
   .zyx-link:hover { text-decoration-thickness: 3px; }
   :is(.zyx-cell, .zyx-tool, a):hover .zyx-arrow { translate: 3px 0; }
   .zyx-input:hover:not(:disabled, :focus) { outline-color: var(--z-ink); }
 }
 .zyx-push:active:not(:disabled, [aria-disabled="true"]) { box-shadow: var(--z-shadow-in-deep); translate: 2px 2px; transition-duration: 0s; }
-.zyx-push-bad:active:not(:disabled, [aria-disabled="true"]) { box-shadow: inset 5px 5px 0 var(--z-bad); }
-.zyx-icon:active:not(:disabled) { box-shadow: inset 3px 3px 0 var(--z-ink); translate: 2px 2px; transition-duration: 0s; }
-.zyx-pill:active { box-shadow: var(--z-shadow-in-signal-deep); transition-duration: 0s; }
+.zyx-push-bad:active:not(:disabled, [aria-disabled="true"]) { box-shadow: var(--z-shadow-in-bad-deep); }
+.zyx-icon:active:not(:disabled) { box-shadow: var(--z-shadow-in-sm-deep); translate: 2px 2px; transition-duration: 0s; }
+:is(a[href], button:not(:disabled), [href]).zyx-pill:active { translate: 1px 1px; box-shadow: var(--z-shadow-in-signal-deep); transition-duration: 0s; }
+/* The click: the shape sits all the way down, no shadow left, and comes back up on release. Open
+ * (its bubble or menu is out), it stays down. */
+.zyx-press-drop:active:not(:disabled, :disabled *), :is(a[href], button:not(:disabled), [role="button"], summary):active .zyx-press-drop,
+.zyx-press-drop:is([aria-expanded="true"], [aria-pressed="true"], [data-open]),
+:is([aria-expanded="true"], [aria-pressed="true"], [data-open]) .zyx-press-drop {
+  filter: none; translate: 3px 3px; transition-duration: 0s;
+}
 
 /* Inverted: chosen, or the row of a menu the keyboard is on. */
 .zyx-push:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) {
@@ -540,9 +623,9 @@
 .zyx-push:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]):focus-visible {
   outline: var(--z-bw) solid var(--z-focus); outline-offset: 2px;
 }
-/* What stands on an inverted block takes its colour, whatever utility it wears. A key, a count and a
- * letter disc bring their own ground and keep their own words. */
-.zyx-push:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) :where(*):not(kbd, .zyx-count, .zyx-disc) { color: inherit; }
+/* What stands on an inverted block takes its colour, whatever utility it wears. A key, a count, a
+ * letter disc and a pill bring their own ground and keep their own words. */
+.zyx-push:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) :where(*):not(kbd, .zyx-count, .zyx-disc, .zyx-pill) { color: inherit; }
 .zyx-push:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) :is(.zyx-count, .zyx-disc) { background: var(--z-surface); color: var(--z-ink); }
 .zyx-icon:is([aria-pressed="true"], [data-on]):not(:disabled) { background: var(--z-ink); color: var(--z-surface); box-shadow: none; }
 .zyx-icon:is([aria-pressed="true"], [data-on]):not(:disabled) :where(*) { color: inherit; }
@@ -593,7 +676,8 @@
  * footer link, the head of a fold. It fills its whole space; ink lines stand between cells.
  *
  *   zyx-cells       a ruled list of siblings (`zyx-cells-x`: side by side), a 1px edge line between them
- *   zyx-cell        one cell: hover = pressed in, it does not move; chosen = a 3px ink bar on its edge
+ *   zyx-cell        one cell: hover = pressed in, it does not move; chosen = a 3px ink bar on its edge.
+ *   zyx-cell-box    with zyx-cell: a cell on its own (a footer link, a legal chip, a language pair), a 42px box
  *   zyx-cell-ink    with zyx-cell: chosen = an ink cell (a few cells: a tab strip, a switch, a nav)
  *   zyx-row         a cell with tool cells beside it; `zyx-tool` is one tool cell
  *   zyx-item        a row of a menu or a pick list: the row the keyboard or the mouse is on is inverted
@@ -614,6 +698,14 @@
     transition: border-width var(--z-d-press) ease-out;
   }
   .zyx-cell, .zyx-item { color: var(--z-ink); }
+  /* A cell that stands on its own (in a ruled grid, a footer column, a bar of a site) asks for the box a
+   * nav gives it: the words in the middle of a 42px row, an arrow at its end. Opt-in, because a product
+   * lays out many cells itself. */
+  .zyx-cell-box {
+    display: flex; align-items: center; gap: 0.5rem; min-height: var(--z-row); padding: 0.5rem 1rem;
+    line-height: 1.3; text-decoration: none; overflow-wrap: anywhere;
+  }
+  .zyx-cell-box > .zyx-arrow:last-child { margin-left: auto; }
   .zyx-tool {
     display: flex; align-items: center; justify-content: center; border-left: var(--z-bw-hair) solid var(--z-edge);
     background: var(--z-raised); color: var(--z-ink);
@@ -632,7 +724,8 @@
     --zyx-grid-bg: var(--z-surface);
     display: grid; gap: var(--z-bw-hair); border: var(--z-bw) solid var(--z-ink); background: var(--z-ink);
   }
-  .zyx-grid > * { background-color: var(--zyx-grid-bg); }
+  /* A cell of the grid may shrink below its words' width (a long URL, a wide table), or it pushes the grid out of the page. */
+  .zyx-grid > * { min-width: 0; background-color: var(--zyx-grid-bg); }
   /* A ruled grid that stands (`zyx-stand`) keeps its ink ground: that ground is its lines. */
   .zyx-grid.zyx-stand { background: var(--z-ink); }
   .zyx-grid-wide { gap: var(--z-bw); }
@@ -694,6 +787,7 @@
 
 /* Chosen in a long list: the cell is a grey step and a 3px ink bar stands on its edge. */
 .zyx-cell:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) {
+  /* zyx-ui-allow: the 3px chosen bar is a mark on the edge, not a shadow */
   background: var(--z-raised); box-shadow: inset 3px 0 0 var(--z-ink); font-weight: 700;
 }
 /* A chosen cell shows its state, not a press. */
@@ -703,8 +797,8 @@
 .zyx-item:is([data-focus], [data-active], [aria-selected="true"]:focus-visible) {
   border-color: var(--z-ink); background: var(--z-ink); color: var(--z-surface); box-shadow: none; outline: none;
 }
-.zyx-cell-ink:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) :where(*):not(kbd, .zyx-count, .zyx-disc),
-.zyx-item:is([data-focus], [data-active], [aria-selected="true"]:focus-visible) :where(*):not(kbd, .zyx-count, .zyx-disc) { color: inherit; }
+.zyx-cell-ink:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) :where(*):not(kbd, .zyx-count, .zyx-disc, .zyx-pill),
+.zyx-item:is([data-focus], [data-active], [aria-selected="true"]:focus-visible) :where(*):not(kbd, .zyx-count, .zyx-disc, .zyx-pill) { color: inherit; }
 .zyx-cell-ink:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) :is(.zyx-count, .zyx-disc),
 .zyx-item:is([data-focus], [data-active], [aria-selected="true"]:focus-visible) :is(.zyx-count, .zyx-disc) { background: var(--z-surface); color: var(--z-ink); }
 /* The keyboard ring in a ruled grid is drawn inside the cell, so no neighbour cuts it off. On an ink
@@ -743,11 +837,13 @@
   .zyx-media { width: 100%; aspect-ratio: var(--zyx-ratio-phone, var(--zyx-ratio, 16 / 10)); }
   @media (min-width: 40rem) { .zyx-media { aspect-ratio: var(--zyx-ratio, 16 / 10); } }
   .zyx-media > :is(img, video) { display: block; width: 100%; height: 100%; object-fit: cover; }
-  /* Crop marks at the four corners of the hero block: the one print ornament of a page. */
-  .zyx-crop { position: relative; }
+  /* Crop marks at the four corners of the hero block: the one print ornament of a page.
+   * `--zyx-crop-inset` is where they stand, as `inset` reads it (one to four values; negative is
+   * outside the box), for a hero whose marks reach past its nav bar: `--zyx-crop-inset: -64px -14px 4px`. */
+  .zyx-crop { --zyx-crop-inset: -14px; position: relative; }
   .zyx-crop::before {
     --m: linear-gradient(var(--z-ink), var(--z-ink));
-    content: ""; position: absolute; inset: -14px; pointer-events: none; background-repeat: no-repeat;
+    content: ""; position: absolute; inset: var(--zyx-crop-inset); pointer-events: none; background-repeat: no-repeat;
     background:
       var(--m) left top / 8px var(--z-bw-rule) no-repeat, var(--m) left top / var(--z-bw-rule) 8px no-repeat,
       var(--m) right top / 8px var(--z-bw-rule) no-repeat, var(--m) right top / var(--z-bw-rule) 8px no-repeat,
@@ -799,10 +895,13 @@
 
   /* The section label of a page: small mono upper case behind a solid ink square. `zyx-eyebrow-n`
    * puts the section number first; in a section made of parts (`zyx-parts`) each part counts 03.1, 03.2. */
+  /* A label opens what follows it, so it keeps room under it on any element (a p, an h2); alone in its
+   * box (a head row) it has none. A page's own `h2 { margin }` is unlayered and wins: drop it there. */
   .zyx-eyebrow {
-    display: flex; align-items: center; gap: 0.625rem; margin: 0; font-family: var(--z-font-mono); font-size: 0.75rem;
+    display: flex; align-items: center; gap: 0.625rem; margin: 0 0 1.75rem; font-family: var(--z-font-mono); font-size: 0.75rem;
     font-weight: 700; line-height: 1.3; letter-spacing: 0.08em; text-transform: uppercase; color: var(--z-ink);
   }
+  .zyx-eyebrow:last-child { margin-bottom: 0; }
   .zyx-eyebrow::before { content: ""; flex: none; width: 0.5rem; height: 0.5rem; background: var(--z-ink); }
   .zyx-eyebrow-n { counter-increment: zyx-sec; }
   /* The number is for the eye: a screen reader reads the label only. */
@@ -853,6 +952,12 @@
   .zyx-table td { padding: 0.75rem; font-size: 0.875rem; line-height: 1.5rem; color: var(--z-muted); }
   .zyx-table :is(th, td):first-child { padding-left: 1rem; }
   .zyx-table :is(th, td):last-child { padding-right: 1rem; }
+  /* A column of numbers, keys or commands: right aligned, mono, every digit as wide as the next, in
+   * ink, the one thing the row is for. On a cell, or on the table for its last column. */
+  .zyx-table :is(th, td).zyx-table-num, .zyx-table.zyx-table-num :is(th, td):last-child {
+    padding-left: 1.125rem; text-align: right; font-family: var(--z-font-mono); font-variant-numeric: tabular-nums;
+  }
+  .zyx-table td.zyx-table-num, .zyx-table.zyx-table-num td:last-child { color: var(--z-ink); }
   @media (min-width: 40rem) {
     .zyx-table-wrap { margin-inline: 0; }
     .zyx-table :is(th, td):first-child { padding-left: 0; }
@@ -886,6 +991,24 @@
   /* The one print texture, a diagonal ink hatch: a skeleton and a disabled control. Never behind words. */
   .zyx-hatch { background-image: repeating-linear-gradient(135deg, var(--z-ink) 0 1px, transparent 1px 6px); }
   .zyx-skeleton { border: var(--z-bw-hair) solid var(--z-edge); }
+
+  /* A popover: a thing that floats by its spot (a guide's stop, a short how-to), on the card shadow.
+   * Its title is a quiet mono label, its body the screen's own text, its foot the presses (small push
+   * buttons, the one that goes on last). The product places it; `zyx-stamp` brings it in. */
+  .zyx-pop {
+    box-sizing: border-box; width: max-content; min-width: min(13.75rem, 100%); max-width: min(20rem, 100vw - 2rem);
+    padding: 0.75rem 0.875rem; border: var(--z-bw) solid var(--z-edge); border-radius: var(--z-r-ctl);
+    background: var(--z-surface); color: var(--z-ink); box-shadow: var(--z-shadow-card);
+    font-family: var(--z-font-text); font-size: 0.875rem; line-height: 1.5;
+  }
+  .zyx-pop-title {
+    margin: 0 0 0.25rem; font-family: var(--z-font-mono); font-size: 0.6875rem; line-height: 1.4; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--z-muted);
+  }
+  .zyx-pop-body { margin: 0; }
+  .zyx-pop-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.625rem; }
+  /* "Step 2 of 4" in the foot: it stands at the start, the presses at the end. */
+  .zyx-pop-step { margin-right: auto; font-family: var(--z-font-mono); font-size: 0.75rem; color: var(--z-muted); font-variant-numeric: tabular-nums; }
 
   /* The one tooltip: an ink block with paper words. */
   .zyx-tip {
@@ -926,6 +1049,243 @@
   .zyx-doc :is(a, .zyx-doc-link):hover { text-decoration-color: var(--z-ink); }
 }
 
+/* ---- css/site.css ---- */
+/*
+ * Site chrome: the parts every product page repeats, so no page hand-writes them again.
+ *
+ *   zyx-mark        the cube: yellow panels, ink lines on every ground; in a white box on ink or dark
+ *   zyx-mark-draw   the one wipe-in of the mark on first paint (stepped, once, never a loop)
+ *   zyx-lockup      the mark and a name side by side
+ *   data-zyx-reveal a section whose rule, square, standing blocks and marker wait until it is seen
+ *   zyx-bar         the top bar: the way up (zyx-bar-up), the page you are on (zyx-bar-here), the end
+ *   zyx-lang        the EN/DE pair at the end of the bar; the chosen one has `aria-current`
+ *   zyx-cmd         an install line that scrolls on its own, with a copy button that does not jump
+ *   zyx-foot        the footer: a ruled grid of a brand cell, link columns and the legal line
+ *   zyx-faq         questions on `zyx-fold`; `data-numbered` puts a number in front of each
+ *   zyx-rule-bleed  a `zyx-rule` whose line runs the full window width, with no side scroll
+ *
+ * The rest look is in `zyx-components`. What changes with a state (a revealed section, a copied
+ * command) is unlayered, like the states in controls.css.
+ */
+
+/* The mark wipes in from the left, in 4 steps. */
+@keyframes zyx-mark-draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+/* The marker draws in behind its words, in 4 steps. */
+@keyframes zyx-marker-wipe { from { background-size: 0 100%; } to { background-size: 100% 100%; } }
+/* A window-wide rule draws from the window's left edge, in the same steps as `zyx-draw`. The line is
+ * the border image of a zero-wide box in the middle (see zyx-rule-bleed), so it is cut open with
+ * clip-path, not scaled; on that box `50%` is 0, so the steps are the window's left half, middle,
+ * right half. */
+@keyframes zyx-rule-bleed {
+  0% { clip-path: inset(0 calc(50% + 25vw) 0 -100vmax); }
+  25% { clip-path: inset(0 50% 0 -100vmax); }
+  50% { clip-path: inset(0 calc(50% - 25vw) 0 -100vmax); }
+  75% { clip-path: inset(0 -100vmax); }
+}
+
+@layer zyx-components {
+  /* ---- Mark ---- */
+
+  /* The cube is two paths: the yellow hexagon first, then the ink lines as one filled shape, so the
+   * yellow shows through the three panels. The box behind it is the svg's own ground: clear in
+   * light, white in dark (`--z-mark-box`), so the ink lines are seen on every ground. Size it with
+   * `width`/`height` or `--zyx-mark-size`. */
+  .zyx-mark {
+    --zyx-mark-box: var(--z-mark-box);
+    display: inline-block; flex: none; vertical-align: middle; background: var(--zyx-mark-box);
+  }
+  .zyx-mark:not([width]) { width: var(--zyx-mark-size, 1.375rem); }
+  .zyx-mark:not([height]) { height: var(--zyx-mark-size, 1.375rem); }
+  .zyx-mark-panels { fill: var(--z-cube); }
+  .zyx-mark-lines { fill: var(--z-mark-line); }
+  /* On an ink ground the lines would be lost: the mark sits in a white box (`--z-mark-paper`, white in both themes). */
+  .zyx-mark[data-boxed], .zyx-cell-ink .zyx-mark, .zyx-on-brand .zyx-mark { --zyx-mark-box: var(--z-mark-paper); }
+  /* The one mark motion the brand allows: a wipe-in on first paint. Less motion: it is simply there. */
+  .zyx-mark-draw { animation: zyx-mark-draw var(--z-d3) steps(4, end) 1 both; }
+
+  /* The mark and a name: the lockup of a brand or a product. */
+  .zyx-lockup {
+    display: inline-flex; align-items: center; gap: 0.625rem; color: var(--z-ink); text-decoration: none;
+    font-family: var(--z-wm-font); font-size: 1.0625rem; font-weight: var(--z-wm-weight); letter-spacing: var(--z-wm-track);
+  }
+
+  /* ---- Bar ---- */
+
+  /* A ruled row of cells as wide as its column: the way up, the page you are on, then the end
+   * cells. Add `zyx-stand` and it stands on the block shadow with the 3px edge. A button in it is a
+   * cell like a link: no frame of its own. */
+  .zyx-bar :where(button) {
+    appearance: none; margin: 0; border: 0 solid var(--z-ink); border-radius: 0;
+    background: transparent; color: inherit; font: inherit; text-transform: inherit;
+  }
+  .zyx-bar {
+    display: flex; align-items: stretch; min-height: var(--z-row-lg); border: var(--z-bw) solid var(--z-ink); background: var(--z-surface);
+  }
+  .zyx-bar.zyx-stand { border-width: var(--z-bw-block); }
+  .zyx-bar > * + *, .zyx-bar-end > * + *, .zyx-lang > * + * { border-left: var(--z-bw-rule) solid var(--z-ink); }
+  .zyx-bar-up, .zyx-bar-here {
+    display: flex; align-items: center; gap: 0.625rem; min-width: 0; padding: 0 0.875rem;
+    font-family: var(--z-wm-font); font-size: 1.0625rem; font-weight: var(--z-wm-weight); letter-spacing: var(--z-wm-track);
+    line-height: 1.2; white-space: nowrap; text-decoration: none;
+  }
+  /* The parent half of the breadcrumb is muted, so the page you are ON reads first. The ink edge
+   * between the two cells stands in for the "/". */
+  .zyx-bar-up { color: var(--z-muted); }
+  .zyx-bar-end { display: flex; align-items: stretch; margin-left: auto; }
+  .zyx-bar-end > .zyx-cell {
+    display: flex; align-items: center; justify-content: center; padding: 0 1rem;
+    font-size: 0.84375rem; font-weight: 700; line-height: 1.2; white-space: nowrap; text-decoration: none;
+  }
+  /* The language pair: two square mono cells, the chosen one inverted (`aria-current` or `aria-pressed`). */
+  .zyx-lang { display: flex; align-items: stretch; font-family: var(--z-font-mono); font-size: var(--z-small); font-weight: 700; text-transform: uppercase; }
+  .zyx-lang > * {
+    display: flex; align-items: center; justify-content: center; min-width: 3rem; padding: 0 0.875rem; text-decoration: none;
+  }
+  /* On a phone the WAY BACK is what stays, not the page you are already on (its name is in the h1
+   * and the tab): the parent takes the room, behind an arrow that says it is a door, 44px high. */
+  @media (max-width: 35rem) {
+    .zyx-bar-here { display: none; }
+    .zyx-bar-up { flex: 1; min-height: 2.75rem; padding: 0 0.75rem; }
+    .zyx-bar-up::before { content: "\2190"; content: "\2190" / ""; font-weight: 400; }
+    .zyx-bar-up > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .zyx-bar-end > .zyx-cell { padding-inline: 0.75rem; }
+    .zyx-lang > * { min-width: 2.75rem; padding-inline: 0.5rem; }
+  }
+  /* On the narrowest phones an end label breaks rather than push the bar wider than the page. */
+  @media (max-width: 22.5rem) { .zyx-bar-end > .zyx-cell { white-space: normal; text-align: center; } }
+
+  /* ---- Command ---- */
+
+  /* An install line. The LINE scrolls, not the row: a copy button that scrolls out of sight with a
+   * long command is one nobody finds on a phone. Wear it with `zyx-stand`. */
+  .zyx-cmd { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0.875rem 0.75rem 1rem; }
+  .zyx-cmd-line { flex: 1; min-width: 0; overflow-x: auto; }
+  .zyx-cmd-line > code { font-family: var(--z-font-mono); font-size: 0.84375rem; line-height: 1.5; color: var(--z-ink); white-space: pre; }
+  /* A block caret after the command, drawn by CSS so "copy" does not copy it. On a long line it
+   * sticks to the right edge, on a paper gap, instead of being cut or scrolled away. */
+  .zyx-cmd-line > code::after {
+    content: ""; position: sticky; right: 0; display: inline-block; width: 0.55em; height: 1.1em; margin-left: 0.375rem;
+    vertical-align: -0.2em; background: var(--z-ink); box-shadow: calc(var(--z-u) * -1) 0 0 var(--z-surface);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    /* It blinks three times, then it stands: a thing that waits for you, not a loop. */
+    .zyx-cmd-line > code::after { animation: zyx-blink var(--z-d2) step-end var(--z-d3) 3 backwards; }
+  }
+  /* The copy button: a second button in mono, wide enough for its longer word, so "Copy" and
+   * "Copied" do not change its size. */
+  .zyx-cmd-copy { min-width: calc(8ch + 2rem); font-family: var(--z-font-mono); font-weight: 700; }
+
+  /* ---- Footer ---- */
+
+  /* One ruled grid: the brand cell and a column per list of links, the legal line closes it.
+   * `--zyx-foot-cols` is the number of columns (the React part sets it). Add `zyx-stand` to stand. */
+  .zyx-foot {
+    display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(var(--zyx-foot-cols, 3), minmax(0, 1fr));
+    gap: var(--z-bw); border: var(--z-bw) solid var(--z-ink); background: var(--z-ink);
+  }
+  .zyx-foot.zyx-stand { border-width: var(--z-bw-block); background: var(--z-ink); }
+  .zyx-foot > * { min-width: 0; margin: 0; background: var(--z-surface); }
+  .zyx-foot-brand { padding: 1rem 0.875rem 1.25rem; }
+  .zyx-foot-brand :where(p) { margin: 0.875rem 0 0; max-width: 42ch; font-size: 0.90625rem; line-height: 1.5; color: var(--z-muted); }
+  .zyx-foot-col { display: flex; flex-direction: column; }
+  .zyx-foot-col > .zyx-label { min-height: 2.75rem; margin: 0; padding: 0 0.875rem; }
+  .zyx-foot-col > ul { flex: 1; margin: 0; padding: 0; list-style: none; border-top: var(--z-bw-rule) solid var(--z-ink); }
+  .zyx-foot-col .zyx-cell {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.625rem; min-height: var(--z-row);
+    padding: 0.5rem 0.875rem; font-size: 0.90625rem; line-height: 1.3; text-decoration: none;
+  }
+  .zyx-foot-legal {
+    grid-column: 1 / -1; padding: 0.75rem 0.875rem; font-family: var(--z-font-mono); font-size: 0.75rem; line-height: 1.5;
+  }
+  .zyx-foot > .zyx-foot-legal { background: var(--z-ground); color: var(--z-faint); }
+  /* A tablet: the brand on its own row, two columns under it; a lone last column takes the row. */
+  @media (max-width: 48rem) {
+    .zyx-foot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .zyx-foot-brand { grid-column: 1 / -1; }
+    .zyx-foot-brand ~ .zyx-foot-col:nth-child(even):is(:last-child, :nth-last-child(2):has(+ .zyx-foot-legal)) { grid-column: 1 / -1; }
+  }
+  /* A phone: one column. */
+  @media (max-width: 30rem) { .zyx-foot { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---- FAQ ---- */
+
+  /* Questions on `zyx-fold`: native <details>, so it works with no script and the answers stay in
+   * the page while closed. The outer rules are ink: the questions are controls. */
+  .zyx-faq { border-block: var(--z-bw-rule) solid var(--z-ink); }
+  .zyx-faq > .zyx-fold + .zyx-fold { border-top: var(--z-bw-hair) solid var(--z-ink); }
+  .zyx-faq > .zyx-fold > summary { padding: 1rem 0.875rem; font-size: 1.0625rem; font-weight: 700; line-height: 1.3; }
+  /* An open question is one piece: its answer sits on the same paper. */
+  .zyx-faq > .zyx-fold[open] { background: var(--z-surface); }
+  .zyx-faq-q { flex: 1; min-width: 0; text-wrap: balance; }
+  .zyx-faq-a { max-width: 64ch; padding: 0 0.875rem 1.25rem; color: var(--z-muted); text-wrap: pretty; }
+  .zyx-faq-a > :first-child { margin-top: 0; }
+  .zyx-faq-a > :last-child { margin-bottom: 0; }
+  /* The number is for the eye: a screen reader reads the question only. */
+  .zyx-faq[data-numbered] { counter-reset: zyx-faq; }
+  .zyx-faq[data-numbered] > .zyx-fold { counter-increment: zyx-faq; }
+  .zyx-faq[data-numbered] > .zyx-fold > summary::before {
+    content: counter(zyx-faq, decimal-leading-zero); content: counter(zyx-faq, decimal-leading-zero) / "";
+    flex: none; width: 2rem; font-family: var(--z-font-mono); font-size: 0.75rem; font-weight: 400; letter-spacing: 0.08em; color: var(--z-muted);
+  }
+  /* The answer starts under the question, past the number and the fold's 1rem gap. */
+  .zyx-faq[data-numbered] .zyx-faq-a { padding-left: calc(0.875rem + 2rem + 1rem); }
+
+  /* ---- Rule bleed ---- */
+
+  /* The rule's line runs the whole window width. The line is a zero-wide box in the middle of its
+   * section and a border image with outset paints it on both sides: like a shadow it is never
+   * scrollable overflow, so the page gets no side scroll and needs no `overflow-x: clip` on its root.
+   * All of the line is outset, so on a half-pixel top it rounds the same way along the whole width. */
+  .zyx-rule.zyx-rule-bleed::before {
+    left: 50%; right: 50%; background: none; border-image: linear-gradient(var(--z-edge) 0 0) fill 0 / 0 / 0 100vmax;
+    clip-path: inset(0 -100vmax); animation-name: zyx-rule-bleed;
+  }
+}
+
+/* ---- States (unlayered) ---- */
+
+/* Copied: the button is inverted for a moment, also on a phone with no hover. */
+.zyx-btn.zyx-push[data-done] { border-color: var(--z-ink); background: var(--z-ink); color: var(--z-surface); box-shadow: none; translate: none; }
+
+/*
+ * Reveal. A `[data-zyx-reveal]` section waits until it is seen, then plays once (`="on"`): its rule
+ * draws in, its numbered square stamps in, what stands on a shadow lands on it, the marker wipes in,
+ * the caret blinks. `--zyx-reveal-delay` holds one element back. Only under `html.zyx-js`, which
+ * the reveal script sets, and only with motion: with no script or with less motion all of it shows.
+ * A paused animation waits on its first frame, so a block waits where `zyx-land` starts it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]).zyx-rule, html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) .zyx-rule)::before {
+    animation: none; scale: 0 1;
+  }
+  :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]).zyx-eyebrow-n, html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) .zyx-eyebrow-n)::after {
+    scale: 0;
+  }
+  :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]), html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) *):is(.zyx-stand, .zyx-card-stand, .zyx-window) {
+    animation: zyx-land var(--z-d2) step-end var(--zyx-reveal-delay, 0s) 1 backwards; animation-play-state: paused;
+  }
+  :is(html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]), html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) *).zyx-marker {
+    background-size: 0 100%;
+  }
+  html.zyx-js [data-zyx-reveal]:not([data-zyx-reveal="on"]) .zyx-cmd-line > code::after { animation-play-state: paused; }
+
+  :is(html.zyx-js [data-zyx-reveal="on"].zyx-rule, html.zyx-js [data-zyx-reveal="on"] .zyx-rule)::before {
+    animation: zyx-draw var(--z-d2) step-end var(--zyx-reveal-delay, 0s) 1 backwards;
+  }
+  :is(html.zyx-js [data-zyx-reveal="on"].zyx-rule-bleed, html.zyx-js [data-zyx-reveal="on"] .zyx-rule-bleed)::before {
+    animation-name: zyx-rule-bleed;
+  }
+  :is(html.zyx-js [data-zyx-reveal="on"].zyx-eyebrow-n, html.zyx-js [data-zyx-reveal="on"] .zyx-eyebrow-n)::after {
+    animation: zyx-square var(--z-d1) step-end calc(var(--z-d2) + var(--zyx-reveal-delay, 0s)) 1 backwards;
+  }
+  :is(html.zyx-js [data-zyx-reveal="on"], html.zyx-js [data-zyx-reveal="on"] *):is(.zyx-stand, .zyx-card-stand, .zyx-window) {
+    animation: zyx-land var(--z-d2) step-end var(--zyx-reveal-delay, 0s) 1 backwards;
+  }
+  :is(html.zyx-js [data-zyx-reveal="on"], html.zyx-js [data-zyx-reveal="on"] *).zyx-marker {
+    animation: zyx-marker-wipe var(--z-d2) steps(4, end) calc(var(--z-d1) + var(--zyx-reveal-delay, 0s)) 1 backwards;
+  }
+}
+
 /* ---- css/motion.css ---- */
 /*
  * Motion. Every movement is one of the names below; a screen never writes its own keyframes. Each is
@@ -940,7 +1300,7 @@
  *   zyx-flip     a count that appears or changes (set by zyx-count)
  *   zyx-grow     a block whose shadow grows in steps when the cursor goes in (the message box)
  *   zyx-blink    one hard blink that ends: a thing that just started working
- *   zyx-loading  three ink squares, one after the other: the ONE movement that repeats
+ *   zyx-loading  three ink squares, one after the other, `--z-d-loop` a round: the ONE movement that repeats
  *   zyx-sheet    a panel from the right: it glides (translate only), in `--z-d1`, out in `--z-d-press`
  *   zyx-veil     the dimmed page behind a sheet: opacity only, in step with the sheet
  *   zyx-rule / zyx-square   a section's rule draws in from the left, then its square stamps in
@@ -948,7 +1308,7 @@
 @keyframes zyx-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes zyx-stamp {
   0% { box-shadow: 0 0 0 var(--z-edge); translate: 3px 3px; }
-  50% { box-shadow: 2px 2px 0 var(--z-edge); translate: 1px 1px; }
+  50% { box-shadow: var(--z-shadow-near); translate: 1px 1px; }
 }
 @keyframes zyx-tick { 0% { scale: 0.4; } 50% { scale: 0.7; } }
 @keyframes zyx-flip { 0% { scale: 1 0.15; } 50% { scale: 1 0.6; } }
@@ -956,8 +1316,11 @@
 @keyframes zyx-hop { 0% { translate: 0 -3px; } 45% { translate: 0 1px; } 75% { translate: 0 0; } }
 @keyframes zyx-draw { 0% { scale: 0.25 1; } 25% { scale: 0.5 1; } 50% { scale: 0.75 1; } 75% { scale: 1 1; } }
 @keyframes zyx-square { 0% { scale: 0; } 50% { scale: 1.5; } }
+/* The two steps above the block shadow have no token of their own: they exist only on the way down. */
 @keyframes zyx-land {
+  /* zyx-ui-allow: a step of the land, between two shadow tokens */
   0% { translate: -4px -4px; box-shadow: 8px 8px 0 var(--z-ink); }
+  /* zyx-ui-allow: a step of the land, between two shadow tokens */
   34% { translate: -2px -2px; box-shadow: 6px 6px 0 var(--z-ink); }
   67% { translate: 0 0; box-shadow: var(--z-shadow-block); }
 }
@@ -973,9 +1336,9 @@
   .zyx-rule::before { animation: zyx-draw var(--z-d2) step-end 1; }
   .zyx-square { animation: zyx-square var(--z-d1) step-end var(--z-d2) 1 backwards; }
   .zyx-loading { display: inline-flex; align-items: center; gap: 3px; }
-  .zyx-loading > * { width: 6px; height: 6px; background: var(--z-ink); animation: zyx-loading 900ms step-end infinite; }
-  .zyx-loading > :nth-child(2) { animation-delay: 300ms; }
-  .zyx-loading > :nth-child(3) { animation-delay: 600ms; }
+  .zyx-loading > * { width: 6px; height: 6px; background: var(--z-ink); animation: zyx-loading var(--z-d-loop) step-end infinite; }
+  .zyx-loading > :nth-child(2) { animation-delay: calc(var(--z-d-loop) / 3); }
+  .zyx-loading > :nth-child(3) { animation-delay: calc(var(--z-d-loop) * 2 / 3); }
   /* `data-closed`, `data-transition` and `data-leave` are what Headless UI and Base UI set on a transition. */
   .zyx-sheet { transition: translate var(--z-d1) var(--z-ease); }
   .zyx-sheet[data-transition] { will-change: translate; }
@@ -986,9 +1349,9 @@
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  :is(.zyx-cell, .zyx-push, .zyx-row):hover .zyx-hop { animation: zyx-hop 180ms step-end 1; }
-  .zyx-row:hover .zyx-tool:nth-child(2) .zyx-hop { animation-delay: 60ms; }
-  .zyx-row:hover .zyx-tool:nth-child(3) .zyx-hop { animation-delay: 120ms; }
+  :is(.zyx-cell, .zyx-push, .zyx-row):hover .zyx-hop { animation: zyx-hop var(--z-d1) step-end 1; }
+  .zyx-row:hover .zyx-tool:nth-child(2) .zyx-hop { animation-delay: var(--z-d-step); }
+  .zyx-row:hover .zyx-tool:nth-child(3) .zyx-hop { animation-delay: calc(var(--z-d-step) * 2); }
 }
 /* A check box ticked under the pointer or by the keyboard: its tick stamps in. */
 @media (prefers-reduced-motion: no-preference) {
