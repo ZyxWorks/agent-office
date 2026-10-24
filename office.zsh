@@ -1270,7 +1270,7 @@ office() {
       (( $# )) || { print -u2 "usage: office task <what you want done>"; return 1 }
       _office_add_pane "$OFFICE_SESSION_LABEL · $*" "$OFFICE_SESSION_CMD ${(q)*}$_OFFICE_DESK_END" "$(_office_root "$PWD")" CLAUDE ;;
     install)
-      # The verb every tool here shares (zyx, murmurflow): set it up, start nothing.
+      # The verb many CLIs share: set it up, start nothing.
       # Here that is install.sh, which is now the 1.0 installer: it is how a shell that still
       # has this function loaded reaches it. Without this arm the word fell through to the
       # fuzzy repo match below and looked for a repo called "install".

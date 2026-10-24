@@ -113,7 +113,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf`, `backpass` | [their upstreams](https://github.com/kunchenguid) |
 | other agent tools | `chrome-devtools-mcp` (Chrome's DevTools for agents, which `chrome-devtools-axi` drives), `acpx` (the Agent Client Protocol from the command line), `gh` (`gh-axi` drives GitHub through it) | their upstreams |
-| agent integrations | the skills the setup uses and herdr's Claude Code and Codex integrations | upstream tools. You run `herdr integration install claude` (or `codex`) once; `office doctor` checks it |
+| agent integrations | herdr's Claude Code and Codex integrations. Installing the agent tools' skills is planned | upstream tools. You run `herdr integration install claude` (or `codex`) once; `office doctor` checks it |
 
 `jq` is also required: the meter reads transcripts with it. The `office`
 command needs `python3`, 3.8 or newer; the one macOS ships is enough. The
@@ -522,6 +522,7 @@ own herdr, config or office.
 | `fm` and `fm restart` | `bin/fm-probe` | a throwaway herdr session, a stand-in agent |
 | `office on`, `break`, `off`, `off --all`, `status` | `bin/lifecycle-probe` | throwaway herdr sessions, a stand-in agent |
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
+| nothing private ships | `bin/leak-scan-probe` | throwaway git repositories |
 
 CI also runs `office tools` for real, on a Linux and a macOS machine that have
 none of the pinned tools: the GitHub release downloads with their SHA-256, the

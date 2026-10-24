@@ -180,7 +180,7 @@ tx_codex() {
              | sort -r | head -40); do
     # -F, and it is not decoration: without it the path is a REGULAR EXPRESSION,
     # where `.` matches any character — and these are paths full of dots
-    # (.zyx, .config, tmp.XXXX). /work/repo.v1 would take /work/repoXv1's
+    # (.config, .local, tmp.XXXX). /work/repo.v1 would take /work/repoXv1's
     # rollout, which is the same class of wrong file this whole reader was just
     # rewritten to stop handing out. The closing quote is inside the pattern, so
     # a path that is a PREFIX of another cannot match it either.

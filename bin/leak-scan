@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""leak-scan: prove nothing from one person's machine ships in this repo.
+
+Two kinds of rule. The public rules are shapes anyone may read: a home path, an email address
+that is not a placeholder, a private key, a secrets file. The private denylist is the words only
+the maintainer knows (names, handles, client and private repo names): it never enters the repo,
+so a hit prints its line number in the denylist file, never the word.
+
+  bin/leak-scan                         tracked files of this checkout, as they are on disk
+  bin/leak-scan --rev REV               tracked files as commit REV has them (what a push sends)
+  bin/leak-scan --commits A..B          the commits in A..B: author and committer names and emails,
+                                        messages, file names and every added line, so a word added
+                                        and removed again inside the range is still caught. A
+                                        merge shows what it changed beyond the plain merge
+  bin/leak-scan --root DIR              every file under DIR (a rendered tree, say)
+  bin/leak-scan --repo DIR              the tracked files or commits of another checkout
+  bin/leak-scan --denylist FILE         the private denylist. Default: $AGENT_OFFICE_LEAK_DENYLIST,
+                                        else ~/.config/agent-office/leak-denylist when it exists
+
+Denylist file: one entry per line, matched case-insensitively as a whole word. `#` starts a
+comment. An entry may name the files where it is allowed after a tab, as comma-separated globs:
+
+  Jane Doe<TAB>LICENSE
+
+A file name that matches the denylist is never printed either: its hits name it as
+"<a file name on the denylist>".
+
+Exit 0 when clean, 1 on any hit, 2 on a usage error. Python 3.8 or newer, standard library only,
+git 2.36 or newer.
+"""
+
+import codecs
+import fnmatch
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+# A home path names a person. These stand-ins name nobody: "..." is how a comment elides one, and
+# runner is the CI user.
+HOME_PATH = re.compile(r"(?<![\w.])/(?:Users|home)/([A-Za-z0-9._-]+)")
+HOME_OK = {"...", "runner", "example", "you", "user", "me", "name"}
+
+# The TLD has to be letters, or every npm pin (gh-axi@0.1.35) would read as an address.
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
+EMAIL_OK_DOMAINS = ("users.noreply.github.com", "example.com", "example.org", "example.net")
+EMAIL_OK_TLDS = (".invalid", ".example", ".test")
+EMAIL_OK_SSH = re.compile(r"(?<![A-Za-z0-9._%+-])git@")  # git@github.com:org/repo is a clone URL
+
+PRIVATE_KEY = re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----")
+SECRET_FILES = ("*.pem", "*.p12", "*.pfx", "*.key", "id_rsa", "id_ecdsa", "id_ed25519", ".env", ".env.*")
+SECRET_FILES_OK = (".env.example",)
+
+# A commit is written by its author on this machine, or by GitHub when a PR is merged on the web.
+COMMIT_EMAIL_OK = re.compile(r"@users\.noreply\.github\.com$|^noreply@github\.com$")
+
+
+def email_ok(domain):
+    d = domain.lower()
+    return d in EMAIL_OK_DOMAINS or d.endswith(EMAIL_OK_TLDS) or d.endswith(".users.noreply.github.com")
+
+
+def load_denylist(path):
+    """[(line number, compiled word, allowed globs)]"""
+    out = []
+    with open(path, encoding="utf-8") as f:
+        for n, raw in enumerate(f, 1):
+            line = raw.rstrip("\n")
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            word, _, allow = line.partition("\t")
+            word = word.strip()
+            if not word:
+                continue
+            rx = re.compile(r"(?<![A-Za-z0-9])" + re.escape(word) + r"(?![A-Za-z0-9])", re.I)
+            out.append((n, rx, [g.strip() for g in allow.split(",") if g.strip()]))
+    return out
+
+
+def line_hits(text, path, deny):
+    """[(rule)] for one line of text found in `path` (a repo-relative path, or a commit label)."""
+    hits = []
+    for m in HOME_PATH.finditer(text):
+        if m.group(1) not in HOME_OK:
+            hits.append("a home path")
+            break
+    for m in EMAIL.finditer(text):
+        if not email_ok(m.group(1)) and not EMAIL_OK_SSH.match(text, m.start()):
+            hits.append("an email address")
+            break
+    if PRIVATE_KEY.search(text):
+        hits.append("a private key")
+    for n, rx, allow in deny:
+        if rx.search(text) and not any(fnmatch.fnmatch(path, g) for g in allow):
+            hits.append(f"denylist line {n}")
+    return hits
+
+
+def shown(path, deny):
+    """path as a hit line may print it: never a file name with a denylist word in it."""
+    return "<a file name on the denylist>" if any(rx.search(path) for _, rx, _ in deny) else path
+
+
+def is_secrets_file(path):
+    name = os.path.basename(path)
+    return any(fnmatch.fnmatch(name, g) for g in SECRET_FILES) and name not in SECRET_FILES_OK
+
+
+def path_hits(path, deny, report):
+    """The file name itself: a secrets file, or a word that must not ship."""
+    show = shown(path, deny)
+    if is_secrets_file(path):
+        report(f"{show}: a secrets file")
+    for rule in line_hits(path, path, deny):
+        report(f"{show}: its file name has {rule}")
+
+
+def is_text(data):
+    return b"\0" not in data[:8192]
+
+
+def scan_data(data, rel, deny, report):
+    path_hits(rel, deny, report)
+    if not is_text(data):
+        return
+    show = shown(rel, deny)
+    for n, line in enumerate(data.decode("utf-8", "replace").splitlines(), 1):
+        for rule in line_hits(line, rel, deny):
+            report(f"{show}:{n}: {rule}")
+
+
+def scan_file(path, rel, deny, report):
+    try:
+        # a link ships as the path it points to, not as the file there
+        data = os.readlink(path).encode() if os.path.islink(path) else Path(path).read_bytes()
+    except OSError as e:
+        report(f"{shown(rel, deny)}: unreadable ({e.strerror})")
+        return
+    scan_data(data, rel, deny, report)
+
+
+def git(*args):
+    return subprocess.run(["git", "-C", str(ROOT), *args], check=True, capture_output=True).stdout
+
+
+def scan_tracked(deny, report):
+    for rel in git("ls-files", "-z").decode("utf-8").split("\0"):
+        if rel and (os.path.isfile(ROOT / rel) or os.path.islink(ROOT / rel)):
+            scan_file(ROOT / rel, rel, deny, report)
+
+
+def scan_rev(rev, deny, report):
+    """Every file in commit rev, read from git: what a push of rev ships, whatever is on disk."""
+    entries = []
+    for e in git("ls-tree", "-r", "-z", "--full-tree", rev).decode("utf-8").split("\0"):
+        meta, _, rel = e.partition("\t")
+        if rel and meta.split()[1] == "blob":       # a submodule is a commit, not a file
+            entries.append((meta.split()[2], rel))
+    if not entries:
+        return
+    out = subprocess.run(["git", "-C", str(ROOT), "cat-file", "--batch"], check=True, capture_output=True,
+                         input="".join(f"{sha}\n" for sha, _ in entries).encode()).stdout
+    at = 0
+    for _, rel in entries:
+        header_end = out.index(b"\n", at)
+        size = int(out[at:header_end].split()[2])
+        scan_data(out[header_end + 1:header_end + 1 + size], rel, deny, report)
+        at = header_end + 1 + size + 1
+
+
+def patch_path(line):
+    """The new path from a `+++ ` header line, or None for a deleted file. Git quotes a name with a
+    special character in C style; the prefix is pinned by scan_commits whatever the user's config."""
+    name = line[4:]
+    if name == "/dev/null":
+        return None
+    if name.startswith('"') and name.endswith('"'):
+        name = codecs.escape_decode(name[1:-1].encode("utf-8"))[0].decode("utf-8", "replace")
+    if not name.startswith("b/"):
+        raise ValueError(line)
+    return name[2:]
+
+
+def scan_root(root, deny, report):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        for f in filenames:
+            p = os.path.join(dirpath, f)
+            scan_file(p, os.path.relpath(p, root), deny, report)
+
+
+def scan_commits(rng, deny, report):
+    sep = "\x1e"
+    # The diff options are pinned, so a user's diff.noprefix or the like cannot hide a line. A merge
+    # shows its remerge diff: what it holds beyond what git would have merged by itself.
+    log = git("-c", "core.quotePath=false", "log", f"--format={sep}%h%x00%an%x00%ae%x00%cn%x00%ce%x00%B%x00",
+              "-p", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/",
+              "--diff-merges=remerge", rng)
+    for chunk in log.decode("utf-8", "replace").split(sep):
+        if not chunk.strip():
+            continue
+        parts = chunk.split("\0", 6)
+        if len(parts) < 7:
+            continue
+        sha, aname, author, cname, committer, message, patch = parts
+        for who, name, addr in (("author", aname, author), ("committer", cname, committer)):
+            if not COMMIT_EMAIL_OK.search(addr):
+                report(f"commit {sha}: the {who} email is not a GitHub noreply address")
+            for rule in line_hits(name, f"commit {sha}", deny):
+                report(f"commit {sha}: the {who} name has {rule}")
+        for n, line in enumerate(message.splitlines(), 1):
+            for rule in line_hits(line, f"commit {sha}", deny):
+                report(f"commit {sha} message line {n}: {rule}")
+        path = None
+        for line in patch.splitlines():
+            if line.startswith("+++ "):
+                try:
+                    path = patch_path(line)
+                except ValueError:
+                    report(f"commit {sha}: a diff header leak-scan cannot read, so it checked nothing below it")
+                    path = None
+                    continue
+                if path is not None:
+                    path_hits(path, deny, lambda h: report(f"commit {sha} {h}"))
+            elif line.startswith("+") and path is not None:
+                for rule in line_hits(line[1:], path, deny):
+                    report(f"commit {sha} {shown(path, deny)}: an added line has {rule}")
+
+
+def main(argv):
+    global ROOT
+    rng = root = rev = deny_path = None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        if a in ("--commits", "--root", "--rev", "--denylist", "--repo") and i + 1 < len(argv):
+            if a == "--repo":
+                ROOT = Path(argv[i + 1]).resolve()
+            elif a == "--commits":
+                rng = argv[i + 1]
+            elif a == "--root":
+                root = argv[i + 1]
+            elif a == "--rev":
+                rev = argv[i + 1]
+            else:
+                deny_path = argv[i + 1]
+            i += 2
+            continue
+        print(f"leak-scan: unknown argument {a!r}; see --help", file=sys.stderr)
+        return 2
+
+    if deny_path is None:
+        deny_path = os.environ.get("AGENT_OFFICE_LEAK_DENYLIST") or None
+    if deny_path is None:
+        default = Path.home() / ".config" / "agent-office" / "leak-denylist"
+        deny_path = str(default) if default.is_file() else None
+    if deny_path is not None and not os.path.isfile(deny_path):
+        print(f"leak-scan: no denylist at {deny_path}", file=sys.stderr)
+        return 2
+    deny = load_denylist(deny_path) if deny_path else []
+
+    hits = []
+    report = hits.append
+    if rng:
+        scan_commits(rng, deny, report)
+    elif root:
+        scan_root(root, deny, report)
+    elif rev:
+        scan_rev(rev, deny, report)
+    else:
+        scan_tracked(deny, report)
+
+    for h in hits:
+        print(h)
+    what = f"commits {rng}" if rng else (root or (f"the files in {rev}" if rev else "tracked files"))
+    private = f"{len(deny)} private denylist entries" if deny_path else "no private denylist (public rules only)"
+    print(f"leak-scan: {what}, {private}: " + (f"{len(hits)} hits" if hits else "clean"), file=sys.stderr)
+    return 1 if hits else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
