@@ -2,7 +2,7 @@
 
 Agent Office ships the office (herdr, the meter, `office` and `fm`) and, in this folder, the way agents work in it: the rules every agent reads, Claude Code's settings and hooks, Firstmate's model picks and captain starter, and the no-mistakes and gnhf settings. Each file here is a template. Your own values come from the `[setup]` keys in `~/.config/agent-office/config.toml` (every key and its default: `config/defaults.toml`).
 
-Planned: `office setup` writes these into your home, shows every change first and keeps a backup. Until it ships, nothing in this folder touches your files.
+`office setup` writes these into your home. It shows every change first, backs up what it changes, and records what it wrote in `~/.local/state/agent-office/setup-manifest.json`. `office setup --check` only plans. `office setup --remove` takes out what it put in, where that is still as it was put in; your starter files stay.
 
 ## What goes where
 
@@ -32,6 +32,8 @@ Planned: `office setup` writes these into your home, shows every change first an
 - **link**: a symbolic link, made only when nothing is there.
 - **flags**: one empty file per name; Firstmate reads them as switches.
 
+A target that is a link, or sits in a folder that is a link (a `~/.claude` linked into a dotfiles repo, say), is never written through: `office setup` shows what to put there and leaves it to you. The Firstmate files wait until the Firstmate home is there.
+
 ## Placeholders
 
 A template says `{{setup.machine.test_workers}}` where a value goes, or `{{setup.gates.quick|the repo's quick checks}}` for words to use while the key is unset. Names are config keys: `setup.*`, `firstmate.code`, `firstmate.home` (its checkout when unset) and `firstmate.harness`. `setup.repos.protected` is the integration and release branch, named once when they are the same. A path in a target is rendered from your home and your config, never written into a template.
@@ -40,4 +42,4 @@ The shipped `[setup.models.*]` defaults are Claude model ids, so they apply only
 
 ## Nothing private
 
-A template names no person, no account and no path of anyone's machine. `bin/setup-probe` renders every template for a stand-in user and runs `bin/leak-scan` over the result; CI runs it on every push (CONTRIBUTING.md, "Keeping it private").
+A template names no person, no account and no path of anyone's machine. `bin/setup-probe` renders every template for a stand-in user and runs `bin/leak-scan` over the result; `bin/setup-home-probe` runs `office setup` in throwaway homes. CI runs both on every push (CONTRIBUTING.md, "Keeping it private").

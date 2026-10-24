@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+"""setup-home-probe: `office setup`, `--check` and `--remove`, each in a throwaway $HOME.
+
+Never your own home. Every case is a fresh folder as HOME with a config, a stand-in Firstmate
+checkout and whatever files of "yours" the case needs, then `office setup` run as a user runs
+it, with no terminal, so a question it asks can only ever be answered "no". Each case is a
+promise setup/README.md and `office setup --help` make. Needs Python and nothing else.
+
+  bin/setup-home-probe
+  /usr/bin/python3 bin/setup-home-probe     # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OFFICE = REPO / "bin" / "office"
+BEGIN, END = "<!-- agent-office:begin v1 -->", "<!-- agent-office:end -->"
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+class Home:
+    def __init__(self, tmp, config="", firstmate=True):
+        self.h = Path(tempfile.mkdtemp(dir=tmp))
+        (self.h / ".config" / "agent-office").mkdir(parents=True)
+        self.config(config)
+        if firstmate:
+            (self.h / "firstmate").mkdir()
+
+    def config(self, extra):
+        (self.h / ".config" / "agent-office" / "config.toml").write_text("schema = 1\n" + extra)
+
+    def run(self, *args):
+        # PYTHONDONTWRITEBYTECODE: macOS's python3 puts its bytecode cache under $HOME/Library
+        env = {"HOME": str(self.h), "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONDONTWRITEBYTECODE": "1"}
+        # start_new_session: no controlling terminal, so a question can never block the probe
+        return subprocess.run([sys.executable, str(OFFICE), "setup", *args], env=env, capture_output=True,
+                              text=True, stdin=subprocess.DEVNULL, start_new_session=True)
+
+    def p(self, rel):
+        return self.h / rel
+
+    def text(self, rel):
+        return self.p(rel).read_text()
+
+    def json(self, rel):
+        return json.loads(self.text(rel))
+
+    def files(self):
+        return sorted(str(p.relative_to(self.h)) for p in self.h.rglob("*")
+                      if (p.is_file() or p.is_symlink()) and ".config" not in p.parts and ".local" not in p.parts)
+
+
+def out(r):
+    return r.stdout + r.stderr
+
+
+def main():
+    with tempfile.TemporaryDirectory() as tmp:
+        print("a fresh home")
+        h = Home(tmp)
+        before = h.files()
+        r = h.run("--check")
+        check("--check shows the plan and changes nothing", r.returncode == 0 and "create" in r.stdout
+              and h.files() == before, out(r))
+        r = h.run()
+        check("a fresh home needs no question", r.returncode == 0, out(r))
+        a = h.text("AGENTS.md")
+        check("~/AGENTS.md holds the rules between the markers", a.startswith(BEGIN) and a.rstrip().endswith(END)
+              and "with 2 workers" in a)
+        check("CLAUDE.md and Codex's AGENTS.md link to it",
+              os.readlink(h.p(".claude/CLAUDE.md")) == str(h.p("AGENTS.md"))
+              and os.readlink(h.p(".codex/AGENTS.md")) == str(h.p("AGENTS.md")))
+        s = h.json(".claude/settings.json")
+        check("Claude Code settings have the hooks and the permissions",
+              s["permissions"]["defaultMode"] == "auto"
+              and any("text-check.mjs" in x["command"] for e in s["hooks"]["PreToolUse"] for x in e["hooks"]))
+        check("the hooks are there and executable",
+              all(os.access(h.p(f".claude/hooks/{f}"), os.X_OK) for f in ("agents-md.py", "text-check.mjs")))
+        check("Firstmate's files and switches are there",
+              h.p("firstmate/config/crew-dispatch.json").is_file() and h.p("firstmate/data/captain.md").is_file()
+              and h.p("firstmate/config/turnend-churn-absorb").is_file()
+              and h.text("firstmate/config/supervision-host") == "claude claude-opus-5-5\n")
+        check("no-mistakes and gnhf have their keys", "agent: claude" in h.text(".no-mistakes/config.yaml")
+              and "--permission-mode" in h.text(".gnhf/config.yml"))
+        check("the theme is not written unless asked for", not h.p(".claude/themes/office.json").exists()
+              and "theme" not in s)
+        check("what it wrote is on the record",
+              h.p(".local/state/agent-office/setup-manifest.json").is_file())
+        r = h.run()
+        check("a second run changes nothing", r.returncode == 0 and "Nothing to change" in r.stdout, out(r))
+
+        print("your lines, keys and files stay yours")
+        h.p("AGENTS.md").write_text("# mine\nmy own rule\n\n" + h.text("AGENTS.md") + "\nmy tail\n")
+        s = h.json(".claude/settings.json")
+        s["myKey"] = 1
+        s["hooks"]["PreToolUse"].append({"matcher": "Read", "hooks": [{"type": "command", "command": "mine"}]})
+        s["permissions"]["allow"].append("Bash(mine:*)")
+        h.p(".claude/settings.json").write_text(json.dumps(s))
+        h.p("firstmate/data/captain.md").write_text("my preferences\n")
+        h.config("[setup.machine]\ntest_workers = 5\n")
+        r = h.run()
+        a = h.text("AGENTS.md")
+        check("a new value updates the block with no question", r.returncode == 0 and "with 5 workers" in a, out(r))
+        check("your lines around the block stay", a.startswith("# mine\nmy own rule\n") and a.endswith("my tail\n"))
+        s = h.json(".claude/settings.json")
+        check("your own key, hook and permission stay", s.get("myKey") == 1 and "Bash(mine:*)" in s["permissions"]["allow"]
+              and any(e.get("matcher") == "Read" for e in s["hooks"]["PreToolUse"]))
+        check("a starter you edited is never written again", h.text("firstmate/data/captain.md") == "my preferences\n")
+
+        print("a change of yours to what Agent Office owns")
+        s["model"] = "my-model"
+        h.p(".claude/settings.json").write_text(json.dumps(s))
+        r = h.run()
+        check("it is asked about, and no answer changes nothing",
+              r.returncode == 1 and "not confirmed" in r.stderr and h.json(".claude/settings.json")["model"] == "my-model",
+              out(r))
+        check("the question names your value and Agent Office's", 'yours is "my-model"' in r.stdout, out(r))
+        r = h.run("--yes")
+        check("--yes takes Agent Office's value and backs yours up first",
+              r.returncode == 0 and h.json(".claude/settings.json")["model"] == "claude-opus-5-5"
+              and any(h.p(".local/state/agent-office/backups").rglob("settings.json")), out(r))
+        hook = h.p(".claude/hooks/agents-md.py")
+        hook.write_text(hook.read_text() + "# my change\n")
+        r = h.run()
+        check("a whole file you changed is never replaced: the new one goes beside it",
+              r.returncode == 0 and hook.read_text().endswith("# my change\n")
+              and h.p(".claude/hooks/agents-md.py.agent-office-new").is_file(), out(r))
+
+        print("links and what is in the way")
+        h = Home(tmp)
+        dot = Path(tempfile.mkdtemp(dir=tmp))
+        (dot / "settings.json").write_text('{"model": "x"}\n')
+        h.p(".claude").mkdir()
+        os.symlink(dot / "settings.json", h.p(".claude/settings.json"))
+        h.p(".claude/CLAUDE.md").write_text("my own rules\n")
+        r = h.run()
+        check("a settings file that is a link is never written through",
+              r.returncode == 0 and (dot / "settings.json").read_text() == '{"model": "x"}\n'
+              and "never written through" in r.stdout, out(r))
+        check("a CLAUDE.md that is already there is left alone",
+              h.text(".claude/CLAUDE.md") == "my own rules\n" and not h.p(".claude/CLAUDE.md").is_symlink())
+        h = Home(tmp)
+        os.symlink(dot, h.p(".claude"))
+        r = h.run()
+        check("a ~/.claude that is a link is never written through", r.returncode == 0
+              and not (dot / "hooks").exists() and "is a link to" in r.stdout, out(r))
+        h = Home(tmp, firstmate=False)
+        r = h.run()
+        check("no Firstmate home yet: nothing is written where it will go",
+              r.returncode == 0 and not h.p("firstmate").exists() and "is not there yet" in r.stdout, out(r))
+
+        print("the theme, on and then off")
+        h = Home(tmp, "[setup.claude]\ntheme = true\n")
+        h.run()
+        check("on: the theme file and the setting", h.p(".claude/themes/office.json").is_file()
+              and h.json(".claude/settings.json").get("theme") == "custom:office")
+        h.config("[setup.claude]\ntheme = false\n")
+        r = h.run()
+        check("off: both are taken out again", r.returncode == 0 and not h.p(".claude/themes/office.json").exists()
+              and "theme" not in h.json(".claude/settings.json"), out(r))
+
+        print("--remove")
+        h = Home(tmp)
+        h.p(".claude").mkdir()
+        h.p(".claude/settings.json").write_text(json.dumps({"permissions": {"allow": ["Bash(gh-axi:*)"]}, "mine": 1}))
+        h.p("AGENTS.md").write_text("my rule\n")
+        h.p(".gnhf").mkdir()
+        h.p(".gnhf/config.yml").write_text("mine: 1\n")
+        h.run("--yes")
+        h.p("firstmate/data/captain.md").write_text("my preferences\n")
+        r = h.run("--remove", "--yes")
+        check("--remove runs", r.returncode == 0, out(r))
+        check("the block goes, your lines stay", h.text("AGENTS.md") == "my rule\n", repr(h.text("AGENTS.md")))
+        s = h.json(".claude/settings.json")
+        check("Agent Office's keys go, yours stay, an entry you had before stays",
+              s == {"permissions": {"allow": ["Bash(gh-axi:*)"]}, "mine": 1}, json.dumps(s))
+        check("its YAML keys and their comment go, yours stay", h.text(".gnhf/config.yml") == "mine: 1\n",
+              repr(h.text(".gnhf/config.yml")))
+        check("a file that held only Agent Office's keys goes", not h.p(".no-mistakes/config.yaml").exists())
+        check("its links, hooks, files and switches go", not h.p(".claude/CLAUDE.md").is_symlink()
+              and not h.p(".claude/hooks/text-check.mjs").exists()
+              and not h.p("firstmate/config/crew-dispatch.json").exists()
+              and not h.p("firstmate/config/turnend-churn-absorb").exists())
+        check("your starter stays", h.text("firstmate/data/captain.md") == "my preferences\n")
+        r = h.run("--remove")
+        check("a second --remove has nothing to do", r.returncode == 0 and "Nothing to change" in r.stdout, out(r))
+
+        print("a bad config")
+        h = Home(tmp, "[setup.machine]\ntest_workers = 0\n")
+        r = h.run()
+        check("is an error, and nothing is written", r.returncode == 1 and "setup.machine.test_workers" in r.stderr
+              and not h.p("AGENTS.md").exists(), out(r))
+
+        print("the codex harness")
+        h = Home(tmp, '[firstmate]\nharness = "codex"\n')
+        r = h.run()
+        check("with no models of its own it refuses, and nothing is written",
+              r.returncode == 1 and "setup.models.default.model" in r.stderr and not h.p("AGENTS.md").exists(), out(r))
+        h.config('[firstmate]\nharness = "codex"\n[setup.models.default]\nmodel = "cx-a"\neffort = "high"\n'
+                 '[setup.models.mechanical]\nmodel = "cx-b"\neffort = "low"\n')
+        r = h.run()
+        check("with its models: gnhf is not written, and the run says why",
+              r.returncode == 0 and not h.p(".gnhf/config.yml").exists() and "not written: gnhf" in r.stdout
+              and h.text("firstmate/config/supervision-host") == "codex cx-a\n", out(r))
+
+    print(f"\n{fails} failed" if fails else "\nall passed")
+    return 1 if fails else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

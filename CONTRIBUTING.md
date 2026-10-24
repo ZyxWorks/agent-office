@@ -122,7 +122,7 @@ your `PATH` but no herdr server. On macOS run it once more as
 `/usr/bin/python3 bin/install-probe`: that Python is 3.9, which has no TOML
 reader, so it proves the vendored one in `lib/vendor/`.
 
-Touched `setup/` or the `[setup]` keys? Run `bin/setup-probe`, and on macOS once more as `/usr/bin/python3 bin/setup-probe`. It renders every template for a stand-in user, checks each value lands, and runs `bin/leak-scan` over the result. A new template needs its line in `setup/MANIFEST.toml`, or the probe fails.
+Touched `setup/` or the `[setup]` keys? Run `bin/setup-probe`, and on macOS once more as `/usr/bin/python3 bin/setup-probe`. Touched `office setup` (`lib/agent_office/setup_home.py`)? Run `bin/setup-home-probe` the same two ways: every case runs in a throwaway `$HOME`. It renders every template for a stand-in user, checks each value lands, and runs `bin/leak-scan` over the result. A new template needs its line in `setup/MANIFEST.toml`, or the probe fails.
 
 Touched `office update` (`lib/agent_office/update.py`, or what it shares with
 doctor, tools and install)? Run `bin/update-probe`, and on macOS once more as
