@@ -523,6 +523,7 @@ own herdr, config or office.
 | `office on`, `break`, `off`, `off --all`, `status` | `bin/lifecycle-probe` | throwaway herdr sessions, a stand-in agent |
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
 | nothing private ships | `bin/leak-scan-probe` | throwaway git repositories |
+| the agent setup: `setup/`'s templates and the `[setup]` keys | `bin/setup-probe` | a stand-in user, rendered in memory, then `bin/leak-scan` |
 
 CI also runs `office tools` for real, on a Linux and a macOS machine that have
 none of the pinned tools: the GitHub release downloads with their SHA-256, the

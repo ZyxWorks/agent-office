@@ -1,0 +1,6 @@
+# Written by Agent Office from [setup.models.gate] in ~/.config/agent-office/config.toml.
+agent: {{firstmate.harness}}
+agent_config:
+  {{firstmate.harness}}:
+    model: {{setup.models.gate.model}}
+    effort: {{setup.models.gate.effort}}

@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""setup-probe: setup/'s templates, rendered for a stand-in user, and the [setup] config keys.
+
+Nothing is written into any home: every template is rendered in memory for HOME=/home/user, then
+into a scratch folder that bin/leak-scan reads. Each case is a promise setup/README.md makes.
+
+  bin/setup-probe
+  /usr/bin/python3 bin/setup-probe     # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "lib"))
+from agent_office import config as C  # noqa: E402
+from agent_office import setup as S  # noqa: E402
+
+ENV = {"HOME": "/home/user"}
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+def problems(user):
+    try:
+        C.effective(user, "probe.toml")
+        return []
+    except C.ConfigError as e:
+        return e.problems
+
+
+def by_target(items):
+    return {str(i["target"]): i for i in items}
+
+
+FULL = {
+    "schema": 1,
+    "firstmate": {"code": "~/src/firstmate", "home": "~/fm-home"},
+    "setup": {
+        "machine": {"test_workers": 7, "max_subagents": 1},
+        "models": {"default": {"model": "model-a", "effort": "high"},
+                   "mechanical": {"model": "model-b"},
+                   "gate": {"effort": "low"}},
+        "tokens": {"cold_cache_minutes": 30, "auto_compact_tokens": 123456},
+        "repos": {"integration_branch": "develop", "release_branch": "main"},
+        "gates": {"quick": "make quick", "full": "make gate", "nightly": "make nightly",
+                  "nightly_max_age_hours": 24},
+        "review": {"paid_bot": "some-bot", "risky_uses": "a second reviewer"},
+        "captain": {"timezone": "America/Chicago", "review_surface": "the PR page"},
+        "firstmate": {"startup_memory_budget": 5000, "flags": ["one-flag"]},
+        "claude": {"theme": True},
+    },
+}
+
+
+def main():
+    print("the manifest")
+    entries = S.manifest()
+    named = {e["source"] for e in entries if "source" in e}
+    on_disk = set(S.templates())
+    check("every file under setup/ is in the manifest", on_disk <= named, sorted(on_disk - named))
+    check("every manifest source is a file under setup/", named <= on_disk, sorted(named - on_disk))
+
+    print("the defaults, for a stand-in user")
+    cfg = C.effective(None, "defaults")
+    items = S.plan(cfg, ENV)
+    t = by_target(items)
+    texts = {k: i["content"] for k, i in t.items() if "content" in i}
+    check("every template renders with no placeholder left",
+          not [k for k, v in texts.items() if "{{" in v], [k for k, v in texts.items() if "{{" in v])
+    check("every JSON output parses", all(json.loads(v) is not None for k, v in texts.items() if k.endswith(".json")))
+    check("no template has an em dash in it", not [k for k, v in texts.items() if "—" in v],
+          [k for k, v in texts.items() if "—" in v])
+    check("the theme is off by default", "/home/user/.claude/themes/office.json" not in t)
+    a = texts["/home/user/AGENTS.md"]
+    check("AGENTS.md names the machine's limits", "with 2 workers, at most 3 subagents" in a, a[:200])
+    check("an unset gate command falls back to words", "typecheck and the tests it touches" in a)
+    check("one protected branch reads as one", "push to the main branch" in a)
+    check("Firstmate's home is its checkout when unset",
+          "/home/user/firstmate/config/crew-dispatch.json" in t and "/home/user/firstmate/config/crew-dispatch.json" in a)
+    s = json.loads(texts["/home/user/.claude/settings.json"])
+    check("settings: no co-author, auto mode, the compact window as a string",
+          s["attribution"] == {"commit": "", "pr": ""} and s["permissions"]["defaultMode"] == "auto"
+          and s["env"]["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "250000")
+    check("settings: hooks name $HOME, never a home path",
+          all("$HOME/.claude/hooks/" in h["command"] for m in s["hooks"]["PreToolUse"] for h in m["hooks"]))
+    check("settings: the Firstmate commands are allowed by path",
+          "Bash(/home/user/firstmate/bin/fm-*)" in s["permissions"]["allow"])
+    check("settings: never the shared worktree pool's admin commands",
+          not any("worktree" in x for x in s["permissions"]["allow"]))
+    nm = texts["/home/user/.no-mistakes/config.yaml"]
+    check("no-mistakes gates with the default model when gate is unset",
+          "model: claude-opus-5-5\n    effort: medium" in nm, nm)
+    flags = t["/home/user/firstmate/config"]
+    check("the Firstmate flags are listed", flags["kind"] == "flags"
+          and flags["names"] == ["turnend-churn-absorb", "wedge-defer-parked-gate"])
+    check("hooks are executable", all(t[f"/home/user/.claude/hooks/{h}"]["mode"] == 0o755
+                                      for h in ("agents-md.py", "text-check.mjs")))
+    check("CLAUDE.md and Codex's AGENTS.md are links to ~/AGENTS.md",
+          str(t["/home/user/.claude/CLAUDE.md"]["to"]) == "/home/user/AGENTS.md"
+          and str(t["/home/user/.codex/AGENTS.md"]["to"]) == "/home/user/AGENTS.md")
+
+    print("every key set")
+    check("the full config is valid", problems(FULL) == [], problems(FULL))
+    cfg = C.effective(FULL, "full")
+    t = by_target(S.plan(cfg, ENV))
+    texts = {k: i["content"] for k, i in t.items() if "content" in i}
+    a = texts["/home/user/AGENTS.md"]
+    check("AGENTS.md takes every value", "with 7 workers, at most 1 subagents" in a and "make quick" in a
+          and "push to the develop or main branch" in a and "more than 30 minutes" in a
+          and "Use a second reviewer only" in a and "`/home/user/fm-home/config/crew-dispatch.json`" in a)
+    r = texts["/home/user/.agents/release-process.md"]
+    check("release-process takes every value", all(x in r for x in (
+        "`develop`", "`main`", "make gate", "make nightly", "24 hours", "some-bot", "the PR page", "7 workers")))
+    check("captain.md takes the time zone", "America/Chicago" in texts["/home/user/fm-home/data/captain.md"])
+    d = json.loads(texts["/home/user/fm-home/config/crew-dispatch.json"])
+    check("crew dispatch uses the default and the mechanical model",
+          d["default"] == [{"harness": "claude", "model": "model-a", "effort": "high"}]
+          and d["rules"][2]["use"] == [{"harness": "claude", "model": "model-b", "effort": "low"}])
+    nm = texts["/home/user/.no-mistakes/config.yaml"]
+    check("a gate that sets only its effort keeps the default model", "model: model-a\n    effort: low" in nm, nm)
+    check("the theme is written when asked for",
+          "/home/user/.claude/themes/office.json" in t
+          and any(json.loads(i["content"]).get("theme") == "custom:office" for i in S.plan(cfg, ENV)
+                  if i["kind"] == "json"))
+    check("supervision-host is the harness and the model",
+          texts["/home/user/fm-home/config/supervision-host"] == "claude model-a\n")
+
+    print("bad values are errors")
+    for name, user, want in (
+        ("an unknown key", {"setup": {"machine": {"workers": 2}}}, "unknown key setup.machine.workers"),
+        ("an unknown table", {"setup": {"robots": {}}}, "unknown key setup.robots"),
+        ("an effort no harness has", {"setup": {"models": {"default": {"effort": "ultra"}}}},
+         "setup.models.default.effort must be one of"),
+        ("a branch with ..", {"setup": {"repos": {"release_branch": "a..b"}}}, "setup.repos.release_branch must be"),
+        ("a flag with a space", {"setup": {"firstmate": {"flags": ["Bad Name"]}}}, "setup.firstmate.flags must be"),
+        ("a time zone that is a sentence", {"setup": {"captain": {"timezone": "my time"}}}, "setup.captain.timezone"),
+        ("true as a worker count", {"setup": {"machine": {"test_workers": True}}}, "setup.machine.test_workers"),
+        ("a table that is a value", {"setup": {"machine": 3}}, "setup.machine must be a table"),
+    ):
+        got = problems(dict(user, schema=1))
+        check(f"{name} is an error", any(want in p for p in got), got)
+
+    print("a broken template is an error, never literal braces")
+    vals = S.values(C.effective(None, "defaults"), ENV)
+    for name, text, want, yaml in (
+        ("an unknown placeholder", "{{setup.machine.workers}}", "unknown placeholder", False),
+        ("an unset key with no words", "{{setup.gates.quick}}", "is unset", False),
+        ("a value that is not one word, into YAML", "x: {{setup.review.risky_uses}}", "cannot go into YAML", True),
+    ):
+        try:
+            S.render(text, dict(vals, **{"setup.review.risky_uses": "two words"}), "t", yaml=yaml)
+            check(f"{name} is an error", False, "rendered")
+        except C.ConfigError as e:
+            check(f"{name} is an error", want in str(e), str(e))
+    check("a value never breaks JSON", json.loads(S.render_json('{"a": "{{setup.review.risky_uses}}"}',
+                                                                dict(vals, **{"setup.review.risky_uses": 'x" y'}), "t"))
+          == {"a": 'x" y'})
+
+    print("nothing private in what it renders")
+    with tempfile.TemporaryDirectory() as tmp:
+        empty_home = Path(tmp) / "home"
+        empty_home.mkdir()
+        out = Path(tmp) / "out"
+        for cfg in (C.effective(None, "defaults"), C.effective(FULL, "full")):
+            for i in S.plan(cfg, ENV):
+                if "content" in i:
+                    p = out / str(i["target"]).lstrip("/")
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text(i["content"], encoding="utf-8")
+        got = subprocess.run([sys.executable, str(REPO / "bin" / "leak-scan"), "--root", str(out)],
+                             capture_output=True, text=True,
+                             env=dict(os.environ, HOME=str(empty_home), AGENT_OFFICE_LEAK_DENYLIST=""))
+        check("leak-scan finds nothing in the rendered files", got.returncode == 0, got.stdout + got.stderr)
+
+    print("the shipped hooks")
+    hook = S.SETUP / "claude/hooks/agents-md.py"
+    try:
+        compile(hook.read_text(encoding="utf-8"), str(hook), "exec")
+        check("agents-md.py compiles", True)
+    except SyntaxError as e:
+        check("agents-md.py compiles", False, str(e))
+    if shutil.which("node"):
+        got = subprocess.run(["node", str(S.SETUP / "claude/hooks/text-check.mjs"), "--selfcheck"],
+                             capture_output=True, text=True)
+        check("text-check.mjs passes its selfcheck", got.returncode == 0, got.stdout + got.stderr)
+    else:
+        print("  skip text-check.mjs: no node here")
+    rules = json.loads((S.SETUP / "claude/hooks/text-check.json").read_text(encoding="utf-8"))
+    check("text-check.json is in the format the hook reads", rules.get("format") == "skill-check/1"
+          and all("id" in r and "hint" in r for r in rules["rules"]))
+
+    print(f"\n{fails} failed" if fails else "\nall passed")
+    return 1 if fails else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
