@@ -129,6 +129,27 @@ def _int_in(lo, hi):
     return check
 
 
+def _plain(pattern, what):
+    # a value that lands in a rendered file (a model id, a branch, a flag file name): one token
+    def check(v):
+        return None if isinstance(v, str) and re.fullmatch(pattern, v) else f"must be {what}"
+    return check
+
+
+def _names(v):
+    if not isinstance(v, list) or any(not isinstance(x, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", x)
+                                      for x in v):
+        return "must be a list of names in lowercase letters, digits and '-'"
+    return None
+
+
+_MODEL = {
+    "model": _plain(r"[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,127}", "a model id, say \"claude-opus-5-5\""),
+    "effort": _one_of("low", "medium", "high", "xhigh", "max"),
+}
+_BRANCH = _plain(r"(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._/-]{0,199}", "a branch name")
+
+# A table inside a table, say [setup.machine], is a dict of its own checks.
 KEYS = {
     "office": {"session": _session},
     "firstmate": {
@@ -150,7 +171,36 @@ KEYS = {
         "url": _url,
         "quiet": _boolean,
     },
+    "setup": {
+        "machine": {"test_workers": _int_in(1, 256), "max_subagents": _int_in(0, 64)},
+        "models": {"default": _MODEL, "mechanical": _MODEL, "gate": _MODEL},
+        "tokens": {"cold_cache_minutes": _int_in(1, 1440), "auto_compact_tokens": _int_in(10_000, 10_000_000)},
+        "repos": {"integration_branch": _BRANCH, "release_branch": _BRANCH},
+        "gates": {"quick": _text, "full": _text, "nightly": _text, "nightly_max_age_hours": _int_in(1, 720)},
+        "review": {"paid_bot": _plain(r"@?[A-Za-z0-9][A-Za-z0-9._-]{0,63}(\[bot\])?", "a GitHub handle"),
+                   "risky_uses": _text},
+        "captain": {"timezone": _plain(r"UTC|[A-Z][A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2}", "an IANA time zone, say \"America/Chicago\""),
+                    "review_surface": _text},
+        "firstmate": {"startup_memory_budget": _int_in(0, 10_000_000), "flags": _names},
+        "claude": {"theme": _boolean},
+    },
 }
+
+
+def _check_table(value, spec, name, where, problems):
+    if not isinstance(value, dict):
+        problems.append(f"{where}: {name} must be a table, [{name}]")
+        return
+    for sub, v in value.items():
+        check = spec.get(sub)
+        if check is None:
+            problems.append(f"{where}: unknown key {name}.{sub}")
+        elif isinstance(check, dict):
+            _check_table(v, check, f"{name}.{sub}", where, problems)
+        else:
+            err = check(v)
+            if err:
+                problems.append(f"{where}: {name}.{sub} {err}")
 
 
 def _check(data, where):
@@ -163,17 +213,7 @@ def _check(data, where):
             if not isinstance(value, dict):
                 problems.append(f"{where}: herdr must be a table, [herdr]")
         elif key in KEYS:
-            if not isinstance(value, dict):
-                problems.append(f"{where}: {key} must be a table, [{key}]")
-                continue
-            for sub, v in value.items():
-                check = KEYS[key].get(sub)
-                if check is None:
-                    problems.append(f"{where}: unknown key {key}.{sub}")
-                else:
-                    err = check(v)
-                    if err:
-                        problems.append(f"{where}: {key}.{sub} {err}")
+            _check_table(value, KEYS[key], key, where, problems)
         else:
             problems.append(f"{where}: unknown key {key}")
     return problems
@@ -261,6 +301,10 @@ def effective(user: dict | None, where: str) -> dict:
         if "schema" not in user:
             problems.append(f"{where}: schema is missing: the first line must be schema = {SCHEMA}")
         problems += _check(user, where)
+    # the shipped models are Claude's: another harness gets none, so its models are the user's own
+    fm = (user or {}).get("firstmate")
+    if (fm.get("harness") if isinstance(fm, dict) else None) not in (None, "claude"):
+        defaults["setup"]["models"] = {}
     out = merge(defaults, {k: v for k, v in (user or {}).items() if k != "herdr"})
     meter = out.get("meter", {})
     if not problems and meter.get("warn_tokens", 0) >= meter.get("alarm_tokens", 0):
@@ -270,6 +314,10 @@ def effective(user: dict | None, where: str) -> dict:
         problems.append(f"{where}: notify.url is required when notify.enabled is true")
     if problems:
         raise ConfigError(problems)
+    # an unset gate model is the default one, key by key: a gate that names only its effort keeps
+    # the default model
+    models = out["setup"]["models"]
+    models["gate"] = merge(models.get("default", {}), models.get("gate", {}))
     mine = (user or {}).get("herdr", {})
     out["herdr"] = merge(read_toml(PRESET, str(PRESET)), mine)
     # a tab_bar_right of your own is yours; the preset's follows the keys you rebind

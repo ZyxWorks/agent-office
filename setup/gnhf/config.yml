@@ -1,0 +1,9 @@
+# Written by Agent Office. The same permission posture as Firstmate's crewmates: Claude's auto
+# mode, not --dangerously-skip-permissions (gnhf's default when no mode flag is given).
+agent: {{firstmate.harness}}
+agentArgsOverride:
+  claude:
+    - --permission-mode
+    - auto
+maxConsecutiveFailures: 3
+preventSleep: true

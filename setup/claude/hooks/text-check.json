@@ -1,0 +1,70 @@
+{
+  "format": "skill-check/1",
+  "rules": [
+    {
+      "id": "em-dash",
+      "match": "\u2014",
+      "hint": "No em dash. Use a period, a comma or a colon; in German, a Gedankenstrich (\u2013) only where the sentence needs one."
+    },
+    {
+      "id": "ai-words-en",
+      "words": [
+        "delve",
+        "delving",
+        "foster",
+        "leverage",
+        "leveraging",
+        "utilize",
+        "utilizing",
+        "utilise",
+        "facilitate",
+        "facilitating",
+        "empower",
+        "streamline",
+        "streamlining",
+        "cutting-edge",
+        "paradigm shift",
+        "game changer",
+        "game-changer",
+        "tapestry",
+        "realm",
+        "beacon",
+        "multifaceted",
+        "meticulous",
+        "intricate",
+        "paramount",
+        "transformative",
+        "elevate",
+        "embark",
+        "supercharge",
+        "supercharging",
+        "ever-evolving"
+      ],
+      "hint": "A word that marks text as AI-written. Say the concrete thing instead (what changed, by how much, for whom)."
+    },
+    {
+      "id": "ai-phrases-en",
+      "match": "it['\u2019]?s worth noting|it['\u2019]?s important to note|at the end of the day|in today['\u2019]?s (?:world|fast-paced)|let['\u2019]?s dive in|here['\u2019]?s the thing|what most people (?:get wrong|miss)|here['\u2019]?s what nobody tells you|stands as a testament|marks a pivotal moment|plays a (?:vital|pivotal|crucial) role|this changes everything",
+      "hint": "Filler that delays the point. Cut it and start with the point."
+    },
+    {
+      "id": "ai-words-de",
+      "words": [
+        "eintauchen",
+        "nahtlos",
+        "ma\u00dfgeschneidert",
+        "ganzheitlich",
+        "revolutionier",
+        "Synergie",
+        "zukunftssicher",
+        "bahnbrechend"
+      ],
+      "hint": "Ein Wort, an dem man KI-Text erkennt. Sag das Konkrete: was, wie viel, f\u00fcr wen."
+    },
+    {
+      "id": "ai-phrases-de",
+      "match": "in der heutigen (?:schnelllebigen|digitalen) (?:Zeit|Welt)|es ist wichtig zu beachten|auf ein neues Level|am Ende des Tages|tauchen wir ein|lassen Sie uns eintauchen",
+      "hint": "F\u00fcllfloskel. Streichen und mit der Sache anfangen."
+    }
+  ]
+}

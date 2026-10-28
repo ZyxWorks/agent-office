@@ -1,0 +1,28 @@
+{
+  "rules": [
+    {
+      "when": "Short, bounded planning or judgment call with small context: a design pick, plan, ADR draft, or narrow review that finishes in one sitting and changes no code",
+      "use": [
+        { "harness": "{{firstmate.harness}}", "model": "{{setup.models.default.model}}", "effort": "{{setup.models.default.effort}}" }
+      ],
+      "why": "Judgment work at the default effort. Raise it on a task only when the captain asks."
+    },
+    {
+      "when": "Large or long implementation, including design-heavy, security-sensitive, or hard-debugging builds where judgment is the work",
+      "use": [
+        { "harness": "{{firstmate.harness}}", "model": "{{setup.models.default.model}}", "effort": "{{setup.models.default.effort}}" }
+      ],
+      "why": "A higher effort costs much more and is rarely much stronger. Raise it on a task only when the captain asks."
+    },
+    {
+      "when": "Mechanical work with a known result: rename, version bump, config tweak, moving files, applying an exact spec",
+      "use": [
+        { "harness": "{{firstmate.harness}}", "model": "{{setup.models.mechanical.model}}", "effort": "{{setup.models.mechanical.effort}}" }
+      ],
+      "why": "A known result needs little reasoning."
+    }
+  ],
+  "default": [
+    { "harness": "{{firstmate.harness}}", "model": "{{setup.models.default.model}}", "effort": "{{setup.models.default.effort}}" }
+  ]
+}

@@ -179,7 +179,8 @@ jobs:
           sh -n bin/office-cwd
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
             bin/office bin/install-probe bin/update-probe bin/notify-probe bin/fm bin/fm-probe lib/agent_office/*.py \
-            bin/officeoff-all bin/lifecycle-probe bin/leak-scan bin/leak-scan-probe
+            bin/officeoff-all bin/lifecycle-probe bin/leak-scan bin/leak-scan-probe bin/setup-probe \
+            setup/claude/hooks/agents-md.py
           sh -n .githooks/pre-push
           sh -n herdr/notify
           sh -n herdr/nav
@@ -233,6 +234,15 @@ jobs:
       - name: update-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
         run: /usr/bin/python3 bin/update-probe
+
+      # setup/'s templates rendered for a stand-in user, the [setup] keys, and leak-scan over what
+      # they render. Nothing is written into any home.
+      - name: setup-probe
+        run: bin/setup-probe
+
+      - name: setup-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        run: /usr/bin/python3 bin/setup-probe
 
       # `office notify` and the herdr hook, against a fake ntfy on localhost. No server, no network.
       - name: notify-probe

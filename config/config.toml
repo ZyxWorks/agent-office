@@ -32,6 +32,22 @@ schema = 1
 # url = "https://ntfy.sh/<a-long-random-topic>"   # anyone who knows a ntfy.sh topic can read it
 # quiet = false                       # true: only "needs you" gets through
 
+# The agent working setup (config/defaults.toml has every key, setup/README.md what each does).
+# [setup.machine]
+# test_workers = 2
+# max_subagents = 3
+# [setup.models.default]
+# model = "claude-opus-5-5"
+# effort = "medium"
+# [setup.repos]
+# integration_branch = "develop"
+# release_branch = "main"
+# [setup.gates]
+# quick = "npm run typecheck"
+# full = "npm test"
+# [setup.captain]
+# timezone = "America/Chicago"
+
 # Anything herdr's own config.toml takes goes under [herdr], unchanged. It is merged over the
 # Agent Office preset: a table merges key by key, any other value replaces the preset's.
 # [herdr.ui]

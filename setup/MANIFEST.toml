@@ -1,0 +1,111 @@
+# What `office setup` puts into your home, and how. setup/README.md explains each kind.
+#
+# Only the files listed here ship: a template is a file under setup/ that this list names, and
+# setup-probe fails on a file under setup/ that it does not name. A target is a path in your
+# home: a leading ~/ is your home, {{firstmate.home}} and {{firstmate.code}} are your config's.
+# `when` names a true-or-false config key; the entry is left out while it is false.
+# `harness` names the one harness the entry is for; on another, it is not written and `why` says
+# what to do instead.
+#
+# kind:
+#   block   Markdown. Agent Office owns only the text between its begin and end markers.
+#   json    JSON. Agent Office owns only the keys the template has; a list merges by value.
+#   yaml    YAML. Agent Office owns only the top-level keys the template has.
+#   owned   A whole file. Replaced only while it still is what Agent Office wrote last.
+#   starter A whole file, written once when it is not there and never again.
+#   link    A symbolic link, made only when nothing is there.
+#   flags   One empty file per name in the config list `from`, in the folder `target`.
+
+schema = 1
+
+[[file]]
+source = "agents/AGENTS.md"
+target = "~/AGENTS.md"
+kind = "block"
+
+# Claude Code reads CLAUDE.md, Codex reads AGENTS.md: one file, so the two never drift apart
+[[file]]
+target = "~/.claude/CLAUDE.md"
+to = "~/AGENTS.md"
+kind = "link"
+
+[[file]]
+target = "~/.codex/AGENTS.md"
+to = "~/AGENTS.md"
+kind = "link"
+
+[[file]]
+source = "agents/release-process.md"
+target = "~/.agents/release-process.md"
+kind = "block"
+
+[[file]]
+source = "claude/settings.json"
+target = "~/.claude/settings.json"
+kind = "json"
+
+[[file]]
+source = "claude/hooks/agents-md.py"
+target = "~/.claude/hooks/agents-md.py"
+kind = "owned"
+mode = "755"
+
+[[file]]
+source = "claude/hooks/text-check.mjs"
+target = "~/.claude/hooks/text-check.mjs"
+kind = "owned"
+mode = "755"
+
+[[file]]
+source = "claude/hooks/text-check.json"
+target = "~/.claude/hooks/text-check.json"
+kind = "owned"
+
+[[file]]
+source = "claude/themes/office.json"
+target = "~/.claude/themes/office.json"
+kind = "owned"
+when = "setup.claude.theme"
+
+[[file]]
+source = "claude/theme.json"
+target = "~/.claude/settings.json"
+kind = "json"
+when = "setup.claude.theme"
+
+[[file]]
+source = "firstmate/crew-dispatch.json"
+target = "{{firstmate.home}}/config/crew-dispatch.json"
+kind = "owned"
+
+[[file]]
+source = "firstmate/startup-memory-budget"
+target = "{{firstmate.home}}/config/startup-memory-budget"
+kind = "owned"
+
+[[file]]
+source = "firstmate/supervision-host"
+target = "{{firstmate.home}}/config/supervision-host"
+kind = "owned"
+
+[[file]]
+target = "{{firstmate.home}}/config"
+from = "setup.firstmate.flags"
+kind = "flags"
+
+[[file]]
+source = "firstmate/captain.md"
+target = "{{firstmate.home}}/data/captain.md"
+kind = "starter"
+
+[[file]]
+source = "no-mistakes/config.yaml"
+target = "~/.no-mistakes/config.yaml"
+kind = "yaml"
+
+[[file]]
+source = "gnhf/config.yml"
+target = "~/.gnhf/config.yml"
+kind = "yaml"
+harness = "claude"
+why = "gnhf has no {{firstmate.harness}} permission override here, so its default would skip permissions: set agentArgsOverride.{{firstmate.harness}} yourself in ~/.gnhf/config.yml"

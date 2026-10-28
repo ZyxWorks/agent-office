@@ -1,0 +1,57 @@
+{
+  "env": {
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "{{setup.tokens.auto_compact_tokens}}"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "model": "{{setup.models.default.model}}",
+  "effortLevel": "{{setup.models.default.effort}}",
+  "permissions": {
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(gh-axi:*)",
+      "Bash(quota-axi:*)",
+      "Bash(tasks-axi:*)",
+      "Bash(lavish-axi:*)",
+      "Bash(treehouse:*)",
+      "Bash(no-mistakes axi run:*)",
+      "Bash(bin/fm-*)",
+      "Bash({{firstmate.code}}/bin/fm-*)",
+      "Bash(FM_HOME={{firstmate.home}} {{firstmate.code}}/bin/fm-*)",
+      "Bash(git commit:*)",
+      "Bash(git push -u origin fm/*)"
+    ]
+  },
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Bash(git push:* --force) on the {{setup.repos.protected}} branch",
+      "Bash(rm:*) on shared or scratch paths outside this worktree"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/text-check.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/agents-md.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -31,3 +31,52 @@ enabled = false
 provider = "ntfy"
 # url: where to push, for ntfy the server and topic. Unset means nothing can be sent.
 quiet = false                         # true: only "needs you" gets through
+
+# The agent working setup: the values `office setup` puts into the agent rules, Claude Code,
+# Firstmate, no-mistakes and gnhf. The templates live in setup/ (setup/README.md). Nothing here
+# names a person, a path or an account: those stay in your own config.toml.
+[setup.machine]
+test_workers = 2                      # test runners run with this many workers
+max_subagents = 3                     # an agent spawns at most this many subagents
+
+# A model is a harness's model id and its reasoning effort. default is for judgment work,
+# mechanical for work with a known result. gate is what no-mistakes reviews with; unset means
+# the default model. These are Claude's: with firstmate.harness = "codex", set default and mechanical
+# in your own config.toml, or `office setup` refuses.
+[setup.models.default]
+model = "claude-opus-5-5"
+effort = "medium"
+
+[setup.models.mechanical]
+model = "claude-opus-5-5"
+effort = "low"
+
+[setup.tokens]
+cold_cache_minutes = 55               # past this idle time a session's prompt cache is cold
+auto_compact_tokens = 250000          # Claude Code compacts a session at this many tokens
+
+[setup.repos]
+integration_branch = "main"           # where reviewed PRs land
+release_branch = "main"               # what users get; the same as above means no release PR
+
+# The commands a gate runs. Unset means the rules name them in words ("the repo's quick checks").
+[setup.gates]
+# quick: the checks a PR branch gets before a push, say "npm run typecheck"
+# full: the one full gate per merge train
+# nightly: the nightly full run that a release head reuses
+nightly_max_age_hours = 48            # a nightly run older than this is not reused
+
+[setup.review]
+# paid_bot: a paid review bot's handle. It reviews only the final release head, never each push.
+risky_uses = "no-mistakes"            # what reviews a big or easy-to-break change
+
+[setup.captain]
+# timezone: the IANA zone clock times are given in, say "America/Chicago". Unset: your local time.
+review_surface = "the GitHub PR page" # where the captain reviews
+
+[setup.firstmate]
+startup_memory_budget = 7500          # config/startup-memory-budget in the Firstmate home
+flags = ["turnend-churn-absorb", "wedge-defer-parked-gate"]   # empty opt-in files in its config/
+
+[setup.claude]
+theme = false                         # true: the office theme for Claude Code, its herdr palette
