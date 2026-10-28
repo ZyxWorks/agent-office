@@ -424,3 +424,14 @@ jobs:
           if grep -q 'not the pinned version' "$RUNNER_TEMP/doctor.txt"; then
             echo "office tools left a tool at another version than its pin"; exit 1
           fi
+
+      - name: the skill packs, from their upstreams, match their pinned commits and SHA-256
+        run: |
+          set -o pipefail
+          printf '[setup.skills]\nno_ai_slop = true\nmarketing = true\nbrag_slim = true\n' >> "$HOME/.config/agent-office/config.toml"
+          bin/office setup agents --yes | tee "$RUNNER_TEMP/skills.txt"
+          for s in no-ai-slop marketing brag-slim; do test -f "$HOME/.claude/skills/$s/SKILL.md"; done
+          bin/office setup agents --check | tee "$RUNNER_TEMP/skills-check.txt"
+          if grep -qE '^  (create|update|edit|replace|beside|remove) ' "$RUNNER_TEMP/skills-check.txt"; then
+            echo "a second office setup agents still has something to do"; exit 1
+          fi
