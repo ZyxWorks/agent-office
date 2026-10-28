@@ -334,6 +334,8 @@ def yaml_without(cur: str, prev: dict) -> str:
     header = prev.get("header") or ""
     if header and header in out:  # the comment Agent Office wrote above its keys
         out = out.replace(header, "", 1)
+    if out == cur:
+        return cur
     return out.rstrip("\n") + "\n" if out.strip() else ""
 
 

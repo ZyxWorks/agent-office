@@ -253,6 +253,12 @@ def main():
         r = h.run("--remove", "--yes")
         check("a JSON file with none of Agent Office's keys left is not rewritten",
               r.returncode == 0 and h.text(".claude/settings.json") == mine, out(r))
+        h = Home(tmp)
+        h.run()
+        h.p(".gnhf/config.yml").write_text("mine: 1")
+        r = h.run("--remove", "--yes")
+        check("a YAML file with none of Agent Office's keys left is not rewritten",
+              r.returncode == 0 and h.text(".gnhf/config.yml") == "mine: 1", out(r))
 
         print("a bad config")
         h = Home(tmp, "[setup.machine]\ntest_workers = 0\n")
