@@ -132,6 +132,15 @@ def head(path):
 
 
 def main():
+    try:
+        cases()
+    finally:
+        shutil.rmtree(ROOT, ignore_errors=True)
+    print(f"\n{fails} failed" if fails else "\nall passed")
+    return 1 if fails else 0
+
+
+def cases():
     print("no terminal")
     h = Home()
     r = h.run()
@@ -171,6 +180,9 @@ def main():
     h = Home()
     code = h.p("mine/fm")
     subprocess.run(["git", "clone", "-q", str(SOURCE), str(code)], check=True, capture_output=True)
+    # a checkout of the default firstmate.source, as a user who cloned it by hand has
+    subprocess.run(["git", "-C", str(code), "remote", "set-url", "origin", C.load(Path("/nonexistent"))["firstmate"]["source"]],
+                   check=True, capture_output=True)
     # both harnesses are stand-ins on PATH, so the first question is asked; a wrong answer is asked again
     rc, said = h.run_tty(["gemini", "", "mine/fm", "~/mine/fm", "", "maybe", "y", "0", "4", "", "y"])
     cfg = h.p(".config/agent-office/config.toml")
@@ -191,6 +203,30 @@ def main():
           not any(w in said.lower() for w in ("token", "password", "account", "e-mail", "email", "your name")),
           said[-3000:])
 
+    print("--yes on a new machine without a config")
+    h = Home()
+    other = h.p("firstmate")
+    subprocess.run(["git", "clone", "-q", str(SOURCE), str(other)], check=True, capture_output=True)
+    r = h.run("--yes")
+    cfg = h.p(".config/agent-office/config.toml")
+    got = C.tomllib.loads(cfg.read_text()) if cfg.is_file() else {}
+    check("the questions take the answer in brackets, into a new config", r.returncode == 0
+          and got.get("firstmate") == {"code": "~/firstmate", "harness": "claude"}
+          and got.get("setup", {}).get("machine") == {"test_workers": 2, "max_subagents": 3}, out(r) + str(got))
+    check("a checkout of another source is left as it is, and left for you",
+          "has no remote that is firstmate.source" in r.stdout and "left for you  Firstmate" in r.stdout
+          and head(other) == TIP, out(r))
+
+    print("--check before herdr is installed")
+    h = Home(f'[firstmate]\nsource = "{SOURCE}"\n')
+    before = h.snapshot()
+    env = h.env()
+    env["PATH"] = os.pathsep.join([str(STUBS), "/usr/bin", "/bin"])
+    r = subprocess.run([sys.executable, str(OFFICE), "setup", "--check"], env=env, capture_output=True, text=True,
+                       stdin=subprocess.DEVNULL, start_new_session=True, timeout=300)
+    check("plans herdr's integration for after herdr is in, and nothing fails", r.returncode == 0
+          and "once office tools has installed herdr" in r.stdout and h.snapshot() == before, out(r))
+
     print("setup.enabled = false, and something else where Firstmate goes")
     h = Home(f'[firstmate]\nsource = "{SOURCE}"\ncode = "~/fm"\n[setup]\nenabled = false\n')
     h.p("fm").mkdir()
@@ -208,9 +244,6 @@ def main():
     check("runs the agent working setup alone", r.returncode == 0 and "office setup agents --check" in r.stdout
           and "office tools" not in r.stdout, out(r))
 
-    shutil.rmtree(ROOT)
-    print(f"\n{fails} failed" if fails else "\nall passed")
-    return 1 if fails else 0
 
 
 if __name__ == "__main__":

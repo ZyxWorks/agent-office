@@ -2,21 +2,23 @@
 
   git clone https://github.com/ZyxWorks/agent-office ~/agent-office && ~/agent-office/bin/office setup
 
-The steps, in order, each through the command that owns it, so running that one command later
-does the same thing:
+First, only while there is no config yet, the questions: which coding agent Firstmate runs on
+(only among the ones installed), where Firstmate's code and home go, whether to write the agent
+working setup, and how many test workers and subagents. The answers go into a new
+~/.config/agent-office/config.toml, which is yours. --yes takes the answer in brackets of each.
 
-1. the first-run questions, only while there is no config yet and there is a terminal to ask on:
-   which coding agent Firstmate runs on (only among the ones installed), where Firstmate's code
-   and home go, whether to write the agent working setup, and how many test workers and
-   subagents. The answers go into a new ~/.config/agent-office/config.toml, which is yours,
-2. office tools: the missing tools, at their pins, each through its owner,
-3. Firstmate: a clone of firstmate.source into firstmate.code, at the newest revision this
-   release is tested with, when nothing is there yet. A checkout that is there is left as it is,
-4. office install,
-5. office setup agents: the agent working setup, unless setup.enabled is false,
-6. herdr's integration for your harness (`herdr integration install <harness>`), when it is not
+Then the steps, in order, each through the command that owns it, so running that one command
+later does the same thing:
+
+1. office tools: the missing tools, at their pins, each through its owner,
+2. Firstmate: a clone of firstmate.source into firstmate.code, at the newest revision this
+   release is tested with, when nothing is there yet. A checkout of firstmate.source that is
+   there is left as it is,
+3. office install,
+4. office setup agents: the agent working setup, unless setup.enabled is false,
+5. herdr's integration for your harness (`herdr integration install <harness>`), when it is not
    current and the harness is installed and has its folder (~/.claude, ~/.codex),
-7. office doctor: the report. It is read only, and its problems do not fail the run.
+6. office doctor: the report. It is read only, and its problems do not fail the run.
 
 Each step shows what it changes before it changes it and asks before it installs anything or
 changes a file of yours; --yes asks nothing. It never asks for a token, an account, a name or an
@@ -75,7 +77,10 @@ class Run:
 
     def _pick(self, prompt: str, default: str, valid: Callable[[str], Optional[str]]) -> Optional[str]:
         """The answer, the default on an empty one, None when there is no terminal. A wrong answer
-        is said why and asked again."""
+        is said why and asked again. With --yes, the default without asking."""
+        if self.yes:
+            self.say(f"{prompt} {default}")
+            return default
         while True:
             got = self.ask(f"{prompt} [{default}] ")
             if got is None:
@@ -89,7 +94,8 @@ class Run:
     def questions(self) -> Optional[dict]:
         """The config the answers make, as TOML tables {table: {key: value}}, or None when there is
         no terminal to ask on."""
-        self.say("No config yet, so four questions first. Enter keeps the answer in brackets.")
+        self.say("No config yet, so four questions first. " + ("--yes: each takes the answer in brackets."
+                 if self.yes else "Enter keeps the answer in brackets."))
         have = [h for h in HARNESSES if self.which(h)]
         if len(have) == 2:
             harness = self._pick("(1/4) Which coding agent does Firstmate run on, claude or codex?", "claude",
@@ -166,7 +172,13 @@ class Run:
     def firstmate(self, cfg: dict) -> str:
         fm = cfg["firstmate"]
         code = C.expand(fm["code"], self.env)
+        source = fm["source"]
         if (code / ".git").exists():
+            if doctor._norm(source) not in doctor.remotes(code, self.env).values():
+                self.say(f"The git checkout at {self.show(code)} has no remote that is firstmate.source, "
+                         f"{source}: left as it is. Set firstmate.code or firstmate.source in your config to "
+                         "the Firstmate you mean, then run office setup again.")
+                return "left for you"
             self.say(f"Firstmate is there already, {self.show(code)}: left as it is. office update moves it.")
             return "ok"
         if code.exists() and not (code.is_dir() and not any(code.iterdir())):
@@ -178,7 +190,6 @@ class Run:
         except C.ConfigError as e:
             print("\n".join(["office setup: cannot read the component list", *e.problems]), file=self.err)
             return "failed"
-        source = fm["source"]
         at = (f"at {tested[-1][:12]}, the newest revision this release is tested with" if tested else
               "at its newest commit: no Firstmate revision is tested with this release yet, so office "
               "doctor reports it as not tested")
@@ -191,11 +202,20 @@ class Run:
         if not self.confirm("Clone Firstmate? [y/N] "):
             self.say("Firstmate is not cloned: not confirmed. Run it in a terminal to answer, or pass --yes.")
             return "skipped"
+        # cloned beside, and moved in place only at the tested revision: a failed run leaves nothing
+        # that the next one would take for a finished checkout
+        part = code.parent / f".{code.name}.agent-office-clone"
         try:
-            tools.call(["git", "clone", "--quiet", "--", source, str(code)], self.env)
+            shutil.rmtree(part, ignore_errors=True)
+            code.parent.mkdir(parents=True, exist_ok=True)
+            tools.call(["git", "clone", "--quiet", "--", source, str(part)], self.env)
             if tested:
-                tools.call(["git", "-C", str(code), "reset", "--quiet", "--hard", tested[-1]], self.env)
+                tools.call(["git", "-C", str(part), "reset", "--quiet", "--hard", tested[-1]], self.env)
+            if code.exists():
+                code.rmdir()  # empty, as checked above
+            part.rename(code)
         except (tools.Failed, OSError) as e:
+            shutil.rmtree(part, ignore_errors=True)
             self.say(f"  FAILED   the clone: {e}")
             return "failed"
         self.say(f"  ok       Firstmate in {self.show(code)}")
@@ -210,6 +230,9 @@ class Run:
                      f"`herdr integration install {harness}` (or office setup again).")
             return "left for you"
         if not self.which("herdr"):
+            if self.check_only:
+                self.say(f"  install  herdr's {harness} integration, once office tools has installed herdr")
+                return "ok"
             self.say("herdr is not installed, so its integration is not either: see office tools above.")
             return "failed"
         # herdr puts its hooks in the agent's own folder, and refuses while there is none
@@ -265,12 +288,11 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, ask=install.ask) -> int:
     on_path = local_bin in env.get("PATH", "").split(os.pathsep)
     if not on_path:
         env["PATH"] = local_bin + os.pathsep + env.get("PATH", "")
-        os.environ["PATH"] = env["PATH"]
     flags = ["--check"] if check_only else (["--yes"] if yes else [])
 
     cfg_path = C.config_path(env)
     r.say(f"office setup{' --check' if check_only else ''}: Agent Office at {r.show(C.REPO)}")
-    if not (cfg_path.exists() or cfg_path.is_symlink()) and not (check_only or yes):
+    if not (cfg_path.exists() or cfg_path.is_symlink()) and not check_only:
         r.say("")
         answers = r.questions()
         if answers is None:
@@ -292,7 +314,12 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, ask=install.ask) -> int:
         r.say(f"\n{next(steps)}. {title}")
 
     step("office tools: the tools the office uses")
-    r.done("office tools", "ok" if tools.run(flags, env=env, out=out, err=err) == 0 else "failed")
+    said = {}
+    if tools.run(flags, env=env, out=out, err=err, outcome=said) == 0:
+        r.done("office tools", "ok")
+    else:
+        r.done("office tools", "failed" if said.get("failed") or not (said.get("manual") or said.get("declined"))
+               else "left for you" if said.get("manual") else "skipped")
 
     step("Firstmate")
     r.done("Firstmate", r.firstmate(cfg))
@@ -302,7 +329,9 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, ask=install.ask) -> int:
         r.say("office install checks its config with herdr, so it plans once herdr is installed.")
         r.done("office install", "ok")
     else:
-        r.done("office install", "ok" if install.run(flags, env=env, out=out, err=err) == 0 else "failed")
+        said = {}
+        code = install.run(flags, env=env, out=out, err=err, outcome=said)
+        r.done("office install", "ok" if code == 0 else "skipped" if said.get("declined") else "failed")
 
     step("office setup agents: the agent working setup")
     if cfg["setup"]["enabled"]:
@@ -345,21 +374,23 @@ usage: office setup [--check] [--yes]
 
 The whole agent setup in one run: on a new machine, the one line after the clone. In order:
 
-  1. four questions, only while you have no config yet: which coding agent Firstmate runs on,
-     where Firstmate's code and home go, whether to write the agent working setup, and how many
-     test workers and subagents. The answers go into ~/.config/agent-office/config.toml
-  2. office tools: the missing tools, at their pins
-  3. Firstmate cloned into firstmate.code at a tested revision, when nothing is there yet
-  4. office install: your config, herdr's config, the meter, the office and fm commands
-  5. office setup agents: the agent working setup, unless setup.enabled is false
-  6. herdr's integration for your coding agent, when that agent is installed
-  7. office doctor: the report
+First, only while you have no config yet, four questions: which coding agent Firstmate runs on,
+where Firstmate's code and home go, whether to write the agent working setup, and how many test
+workers and subagents. The answers go into ~/.config/agent-office/config.toml. Then:
+
+  1. office tools: the missing tools, at their pins
+  2. Firstmate cloned into firstmate.code at a tested revision, when nothing is there yet
+  3. office install: herdr's config, the meter, the office and fm commands
+  4. office setup agents: the agent working setup, unless setup.enabled is false
+  5. herdr's integration for your coding agent, when that agent is installed
+  6. office doctor: the report
 
 Every step shows what it changes first and asks before it installs anything or changes a file of
 yours. Run it again any time: a step that has nothing to do says so. It never asks for a token, an
 account, a name or an email address; signing in to a coding agent is yours to do.
 
   --check   show what each step would do, change nothing (and ask nothing)
-  --yes     ask nothing: the defaults for the questions, yes to every step (backups are still made)
+  --yes     ask nothing: the answer in brackets for each question, yes to every step (backups
+            are still made)
 
 office setup agents writes only the agent working setup: see `office setup agents --help`."""

@@ -216,7 +216,9 @@ def _unpack(archive: Path, cmd: str) -> bytes:
 
 
 def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFEST,
-        plat: Optional[str] = None) -> int:
+        plat: Optional[str] = None, outcome: Optional[dict] = None) -> int:
+    """outcome, when given, gets "declined", "failed" and "manual": why a run that is not 0 is not."""
+    outcome = {} if outcome is None else outcome
     check_only = yes = workstation = False
     for a in args:
         if a in ("--check", "-n", "--dry-run"):
@@ -256,6 +258,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     if check_only:
         return 0
     if todo and not yes and not _confirm(f"Install {len(todo)} tool(s) above? [y/N] "):
+        outcome["declined"] = True
         print("office tools: not confirmed. Nothing was installed. "
               "Run it in a terminal to answer, or pass --yes.", file=err)
         return 1
@@ -273,6 +276,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     if failed:
         print(f"{failed} install(s) failed.", file=out)
     print("Run office doctor to check every version and who updates each tool.", file=out)
+    outcome.update(failed=failed, manual=len(manual))
     return 1 if failed or manual else 0
 
 

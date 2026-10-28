@@ -33,7 +33,7 @@ One line:
 git clone https://github.com/ZyxWorks/agent-office ~/agent-office && ~/agent-office/bin/office setup
 ```
 
-**The questions.** The first run asks four, and only while you have no config yet: which coding agent Firstmate runs on (only when you have both Claude Code and Codex), where Firstmate's code and its private home go, whether to write the agent working setup, and how many workers one test run and how many subagents one agent may use. Enter keeps the answer in brackets. The answers go into `~/.config/agent-office/config.toml`, which is yours: nothing writes it again. Nothing asks for a token, an account, a name or an email address. `office setup --yes` takes the defaults and asks nothing.
+**The questions.** The first run asks four, and only while you have no config yet: which coding agent Firstmate runs on (only when you have both Claude Code and Codex), where Firstmate's code and its private home go, whether to write the agent working setup, and how many workers one test run and how many subagents one agent may use. Enter keeps the answer in brackets. The answers go into `~/.config/agent-office/config.toml`, which is yours: nothing writes it again. Nothing asks for a token, an account, a name or an email address. `office setup --yes` takes the answer in brackets for each and asks nothing.
 
 Then six steps, in order. Each one shows what it changes first, and asks before it installs anything or changes a file of yours:
 

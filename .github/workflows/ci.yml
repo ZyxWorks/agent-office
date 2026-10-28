@@ -409,7 +409,9 @@ jobs:
       # the one line a user runs after the clone. No coding agent is installed here, so herdr's
       # integration is left for the user and the run still ends well.
       - name: office setup
-        run: bin/office setup --yes | tee "$RUNNER_TEMP/setup.txt"
+        run: |
+          set -o pipefail
+          bin/office setup --yes | tee "$RUNNER_TEMP/setup.txt"
 
       - name: every tool is installed, at its pin, and Firstmate is cloned
         run: |
