@@ -21,9 +21,11 @@ commit into a throwaway repository it removes again. It writes nothing of yours.
 - a tool Homebrew owns: `brew upgrade`, only after Homebrew said it has the target version.
 - a tool that updates itself: its own release asset at the pin, SHA-256 checked, over the program
   where its own installer put it. Its `update` command is never run: none of them takes a
-  version, each installs its newest, and herdr's can hand a running server over.
+  version, each installs its newest, and herdr's can hand a running server over. The program it
+  replaces is kept in the state folder's previous/, and put back when the new one is not the pin.
 - Firstmate: its own updater when the checkout has one and the newest commit of its source is a
-  tested revision; otherwise git, fast-forward only, to the tested revision.
+  tested revision; otherwise git, fast-forward only, to the tested revision. Each secondmate its
+  updater reports is a result of its own.
 - the generated config: what `office install` does.
 
 The target is the pin or tested version in the manifest, never "the latest". A tool with no
@@ -34,7 +36,8 @@ It never restarts anything. What a running session, Firstmate or daemon still ha
 reported as updated on disk but not yet active, with the command for it. Every component ends as
 exactly one of updated, unchanged, skipped, failed or pending, and it exits 0 only when all of
 them are updated or unchanged. The state folder's update.json records the run as it goes, so a
-run that was cut off is reported, and picked up, by the next one.
+run that was cut off is reported, and picked up, by the next one: what it stopped or failed on is
+tried again, a program that lost its version with it, and a secondmate Firstmate's updater skipped.
 """
 
 from __future__ import annotations
@@ -54,7 +57,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import config as C
-from . import doctor, install, setup_home, tools
+from . import doctor, fm, install, setup_home, tools
 from .tools import Failed
 
 MANIFEST = doctor.MANIFEST
@@ -76,12 +79,19 @@ done < "$2"
 '''
 RECORD = "update.json"
 LOCK = "update.lock"
+PREVIOUS = "previous"
+# the lock's file descriptor, handed to the new release when Agent Office moved
+LOCK_FD = "AGENT_OFFICE_UPDATE_LOCK_FD"
 OFFICE = "agent-office"
 STATES = ("updated", "unchanged", "skipped", "failed", "pending")
 
 
 class Skipped(Exception):
     """Found out while applying that the owner cannot reach the target. Nothing was changed."""
+
+
+class Unchanged(Exception):
+    """The owner ran and found it at the target already."""
 
 
 @dataclass
@@ -99,6 +109,8 @@ class Item:
     parts: list = field(default_factory=list)   # more lines for the plan: what moves with it
     live: bool = False         # active only once the office's herdr session restarts
     staged: bool = False       # planned from the release this checkout moves to
+    kept: str = ""             # set by run: where the program it replaced is kept
+    more: dict = field(default_factory=dict)   # set by run: results of what moved with it, by name
 
     @property
     def kind(self) -> str:
@@ -242,6 +254,7 @@ class Update:
         self.record = C.state_dir(env) / RECORD
         self.next: Optional[Commit] = None    # the release this checkout moves to, when it was read
         self.targets = ""                     # where the targets come from, for the plan
+        self.retry: set = set()               # the components the last run stopped or failed on
         self._st: Optional[dict] = None
 
     def say(self, line=""):
@@ -397,11 +410,11 @@ class Update:
         ok = {pin, *tested} - {None}
         if not ok:
             it.note = "no version pinned"
-        elif ver is None:
+        elif ver is None and name not in self.retry:
             it.blocker = f"`{cmd} --version` gave no version"
         elif ver in ok:
             pass
-        elif tools._vtuple(ver) > tools._vtuple(target):
+        elif ver is not None and tools._vtuple(ver) > tools._vtuple(target):
             it.blocker = (f"{ver} is newer than the target {target}: Agent Office never downgrades, and "
                           "this release is not tested with it")
         elif own is None:
@@ -422,6 +435,11 @@ class Update:
             self._release(it, c, real, pin)
         else:
             it.blocker = f"{doctor.label(own)} own it: update it there"
+        if it.run and ver is None:
+            # an owner cut off halfway, or one that failed, can leave a program that does not run:
+            # the run that stopped there is picked up, so its owner installs the target again
+            it.parts.append(f"`{cmd} --version` gives no version since the last office update stopped or failed "
+                            "on it: its owner installs the target again")
         if it.run:
             it.after = (f"`{c['restart']}`, for what already runs" if "restart" in c else
                         "a running herdr server" if name == "herdr" else "")
@@ -445,7 +463,27 @@ class Update:
             return
         it.action = (f"its release asset {asset['asset']} at {pin}, SHA-256 checked, over {self.show(dest)} "
                      f"(`{c['update']}` takes no version, so it is not run)")
-        it.run = lambda: self.tools._install_release(c, asset, dest, None)
+        it.run = lambda: self._swap(it, c, asset, dest)
+
+    def _swap(self, it: Item, c: dict, asset: dict, dest: Path) -> str:
+        """The pinned asset over the program, with the program it replaces kept in the state
+        folder: put back when the new one does not run as the pin, and left there after a good
+        update, for a rollback someone decides on. The last good version, never a guess."""
+        keep = C.state_dir(self.env) / PREVIOUS / c["command"]
+        keep.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(dest, keep)
+        try:
+            self.tools._install_release(c, asset, dest, None)
+        except Failed as e:
+            if dest.is_file() and tools._sha256(dest) == tools._sha256(keep):
+                raise                        # it failed before the program was replaced
+            # beside the program and renamed over it, as the install itself does
+            back = dest.with_name(f".{c['command']}.agent-office.tmp")
+            shutil.copy2(keep, back)
+            os.replace(back, dest)
+            raise Failed(f"{e}. The program it replaced, {it.have}, was put back")
+        it.kept = self.show(keep)
+        return self.show(dest)
 
     def _brew(self, flag: str, name: str, ok: set) -> str:
         # Homebrew has one version of a package, its own. Asking first keeps a newer one, which
@@ -472,7 +510,7 @@ class Update:
                 raise Failed(f"its owner left it at {now or 'no readable version'}, not the target {it.target}")
             if "restart" in c:
                 it.pending = f"what already runs keeps {it.have} until you run `{c['restart']}`"
-            return f"{it.have} -> {now}"
+            return f"{it.have} -> {now}" + (f" (the program it replaced is kept at {it.kept})" if it.kept else "")
         return go
 
     def firstmate(self, fm: dict, spec: dict) -> Item:
@@ -497,7 +535,10 @@ class Update:
         updater = code / spec["update"] if "update" in spec else None
         own = updater is not None and updater.is_file() and os.access(updater, os.X_OK)
         mates = self.secondmates(code, home)
-        if head in tested:
+        # what its updater skipped last time, a dirty secondmate home say, is picked up by running
+        # it again: Firstmate is at its target, but the update it promised is not complete
+        again = sorted(n for n in self.retry if n.startswith("secondmate "))
+        if head in tested and not (own and again):
             return it
         if not tested:
             it.blocker = ("no Firstmate revision is tested with this release yet, so there is no target "
@@ -522,6 +563,18 @@ class Update:
         it.owner = f"Firstmate's own updater ({spec['update']})"
         it.target = tip[:12]
         it.parts = self._scope(mates, True)
+        if head in tested:
+            if remote == "origin" and tip == head:
+                self._move(it, co, "same", f"FM_HOME={self.show(home)} {self.show(updater)}, again: last time it "
+                           f"skipped {', '.join(again)}", lambda: self._firstmate(it, co, updater, home, tip))
+                it.after = "each live secondmate it lists in restart-secondmates or nudge-secondmates"
+            else:
+                it.target = head[:12]
+                it.note = (f"what its updater skipped last time ({', '.join(again)}) stays as it is: "
+                           + (f"its updater pulls origin, and firstmate.source is the remote {remote}"
+                              if remote != "origin" else
+                              f"its updater now goes to {tip[:12]}, which is not the tested revision"))
+            return it
         if remote != "origin":
             it.blocker = f"its own updater pulls origin, and firstmate.source is the remote {remote}"
         elif tip not in tested:
@@ -529,7 +582,7 @@ class Update:
                           f"a revision this release is tested with (tested: {', '.join(t[:12] for t in tested)})")
         else:
             self._move(it, co, co.toward(head, tip), f"FM_HOME={self.show(home)} {self.show(updater)}",
-                       lambda: self._firstmate(co, updater, home, tip),
+                       lambda: self._firstmate(it, co, updater, home, tip),
                        lambda: co.changed(co.read(remote, tip)[0]))
             if it.run and mates[0]:
                 it.after += "; and each live secondmate it lists in restart-secondmates or nudge-secondmates"
@@ -573,12 +626,27 @@ class Update:
                 "stay where they are:")
         return [head, *("  " + l for l in lines)]
 
-    def _firstmate(self, co: Checkout, updater: Path, home: Path, tip: str) -> str:
+    def _firstmate(self, it: Item, co: Checkout, updater: Path, home: Path, tip: str) -> str:
         old = co.head()
-        said = tools.call([str(updater)], dict(self.env, FM_HOME=str(home)), cwd=str(co.path))
+        argv = [str(updater)]
+        try:
+            # one stream, in order: it reports a skipped remote secondmate on stderr
+            r = subprocess.run(argv, env=dict(self.env, FM_HOME=str(home)), cwd=str(co.path),
+                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               text=True, timeout=1800)
+        except (OSError, subprocess.SubprocessError) as e:
+            raise Failed(f"`{argv[0]}` did not run: {e}")
+        lines = r.stdout.strip().splitlines()
+        if r.returncode != 0:
+            raise Failed(f"`{self.show(updater)}` failed (exit {r.returncode})"
+                         + "".join("\n      " + line for line in lines[-5:]))
+        it.more = _mates(lines, f"FM_HOME={self.show(home)} {self.show(co.path / 'bin')}")
         if co.head() != tip:
-            last = (said.strip().splitlines() or ["it said nothing"])[-1]
-            raise Failed(f"Firstmate's updater left the checkout at {co.head()[:12]}, not {tip[:12]}: {last}")
+            why = next((l.split(": ", 1)[1] for l in lines if l.startswith("firstmate: ")),
+                       (lines or ["it said nothing"])[-1])
+            raise Failed(f"Firstmate's updater left the checkout at {co.head()[:12]}, not {tip[:12]}: {why}")
+        if old == tip:
+            raise Unchanged(f"{tip[:12]}; its updater ran again for its secondmates")
         return f"{old[:12]} -> {tip[:12]}"
 
     def config(self) -> Item:
@@ -703,16 +771,18 @@ class Update:
             detail = it.run()
         except Skipped as e:
             return {"state": "skipped", "detail": str(e)}
+        except Unchanged as e:
+            return {"state": "unchanged", "detail": str(e)}
         except (Failed, OSError) as e:
             return {"state": "failed", "detail": str(e)}
         if it.pending:
             return {"state": "pending", "detail": f"{detail} on disk, not yet active: {it.pending}"}
         return {"state": "updated", "detail": detail}
 
-    def apply(self, items: list, earlier: Optional[dict], again: list) -> int:
+    def apply(self, items: list, earlier: Optional[dict], again: list, lock=None) -> int:
         rec = {"schema": 1, "state": "running", "pid": os.getpid(), "repo": str(C.REPO), "current": None,
                "started": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-               "results": {}}
+               "results": {}, "retry": sorted(self.retry)}
         # what a run that was cut off had finished stays its result, not this run's "unchanged"
         done = {n: r for n, r in (earlier or {}).get("results", {}).items()
                 if isinstance(r, dict) and r.get("state") in ("updated", "pending")}
@@ -731,6 +801,7 @@ class Update:
                 r = {"state": done[it.name]["state"],
                      "detail": done[it.name]["detail"].replace(" (earlier in this update)", "") + " (earlier in this update)"}
             rec["results"][it.name] = r
+            rec["results"].update(it.more)
             rec["current"] = None
             if it.run:
                 self._save(rec)
@@ -744,6 +815,10 @@ class Update:
                 self.say("Agent Office itself moved, so the rest runs from the new release.")
                 self.say()
                 self.out.flush()
+                if lock is not None:
+                    # held without a gap: the new release goes on with this lock, not a new one
+                    os.set_inheritable(lock.fileno(), True)
+                    os.environ[LOCK_FD] = str(lock.fileno())
                 os.execv(sys.executable, [sys.executable, str(C.REPO / "bin" / "office"), "update", *again])
 
         results = rec["results"]
@@ -783,10 +858,18 @@ class Update:
             name = {"herdr config, active": "config", "meter, active": OFFICE}.get(fact)
             if name:
                 why[name] = said
-        if "firstmate" in changed:
+        if "firstmate" in changed and self._fm_runs():
             why["firstmate"] = ("a running Firstmate keeps the instructions it started with: `fm restart` "
                                 "(its hooks and flags: quit it, then `fm`)")
         return why
+
+    def _fm_runs(self) -> bool:
+        """Whether a Firstmate runs in the office session. Any doubt, such as another agent with
+        its name or no answer, counts as yes: better a restart it did not need than a missed one."""
+        try:
+            return fm.Office(self.cfg, self.env).agent() is not None
+        except (fm.Fail, KeyError):
+            return True
 
     def print_results(self, items: list, results: dict):
         self.say("Results:")
@@ -801,6 +884,47 @@ class Update:
         self.say()
         self.say(", ".join(f"{count[s]} {'updated on disk but not yet active' if s == 'pending' else s}"
                            for s in STATES if count[s]) + ".")
+
+
+_MATE = re.compile(r"^(?:remote )?secondmate ([A-Za-z0-9_.-]+): (updated|already current|skipped)\b:? ?(.*)$")
+
+
+def _mates(lines: list, how: str) -> dict:
+    """The result of each secondmate, as Firstmate's updater reports it, named "secondmate <id>".
+    The updater restarts nothing: a live one it moved still runs the old instructions, and its
+    restart-secondmates and nudge-secondmates lines say which. how is FM_HOME=<home> <bin>."""
+    live = {}
+    for line in lines:
+        key, _, ids = line.partition(":")
+        if key in ("restart-secondmates", "nudge-secondmates"):
+            for w in ids.split():
+                if w != "none":
+                    live[w[3:] if w.startswith("fm-") else w] = key
+    out, bad = {}, 0
+    for line in lines:
+        if line.startswith("secondmate registry: skipped"):
+            bad += 1
+            continue
+        m = _MATE.match(line)
+        if not m:
+            continue
+        mate, verb, said = m.groups()
+        name = f"secondmate {mate}"
+        if verb == "skipped":
+            out[name] = {"state": "skipped", "detail": said or "skipped by Firstmate's updater"}
+        elif verb == "already current":
+            out[name] = {"state": "unchanged", "detail": said or "at the target already"}
+        elif mate in live:
+            act = (f"`{how}/fm-secondmate-restart.sh fm-{mate}` restarts it" if live[mate] == "restart-secondmates"
+                   else f"ask it to re-read its AGENTS.md (`{how}/fm-send.sh {mate} ...`)")
+            out[name] = {"state": "pending", "detail": f"{said} on disk, not yet active: it still runs the old "
+                                                       f"instructions. {act}, as Firstmate's /updatefirstmate does"}
+        else:
+            out[name] = {"state": "updated", "detail": said}
+    if bad:
+        out["secondmate registry"] = {"state": "skipped", "detail": f"{bad} line(s) Firstmate's parser cannot read, "
+                                                                    "so its updater skipped them"}
+    return out
 
 
 def _cli_version(got: Commit) -> Optional[str]:
@@ -820,6 +944,43 @@ def _held(path: Path) -> bool:
         except OSError:
             return True
     return False
+
+
+def _handed(fd: Optional[str], path: Path):
+    """The lock the release before this one held, when it moved Agent Office and handed over to
+    this one: an open file of path, locked by this process image. None for anything else."""
+    if not fd or not fd.isdigit():
+        return None
+    try:
+        got, there = os.fstat(int(fd)), os.stat(path)
+        if (got.st_dev, got.st_ino) != (there.st_dev, there.st_ino):
+            return None
+        f = os.fdopen(int(fd), "w")
+    except OSError:
+        return None
+    os.set_inheritable(f.fileno(), False)
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)    # its own lock: taken again at once
+    except OSError:
+        f.close()
+        return None
+    return f
+
+
+def _retry(rec: Optional[dict]) -> set:
+    """What the last run stopped on or did not finish: a component it was cut off on, one that
+    failed, and a secondmate Firstmate's updater skipped or failed. The next run tries them again."""
+    if not rec:
+        return set()
+    out = {n for n, r in rec.get("results", {}).items() if isinstance(r, dict) and (
+        r.get("state") == "failed" or (n.startswith("secondmate ") and n != "secondmate registry"
+                                       and r.get("state") == "skipped"))}
+    if rec.get("state") == "running":
+        # what the run before it was to try again, through a handoff or a run cut off in turn
+        out |= {n for n in rec.get("retry", []) if isinstance(n, str)}
+        if isinstance(rec.get("current"), str):
+            out.add(rec["current"])
+    return out
 
 
 def _unfinished(rec: dict) -> str:
@@ -856,11 +1017,16 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
         comps = C.read_toml(manifest, str(manifest))
         u = Update(env, out, cfg, comps, plat or tools.platform_key())
         state = C.state_dir(env)
-        busy = _held(state / LOCK)
+        mine = _handed(env.pop(LOCK_FD, None), state / LOCK)
+        os.environ.pop(LOCK_FD, None)
+        busy = mine is None and _held(state / LOCK)
         if busy and not check_only:
             print("office update: another office update is running for this installation. "
                   "Let it finish, then try again.", file=err)
             return 1
+        prior = C.read_json(u.record)
+        unfinished = prior if prior and prior.get("state") == "running" else None
+        u.retry = _retry(prior)
         items = u.plan()
     except C.ConfigError as e:
         print("office update: the config has problems. Fix them first:", file=err)
@@ -875,8 +1041,6 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     print(f"Targets: {u.targets}", file=out)
     print(file=out)
     u.print_plan(items)
-    prior = C.read_json(u.record)
-    unfinished = prior if prior and prior.get("state") == "running" else None
     if busy:
         print("Another office update is running now: this plan is what it started from.", file=out)
     elif unfinished:
@@ -892,7 +1056,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
               "Run it in a terminal to answer, or pass --yes.", file=err)
         return 1
     state.mkdir(parents=True, exist_ok=True)
-    lock = open(state / LOCK, "w")
+    lock = mine or open(state / LOCK, "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -901,7 +1065,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
               "Let it finish, then try again.", file=err)
         return 1
     try:
-        return u.apply(items, unfinished, ["--yes"] if yes else [])
+        return u.apply(items, unfinished, ["--yes"] if yes else [], lock)
     except KeyboardInterrupt:
         # the record still says which component it was on: the next run reports and picks it up
         print("\noffice update: stopped. Run it again to pick it up; `office update --check` shows "
@@ -927,8 +1091,9 @@ Firstmate the plan also lists the secondmates its own updater moves with it. Not
 downgraded, merged, reset or restarted.
 
 Each component ends as updated, unchanged, skipped, failed, or updated on disk but not yet
-active (pending), with the command that activates it. Exit 0 only when all of them are updated
-or unchanged. One update runs at a time, and one that was cut off is picked up by the next.
+active (pending), with the command that activates it; each secondmate Firstmate's updater moves
+too. A release asset that is not the pin is undone. Exit 0 only when all of them are updated or
+unchanged. One update runs at a time, and one that was cut off or failed is picked up by the next.
 
   --check   show the plan, change nothing
   --yes     do not ask first"""
