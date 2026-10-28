@@ -1,10 +1,17 @@
 """office update: bring every component to the set this release is tested with, through its owner.
 
 `office update --check` only plans. For this checkout (the CLI, preset and meter), each tool in
-config/components.toml, Firstmate and the generated config it shows the installed version, the
-target, who owns the update, the exact action, what needs a restart afterwards, and what blocks
-it. It asks git and each program for versions, asks the remotes for their newest commit
-(`git ls-remote`, which fetches nothing) and writes nothing.
+config/components.toml, your harness, Firstmate and the generated config it shows the installed
+version, the target, who owns the update, the exact action, what needs a restart afterwards and
+whether that runs now, and what blocks it: a dirty checkout with the files the update changes
+too, a diverged or unreachable one. For Firstmate it also shows the secondmates its own updater
+moves with it, read with Firstmate's own registry parser.
+
+The targets are one set: when this checkout moves, every other target comes from the
+config/components.toml of the release it moves to, which is what that release's `office update`
+applies after the handoff. It asks git and each program for versions, asks the remotes for their
+newest commit (`git ls-remote`), and reads a commit it does not have yet by fetching that one
+commit into a throwaway repository it removes again. It writes nothing of yours.
 
 `office update` shows that plan, asks, and applies it under a lock, one component at a time:
 
@@ -37,8 +44,12 @@ import fcntl
 import io
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
-from dataclasses import dataclass
+import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -47,6 +58,22 @@ from . import doctor, install, tools
 from .tools import Failed
 
 MANIFEST = doctor.MANIFEST
+# what the plan reads of the release this checkout moves to
+READ = ("config/components.toml", "lib/agent_office/cli.py", "herdr/herdr-plugin.toml")
+REGISTRY = Path("data") / "secondmates.md"
+PARSER = "bin/fm-secondmate-registry-lib.sh"
+# Firstmate's own parser reads its registry: the line format is Firstmate's, not ours to copy.
+_MATES = r'''. "$1/bin/fm-secondmate-registry-lib.sh" || exit 3
+while IFS= read -r l || [ -n "$l" ]; do
+  case $l in "- "*) ;; *) continue ;; esac
+  if secondmate_registry_parse_line "$l"; then
+    printf '%s\t%s\t%s\t%s\n' "$SECONDMATE_REGISTRY_ID" "$SECONDMATE_REGISTRY_REMOTE" \
+      "$SECONDMATE_REGISTRY_HOST" "$SECONDMATE_REGISTRY_HOME"
+  else
+    echo '?'
+  fi
+done < "$2"
+'''
 RECORD = "update.json"
 LOCK = "update.lock"
 OFFICE = "agent-office"
@@ -69,10 +96,26 @@ class Item:
     note: str = ""             # why there is nothing to do
     run: Optional[Callable[[], str]] = None   # returns old -> new, raises Failed or Skipped
     pending: str = ""          # set by run: on disk, and what still runs the old one
+    parts: list = field(default_factory=list)   # more lines for the plan: what moves with it
+    live: bool = False         # active only once the office's herdr session restarts
+    staged: bool = False       # planned from the release this checkout moves to
 
     @property
     def kind(self) -> str:
         return "blocked" if self.blocker else "update" if self.run else "ok"
+
+
+@dataclass
+class Commit:
+    """One commit of a checkout's source, read without moving the checkout."""
+    rev: str
+    blobs: dict                # every file: path -> blob id
+    files: dict                # the text of the files asked for, the ones it has
+
+
+def _names(paths) -> str:
+    paths = sorted(paths)
+    return ", ".join(paths[:5]) + (f" and {len(paths) - 5} more" if len(paths) > 5 else "")
 
 
 class Checkout:
@@ -90,12 +133,76 @@ class Checkout:
     def head(self) -> Optional[str]:
         return self.git("rev-parse", "HEAD") if self.path.is_dir() else None
 
-    def dirty(self) -> int:
+    def dirty(self) -> list:
         """Tracked files with uncommitted changes. Untracked ones are yours and never in the way:
         git itself refuses a fast-forward that would overwrite one. Without optional locks, so
         that asking does not rewrite the index: --check writes nothing."""
-        return len((self.git("--no-optional-locks", "status", "--porcelain", "--untracked-files=no")
-                    or "").splitlines())
+        # not self.git: its strip() would eat the status column of the first line
+        out = doctor._run(["git", "-C", str(self.path), "--no-optional-locks", "status", "--porcelain",
+                           "-z", "--untracked-files=no"], self.env) or ""
+        names, parts = [], out.split("\0")
+        while parts:
+            entry = parts.pop(0)
+            if len(entry) > 3:
+                names.append(entry[3:])
+                if entry[0] in "RC" and parts:
+                    parts.pop(0)        # -z gives a rename's old name as the next entry
+        return names
+
+    def tree(self, rev: str, where: Optional[Path] = None) -> Optional[dict]:
+        """Every file of a commit, path to blob id: two commits differ where their ids do, with
+        no need for both histories in one repository."""
+        out = doctor._run(["git", "-C", str(where or self.path), "ls-tree", "-r", "-z", rev], self.env)
+        if out is None:
+            return None
+        return {e.split("\t", 1)[1]: e.split("\t", 1)[0].split()[2] for e in out.split("\0") if "\t" in e}
+
+    def read(self, remote: str, rev: str, files=()) -> tuple:
+        """The commit rev from remote as (Commit, "") or (None, why), with this checkout left as it
+        is: from its own objects when it has the commit, else fetched alone into a throwaway
+        repository that is removed again. A fetch here would write into the checkout's .git."""
+        if self.git("cat-file", "-e", rev + "^{commit}") is not None:
+            return self._commit(self.path, rev, files)
+        url = self.git("remote", "get-url", remote)
+        if not url:
+            return None, f"the remote {remote} has no URL"
+        if "://" not in url and not os.path.isabs(url) and (self.path / url).exists():
+            url = str((self.path / url).resolve())    # a relative path means one from the checkout
+        tmp = tempfile.mkdtemp(prefix="office-update.")
+        try:
+            try:
+                r = subprocess.run(["git", "init", "-q", "--bare", tmp], env=self.env, capture_output=True,
+                                   text=True, stdin=subprocess.DEVNULL, timeout=20)
+                if r.returncode == 0:
+                    r = subprocess.run(["git", "-C", tmp, "fetch", "-q", "--depth", "1", "--no-tags", url, rev],
+                                       env=self.env, capture_output=True, text=True,
+                                       stdin=subprocess.DEVNULL, timeout=300)
+            except (OSError, subprocess.SubprocessError) as e:
+                return None, f"git did not run: {e}"
+            if r.returncode != 0:
+                said = (r.stderr.strip().splitlines() or ["git said nothing"])[-1]
+                return None, f"fetching {rev[:12]} from {remote} failed: {said}"
+            return self._commit(Path(tmp), rev, files)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def _commit(self, where: Path, rev: str, files) -> tuple:
+        blobs = self.tree(rev, where)
+        if blobs is None:
+            return None, f"git could not list the files of {rev[:12]}"
+        text = {}
+        for f in files:
+            out = doctor._run(["git", "-C", str(where), "show", f"{rev}:{f}"], self.env)
+            if out is not None:
+                text[f] = out
+        return Commit(rev, blobs, text), ""
+
+    def changed(self, other: Optional["Commit"]) -> Optional[set]:
+        """The paths that differ between HEAD and the other commit, or None when unknown."""
+        here = self.tree("HEAD")
+        if here is None or other is None:
+            return None
+        return {p for p in set(here) | set(other.blobs) if here.get(p) != other.blobs.get(p)}
 
     def tip(self, remote: str, ref: str) -> Optional[str]:
         """The commit the remote has at ref, asked of the remote itself. Nothing is fetched."""
@@ -133,6 +240,9 @@ class Update:
         self.show = doctor.Report(env).show
         self.session = cfg["office"]["session"]
         self.record = C.state_dir(env) / RECORD
+        self.next: Optional[Commit] = None    # the release this checkout moves to, when it was read
+        self.targets = ""                     # where the targets come from, for the plan
+        self._st: Optional[dict] = None
 
     def say(self, line=""):
         print(line, file=self.out)
@@ -140,16 +250,49 @@ class Update:
     # --- the plan, one item per component -----------------------------------------------------
 
     def plan(self) -> list:
-        comps = self.comps.get("component", [])
-        return [self.office(),
-                *(self.tool(c) for c in comps if c.get("profile") != "workstation"),
+        office = self.office()
+        comps = self.comps
+        if self.next is not None:
+            # The release this checkout moves to applies its own targets after the handoff, so
+            # they are the ones this plan shows: one set, not this release's next to the new code.
+            try:
+                comps = C.tomllib.loads(self.next.files["config/components.toml"])
+            except (KeyError, C.tomllib.TOMLDecodeError) as e:
+                self.targets = (f"this release's: the config/components.toml of {self.next.rev[:12]} could not be "
+                                f"read ({e or 'it has none'}). After the move its own `office update` plans again")
+                self.next = None
+        if self.next is not None:
+            self.targets = (f"the release at {self.next.rev[:12]} (office {_cli_version(self.next) or 'unknown'}), "
+                            "from its config/components.toml: the set it applies after the handoff")
+        elif not self.targets:
+            from .cli import VERSION
+            self.targets = f"this release (office {VERSION}), from its config/components.toml"
+        listed = comps.get("component", [])
+        harness = [h for h in comps.get("harness", []) if h["name"] == self.cfg["firstmate"]["harness"]]
+        rest = [*(self.tool(c) for c in listed if c.get("profile") != "workstation"),
                 # the workstation tools are optional: the ones you have, as office doctor does
-                *(self.tool(c) for c in comps if c.get("profile") == "workstation" and self.tools.which(c["command"])),
-                self.firstmate(self.cfg["firstmate"], self.comps.get("firstmate", {})),
+                *(self.tool(c) for c in listed if c.get("profile") == "workstation" and self.tools.which(c["command"])),
+                *(self.tool(h) for h in harness),
+                self.firstmate(self.cfg["firstmate"], comps.get("firstmate", {})),
                 self.config()]
+        for it in rest:
+            it.staged = self.next is not None
+        return [office, *rest]
 
-    def _move(self, it: Item, co: Checkout, where: str, action: str, run):
-        """An update that moves a checkout forward, or the reason it cannot."""
+    def session_state(self) -> str:
+        """Whether the office's herdr session runs now, for what only a restart of it activates."""
+        if self._st is None:
+            self._st = doctor.server_status(self.env, self.session) or {}
+        if "running" not in self._st:
+            return f"herdr did not say whether the session {self.session} runs"
+        if not self._st["running"]:
+            return f"the session {self.session} is not running, so nothing old runs"
+        runs = self._st.get("version")
+        return f"the session {self.session} runs now" + (f", on herdr {runs}" if runs else "")
+
+    def _move(self, it: Item, co: Checkout, where: str, action: str, run, changes=lambda: None):
+        """An update that moves a checkout forward, or the reason it cannot. changes gives the
+        paths the update changes, or None when that is unknown."""
         dirty = co.dirty()
         if where == "diverged":
             it.blocker = ("it has commits the target does not have (diverged), so it cannot be "
@@ -157,8 +300,13 @@ class Update:
         elif where == "newer":
             it.blocker = "it is past the target already: Agent Office never moves a checkout back"
         elif dirty:
-            it.blocker = (f"{dirty} tracked file(s) in {self.show(co.path)} have uncommitted changes (dirty): "
-                          "commit or stash them, then run this again")
+            hit = changes()
+            both = set(dirty) & hit if hit is not None else set()
+            which = ("whether the update changes them too is unknown: its commit could not be read" if hit is None
+                     else f"the update changes {len(both)} of them too, so they conflict: {_names(both)}" if both
+                     else f"the update changes none of them: {_names(dirty)}")
+            it.blocker = (f"{len(dirty)} tracked file(s) in {self.show(co.path)} have uncommitted changes (dirty); "
+                          f"{which}. Commit or stash them, then run this again")
         else:
             it.action, it.run = action, run
 
@@ -189,10 +337,51 @@ class Update:
         where = co.toward(head, tip, "@{upstream}")
         if where == "newer":
             it.note = f"it has commits {up} does not have yet"
-        elif where != "same":
-            self._move(it, co, where, f"git fetch {remote} {ref}, then git merge --ff-only {tip[:12]}, "
-                       f"in {self.show(C.REPO)}", lambda: co.forward(["fetch", remote, ref], tip))
+            return it
+        if where == "same":
+            return it
+        got, why = co.read(remote, tip, READ) if where == "older" else (None, "")
+        self._move(it, co, where, f"git fetch {remote} {ref}, then git merge --ff-only {tip[:12]}, "
+                   f"in {self.show(C.REPO)}", lambda: co.forward(["fetch", remote, ref], tip),
+                   lambda: co.changed(got))
+        if where != "older":
+            return it
+        if got is None:
+            it.parts.append(f"the release at {tip[:12]} could not be read ({why}), so what it changes is unknown")
+            it.live = True
+            if it.run:
+                self.targets = (f"this release's, because the release at {tip[:12]} could not be read. After the "
+                                "move its own `office update` plans again")
+            return it
+        if it.run:
+            self.next = got
+        it.parts, live = self._parts(co, got)
+        it.after = live or "nothing: the next office command runs the new release"
+        it.live = bool(live)
         return it
+
+    def _parts(self, co: Checkout, got: Commit) -> tuple:
+        """What moves with this checkout, the CLI, preset and meter, and what of it is active only
+        after the office session restarts."""
+        from .cli import VERSION
+        changed = co.changed(got) or set()
+        new = _cli_version(got)
+        lines = [f"cli: office {VERSION} -> {new}" if new and new != VERSION else
+                 f"cli: office {new or 'unknown'}, the same version" + (", with changes" if any(
+                     p.startswith(("bin/", "lib/")) for p in changed) else "")]
+        preset = sorted(p for p in changed if p.startswith("preset/herdr/"))
+        lines.append(f"preset: {len(preset)} file(s) change: {_names(preset)}; office install writes the herdr "
+                     "config from it" if preset else "preset: unchanged")
+        meter = sorted(p for p in changed if p.startswith("herdr/"))
+        old = doctor._plugin_version(doctor.METER) or "unknown"
+        try:
+            now = C.tomllib.loads(got.files.get("herdr/herdr-plugin.toml", "")).get("version") or "unknown"
+        except C.tomllib.TOMLDecodeError:
+            now = "unknown"
+        lines.append((f"meter: {old} -> {now}" if now != old else f"meter: {now}, the same version")
+                     + (f", {len(meter)} file(s) change: {_names(meter)}" if meter else ", unchanged"))
+        live = [w for w, hit in (("the herdr config", preset), ("the meter", meter)) if hit]
+        return lines, " and ".join(live) + " of a running office session" if live else ""
 
     def tool(self, c: dict) -> Item:
         name, cmd, pin, tested = c["name"], c["command"], c.get("pin"), c.get("tested") or []
@@ -235,6 +424,7 @@ class Update:
         if it.run:
             it.after = (f"`{c['restart']}`, for what already runs" if "restart" in c else
                         "a running herdr server" if name == "herdr" else "")
+            it.live = name == "herdr"
             it.run = self._checked(it, c, it.run, ok)
         return it
 
@@ -303,27 +493,34 @@ class Update:
                           "so nothing says where its updates come from (owner unknown)")
             return it
         it.owner = f"git, {remote} (firstmate.source)"
+        updater = code / spec["update"] if "update" in spec else None
+        own = updater is not None and updater.is_file() and os.access(updater, os.X_OK)
+        mates = self.secondmates(code, home)
         if head in tested:
             return it
         if not tested:
             it.blocker = ("no Firstmate revision is tested with this release yet, so there is no target "
                           "(config/components.toml)")
+            it.parts = self._scope(mates, False)
             return it
         tip = co.tip(remote, "HEAD")
         if tip is None:
             it.blocker = f"the remote {remote} did not answer (offline?)"
+            it.parts = self._scope(mates, False)
             return it
-        updater = code / spec["update"] if "update" in spec else None
-        if updater is None or not updater.is_file() or not os.access(updater, os.X_OK):
+        if not own:
             target = tested[-1]
             self._move(it, co, co.toward(head, target), f"git fetch {remote}, then git merge --ff-only "
-                       f"{target[:12]}, in {self.show(code)}", lambda: co.forward(["fetch", remote], target))
+                       f"{target[:12]}, in {self.show(code)}", lambda: co.forward(["fetch", remote], target),
+                       lambda: co.changed(co.read(remote, target)[0]))
+            it.parts = self._scope(mates, False)
             return it
         # Firstmate's updater takes no revision: it fast-forwards to the newest commit of origin's
         # default branch, and its registered secondmates with it. So it runs only when that commit
         # is a tested one.
         it.owner = f"Firstmate's own updater ({spec['update']})"
         it.target = tip[:12]
+        it.parts = self._scope(mates, True)
         if remote != "origin":
             it.blocker = f"its own updater pulls origin, and firstmate.source is the remote {remote}"
         elif tip not in tested:
@@ -331,8 +528,49 @@ class Update:
                           f"a revision this release is tested with (tested: {', '.join(t[:12] for t in tested)})")
         else:
             self._move(it, co, co.toward(head, tip), f"FM_HOME={self.show(home)} {self.show(updater)}",
-                       lambda: self._firstmate(co, updater, home, tip))
+                       lambda: self._firstmate(co, updater, home, tip),
+                       lambda: co.changed(co.read(remote, tip)[0]))
+            if it.run and mates[0]:
+                it.after += "; and each live secondmate it lists in restart-secondmates or nudge-secondmates"
         return it
+
+    def secondmates(self, code: Path, home: Path) -> tuple:
+        """The secondmates registered in the Firstmate home, as Firstmate's own parser reads them:
+        (lines, "") or ([], why they are unknown). Only the registry file is read: no host is
+        asked anything, and no home of theirs is looked at."""
+        reg = home / REGISTRY
+        if not reg.is_file():
+            return [], ""
+        bash = shutil.which("bash", path=self.env.get("PATH", ""))
+        if not (code / PARSER).is_file() or bash is None:
+            return [], (f"{self.show(reg)} lists them, but " + (f"this Firstmate has no {PARSER} to read it with"
+                        if bash else "bash, which Firstmate's parser needs, is not on PATH"))
+        out = doctor._run([bash, "-c", _MATES, "fm-registry", str(code), str(reg)], self.env)
+        if out is None:
+            return [], f"Firstmate's {PARSER} could not read {self.show(reg)}"
+        rows = [r.split("\t") for r in out.splitlines()]
+        lines = [f"{i}: on the host {host}, home {h}" if remote == "1" else f"{i}: this machine, {self.show(h)}"
+                 for i, remote, host, h in (r for r in rows if len(r) == 4)]
+        bad = len(rows) - len(lines)
+        if bad:
+            lines.append(f"and {bad} line(s) of {self.show(reg)} that Firstmate's parser cannot read, so its "
+                         "updater skips them")
+        return lines, ""
+
+    def _scope(self, mates: tuple, own: bool) -> list:
+        """The plan's lines for what else a Firstmate update reaches: the remote Firstmate scope."""
+        lines, why = mates
+        if why:
+            return [f"secondmates: unknown: {why}"]
+        named = [l for l in lines if not l.startswith("and ")]
+        if not named:
+            return ["secondmates: none registered, so only this checkout moves"]
+        head = (f"secondmates: Firstmate's own updater moves these {len(named)} with it, each through its "
+                "own home's fast-forward, and skips one that is dirty or diverged. A host is reached by "
+                "Firstmate, not by this check:" if own else
+                f"secondmates: {len(named)} registered. Only Firstmate's own updater moves them, so they "
+                "stay where they are:")
+        return [head, *("  " + l for l in lines)]
 
     def _firstmate(self, co: Checkout, updater: Path, home: Path, tip: str) -> str:
         old = co.head()
@@ -345,12 +583,24 @@ class Update:
     def config(self) -> Item:
         steps = self._behind()
         it = Item("config", f"{len(steps)} file(s) behind" if steps else "in place",
-                  "this release", "office install")
+                  "this release", "office install", live=True)
+        if self.next is not None:
+            # this release's office install would write this release's files: the new one decides
+            it.target = f"release {self.next.rev[:12]}"
+            it.action = ("office install --yes, as the release Agent Office moves to writes it. Run "
+                         "`office update --check` again after the move to see its diff")
+            it.after = "the herdr config of a running office session"
+            it.run = self._install
+            return it
         if steps:
             it.action = "office install --yes: " + ", ".join(
                 self.show(s.path) + (" (backed up first)" if s.asks else "") for s in steps)
             it.after = "the herdr config of a running office session"
             it.run = self._install
+            # the migration diff of each file that is there already; a new one has no diff to show
+            for s in (s for s in steps if s.diff):
+                it.parts.append(f"{s.kind} {self.show(s.path)}: {s.what}")
+                it.parts += ["  " + line for line in s.diff]
         return it
 
     def _behind(self) -> list:
@@ -377,9 +627,12 @@ class Update:
                 self.say(f"{pad}blocker: {i.blocker}")
             elif i.run:
                 self.say(f"{pad}runs: {i.action}")
-                self.say(f"{pad}restart: {i.after or 'nothing, the next run uses it'}")
+                self.say(f"{pad}restart: {i.after or 'nothing, the next run uses it'}"
+                         + (f" ({self.session_state()})" if i.live else ""))
             elif i.note:
                 self.say(f"{pad}{i.note}")
+            for line in i.parts:
+                self.say(f"{pad}{line}")
         loose = [i.name for i in items if i not in named]
         if loose:
             self.say(f"  {'ok'.ljust(widths[0])}  no version pinned, so their owner decides: {', '.join(loose)}")
@@ -417,7 +670,12 @@ class Update:
             if it.run:
                 rec["current"] = it.name
                 self._save(rec)
-            r = self._one(it)
+            if it.staged and it.run:
+                # reached only when Agent Office did not move: a move hands over to the new release
+                r = {"state": "skipped", "detail": "planned from the release Agent Office was to move to, which "
+                                                   "it did not: run office update again"}
+            else:
+                r = self._one(it)
             if r["state"] == "unchanged" and it.name in done:
                 r = {"state": done[it.name]["state"],
                      "detail": done[it.name]["detail"].replace(" (earlier in this update)", "") + " (earlier in this update)"}
@@ -494,6 +752,11 @@ class Update:
                            for s in STATES if count[s]) + ".")
 
 
+def _cli_version(got: Commit) -> Optional[str]:
+    m = re.search(r'^VERSION = "([^"]+)"$', got.files.get("lib/agent_office/cli.py", ""), re.M)
+    return m.group(1) if m else None
+
+
 def _held(path: Path) -> bool:
     """Whether a running office update holds the lock. Opened to read: asking writes nothing."""
     try:
@@ -558,6 +821,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     print(f"office update{' --check: the plan, and nothing is changed' if check_only else ': the plan'}. "
           "Your home folder is shown as ~.", file=out)
     print(f"Agent Office {VERSION} at {u.show(C.REPO)}, config {u.show(C.config_path(env))}", file=out)
+    print(f"Targets: {u.targets}", file=out)
     print(file=out)
     u.print_plan(items)
     prior = C.read_json(u.record)
@@ -604,9 +868,12 @@ checkout (the CLI, preset and meter) by git, fast-forward only; a tool npm owns 
 pin; one Homebrew owns by `brew upgrade`, when Homebrew has the target; one that updates itself
 by its own release asset at the pin, SHA-256 checked; Firstmate by its own updater, or git,
 fast-forward only, to a tested revision; the generated config as office install writes it.
-The targets are the pins and tested versions in config/components.toml, never "the latest".
+The targets are the pins and tested versions in config/components.toml, never "the latest":
+when this checkout moves, the ones of the release it moves to, which that release applies.
 A dirty or diverged checkout, an unreachable remote, an unknown owner or a missing tool blocks
-that component only. Nothing is downgraded, merged, reset or restarted.
+that component only; a dirty one is shown with the files the update changes too. For
+Firstmate the plan also lists the secondmates its own updater moves with it. Nothing is
+downgraded, merged, reset or restarted.
 
 Each component ends as updated, unchanged, skipped, failed, or updated on disk but not yet
 active (pending), with the command that activates it. Exit 0 only when all of them are updated
