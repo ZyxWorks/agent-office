@@ -102,6 +102,8 @@ with open({str(log)!r}, "a") as f:
 want = os.environ.get("FAKE_FZF", "")
 if want == "cancel":
     sys.exit(130)
+if want == "broken":
+    sys.exit(2)
 hit = [r for r in rows if want in r.split("\\t", 1)[1]]
 if not hit:
     sys.exit(1)
@@ -234,6 +236,9 @@ check("no terminal: a part that matches two lists both and opens nothing",
 r = office()
 check("no terminal and no name: lists the projects, opens nothing", r.returncode == 1 and "delta" in r.stderr
       and did() == [], r.stderr)
+r = office("~nobody")
+check("~name is a project name, not a folder", r.returncode == 1 and "no project matches '~nobody'" in r.stderr,
+      r.stderr)
 r = office("a", "b")
 check("two names: a usage error", r.returncode == 2)
 r = office("--bogus")
@@ -273,6 +278,17 @@ check("Esc in the picker: exit 130, nothing made", rc == 130 and did() == [], f"
 fresh()
 rc, text = on_tty(FAKE_FZF="nothing like it")
 check("the picker finds nothing: says so", rc == 1 and "no project matches" in text and did() == [], text)
+fresh()
+rc, text = on_tty(FAKE_FZF="broken")
+check("fzf itself fails: says so, not that nothing matches", rc == 1 and "fzf failed (exit 2)" in text
+      and did() == [], text)
+fresh(running=False)
+rc, text = on_tty(FAKE_FZF="delta")
+check("no office session: says so before the picker opens", rc == 1 and calls("fzf") == []
+      and "Start it with: office on" in text, text)
+fresh()
+rc, text = on_tty("code", FAKE_FZF="delta")
+check("the picker matches names only, never the folder", calls("fzf")[0][2] == "--nth=1", str(calls("fzf")))
 fresh()
 rc, text = on_tty(FAKE_FZF="delta", HERDR_ENV="1", HERDR_SOCKET_PATH=SOCKET)
 check("inside the office session: it goes there and attaches nothing",

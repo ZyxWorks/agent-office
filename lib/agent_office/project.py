@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from . import config as C
@@ -41,6 +42,9 @@ Inside the office, prefix+f opens the same picker in a popup."""
 # `- <name> [<mode> ...] - <desc>` or the legacy `- <name> - <desc>`: Firstmate's own format,
 # read the way bin/fm-project-mode.sh reads it (the name ends at the first " [" or " - ")
 _ENTRY = re.compile(r"- (.+?)(?: \[| - )")
+
+
+LOCK_SECONDS = 15
 
 
 class Project:
@@ -80,12 +84,10 @@ def _in_roots(roots: list) -> list:
     return got
 
 
-def projects(cfg: dict, env) -> tuple[list, list]:
+def projects(cfg: dict, o: fm.Office, env) -> tuple[list, list]:
     """Every project to pick from, registered ones first, one per folder; and the registered
     names with no clone."""
-    fmc = cfg["firstmate"]
-    home = C.expand(fmc.get("home") or fmc["code"], env)
-    mine, missing = _registered(home)
+    mine, missing = _registered(o.home or o.code)
     seen, out = set(), []
     for p in mine + _in_roots([C.expand(r, env) for r in cfg["open"]["roots"]]):
         real = os.path.realpath(p.path)
@@ -110,7 +112,8 @@ def _pick(found: list, query: str, env) -> Project | None:
     """fzf over found. None when the picker was cancelled; Fail when nothing matches."""
     rows = [f"{i}\t{line}" for i, line in enumerate(_lines(found, env))]
     try:
-        r = subprocess.run(["fzf", "--delimiter=\t", "--with-nth=2..", "--prompt=open> ",
+        # --nth=1: the query matches the name only, as a part of a name does with no terminal
+        r = subprocess.run(["fzf", "--delimiter=\t", "--with-nth=2..", "--nth=1", "--prompt=open> ",
                             "--height=~60%", "--layout=reverse", "--select-1", "--exit-0",
                             "--query", query], input="\n".join(rows) + "\n",
                            stdout=subprocess.PIPE, text=True, env=env)
@@ -119,8 +122,10 @@ def _pick(found: list, query: str, env) -> Project | None:
                       "(`office open --list` shows them), or install fzf (`office tools --workstation`).")
     if r.returncode == 130:
         return None
-    if r.returncode != 0 or not r.stdout.strip():
+    if r.returncode == 1 or (r.returncode == 0 and not r.stdout.strip()):
         raise fm.Fail(f"no project matches '{query}'. `office open --list` shows them.")
+    if r.returncode != 0:
+        raise fm.Fail(f"fzf failed (exit {r.returncode}); what it said is above.")
     return found[int(r.stdout.split("\t", 1)[0])]
 
 
@@ -137,8 +142,8 @@ def _here(env) -> Path:
 
 
 def choose(found: list, missing: list, arg: str | None, env) -> Project | None:
-    if arg is not None and (arg in (".", "..") or "/" in arg or arg.startswith("~")):
-        path = C.expand(arg, env) if arg.startswith("~") else Path(arg)
+    if arg is not None and (arg in (".", "..", "~") or "/" in arg):
+        path = C.expand(arg, env)
         if not path.is_absolute():
             path = _here(env) / path
         path = Path(os.path.normpath(path))
@@ -191,16 +196,23 @@ def space(h: fm.Herdr, p: Project) -> dict | None:
 
 
 def _lock(env):
-    """Two quick presses of the key must make one space, not two: the second waits."""
+    """Two quick presses of the key must make one space, not two: the second waits for the
+    first, but not for ever, so a herdr that hangs is reported and not waited on in silence."""
     d = C.state_dir(env)
     d.mkdir(parents=True, exist_ok=True)
     f = open(d / "open.lock", "w")
-    fcntl.flock(f, fcntl.LOCK_EX)
-    return f
+    for _ in range(LOCK_SECONDS * 4):
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return f
+        except OSError:
+            time.sleep(0.25)
+    f.close()
+    raise fm.Fail(f"another office open has been at it for {LOCK_SECONDS} seconds: herdr may not be "
+                  "answering. Check `office status`, then try again.")
 
 
-def go(o: fm.Office, p: Project, env, out) -> dict:
-    srv = o.running()
+def go(o: fm.Office, p: Project, srv: dict, env, out) -> dict:
     lock = _lock(env)
     try:
         w = space(o.herdr, p)
@@ -234,20 +246,22 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
         for x in e.problems:
             print("  " + x, file=err)
         return 1
-    found, missing = projects(cfg, env)
+    o = fm.Office(cfg, env, "office open")
+    found, missing = projects(cfg, o, env)
     if listing:
         for line in _lines(found, env) if found else []:
             print(line, file=out)
         for name in missing:
             print(f"{name}  (registered with Firstmate, not cloned yet)", file=out)
         return 0
-    o = fm.Office(cfg, env, "office open")
     client = None
     try:
+        # before the picker: a pick made for a session that is not there is a pick wasted
+        srv = o.running()
         p = choose(found, missing, rest[0] if rest else None, env)
         if p is None:
             return 130
-        client = fm._show(o, go(o, p, env, out), out, "the project")
+        client = fm._show(o, go(o, p, srv, env, out), out, "the project")
         if client:
             fm.note_client(o)
     except (fm.Fail, fm.HerdrError) as e:
