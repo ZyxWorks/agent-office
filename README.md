@@ -179,6 +179,7 @@ What each part does:
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
+| `[dictate]` | push-to-talk dictation, off by default and local only: `enabled`, `model` (the whisper.cpp model file you downloaded), `language` (`"auto"` or a code such as `"en"`) and `max_seconds` (120). Used by `office dictate` and `prefix+m`. See [Dictation](#dictation) |
 | `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm`, `office on`, `office off` and `office status` use `office.session` and `[firstmate]` except `source`. `treehouse.root` is only reported |
 
@@ -222,9 +223,10 @@ The rules the config follows:
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` starts it. |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. Inside the office, `ctrl+space` then `?` shows herdr's own list. |
+| `office dictate` / `office dictate cancel` | push-to-talk, if `[dictate]` is on: the first run records from the microphone, the next one stops, transcribes on this machine and types the words into the focused pane, without Enter. `prefix+m` runs it. `cancel` throws the recording away. See [Dictation](#dictation). |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. |
 
-`office install`, `office config`, `office keys`, `office notify`, `office tools`, `office doctor`, `office update`, `office help`,
+`office install`, `office config`, `office keys`, `office dictate`, `office notify`, `office tools`, `office doctor`, `office update`, `office help`,
 `office version`, `office on`, `office break`, `office off`, `office status`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
@@ -466,6 +468,35 @@ is the same as `office install`.
 - **No remote shell pipelines.** Components are installed from their own
   published installers or package managers, at reviewed versions.
 
+## Dictation
+
+Push-to-talk into the focused pane, for a prompt that is quicker to say than to type. It is off until you turn it on, and nothing leaves the machine: sox records from your microphone into a file in `~/.local/state/agent-office/dictate/`, [whisper.cpp](https://github.com/ggml-org/whisper.cpp) turns it into text on this machine, and herdr types the text into the pane (`herdr pane send-text`). No other program runs and there is no cloud fallback. The recording is deleted once it is read.
+
+Press `ctrl+space` `m`, talk, press `ctrl+space` `m` again. herdr shows "recording", then "transcribing", and the words appear in the pane that has the focus at the second press. They are typed, not sent: read them, then press Enter yourself. A line break becomes a space. A recording stops by itself after `max_seconds`; the next press types it. `office dictate cancel` throws a recording away.
+
+Set it up once. Agent Office installs none of it for you, and ships no model:
+
+1. The programs, from their owners. On macOS: `brew install whisper.cpp sox`. On Linux: sox from your distribution (`apt install sox`), whisper.cpp from Homebrew on Linux or built from its [README](https://github.com/ggml-org/whisper.cpp#quick-start). You need `rec` and `whisper-cli` on your `PATH`.
+2. A model, from where whisper.cpp publishes them: [huggingface.co/ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp/tree/main), or its own `models/download-ggml-model.sh`. `base.en` (148 MB) is a good start for English; `base` or `small` for other languages. For example:
+
+   ```sh
+   mkdir -p ~/.local/share/whisper.cpp
+   curl -fL -o ~/.local/share/whisper.cpp/ggml-base.en.bin \
+     https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+   ```
+
+   The model is a data file: it runs nothing. Downloading it is the only time any of this uses the network.
+3. Turn it on in your `config.toml`:
+
+   ```toml
+   [dictate]
+   enabled = true
+   model = "~/.local/share/whisper.cpp/ggml-base.en.bin"
+   language = "en"                     # "auto" detects it; an .en model only knows English
+   ```
+
+`office doctor` then reports dictation as on, and names anything that is missing. On macOS the first recording asks for microphone access for the terminal app herdr runs in. Without it sox records silence, and dictation says it heard nothing.
+
 ## What stays private
 
 The public package holds nothing personal. These live only in your own
@@ -501,6 +532,7 @@ The prefix is `ctrl+space`: press it, let go, then the key.
 | `ctrl+space` `g` | go to an agent |
 | `ctrl+space` `s` | settings |
 | `ctrl+space` `d` | leave herdr. Everything keeps running |
+| `ctrl+space` `m` | dictate: press, talk, press again. Off until you turn on [dictation](#dictation) |
 
 The same letter does the same thing one level down: plain for a space, with
 Shift for a tab. `office keys` prints them all on one screen, and
@@ -522,6 +554,7 @@ own herdr, config or office.
 | `fm` and `fm restart` | `bin/fm-probe` | a throwaway herdr session, a stand-in agent |
 | `office on`, `break`, `off`, `off --all`, `status` | `bin/lifecycle-probe` | throwaway herdr sessions, a stand-in agent |
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
+| dictation | `bin/dictate-probe` | stand-ins for rec, whisper-cli and herdr |
 
 CI also runs `office tools` for real, on a Linux and a macOS machine that have
 none of the pinned tools: the GitHub release downloads with their SHA-256, the

@@ -120,6 +120,13 @@ def _url(v):
     return None
 
 
+def _language(v):
+    # whisper.cpp's -l: "auto" or a language code such as "en" or "de"
+    if not isinstance(v, str) or not re.fullmatch(r"auto|[a-z]{2,3}", v):
+        return 'must be "auto" or a language code such as "en"'
+    return None
+
+
 def _int_in(lo, hi):
     def check(v):
         # bool is an int in Python; `true` is not a number of seconds
@@ -149,6 +156,12 @@ KEYS = {
         "provider": _one_of("ntfy"),
         "url": _url,
         "quiet": _boolean,
+    },
+    "dictate": {
+        "enabled": _boolean,
+        "model": _path,
+        "language": _language,
+        "max_seconds": _int_in(5, 600),
     },
 }
 
@@ -268,6 +281,9 @@ def effective(user: dict | None, where: str) -> dict:
     notify = out.get("notify", {})
     if not problems and notify.get("enabled") and not notify.get("url"):
         problems.append(f"{where}: notify.url is required when notify.enabled is true")
+    dictate = out.get("dictate", {})
+    if not problems and dictate.get("enabled") and not dictate.get("model"):
+        problems.append(f"{where}: dictate.model is required when dictate.enabled is true")
     if problems:
         raise ConfigError(problems)
     mine = (user or {}).get("herdr", {})

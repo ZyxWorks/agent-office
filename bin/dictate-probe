@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""dictate-probe: `office dictate` and the herdr/dictate action, with stand-ins for rec, whisper-cli
+and herdr.
+
+Every case runs in a throwaway $HOME, with PATH set to the stand-ins and the system's own folders
+only. No microphone, no model, no herdr server and no network: the stand-in rec writes a file and
+waits for its signal, the stand-in whisper-cli prints the words it is told to, and the stand-in
+herdr writes down what it was asked to do. Each case is a promise the README makes.
+
+  bin/dictate-probe
+  /usr/bin/python3 bin/dictate-probe     # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import ast
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OFFICE = REPO / "bin" / "office"
+HOOK = REPO / "herdr" / "dictate"
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+root = Path(tempfile.mkdtemp(prefix="office-dictate-probe."))
+home = root / "home"
+cfg = home / ".config" / "agent-office" / "config.toml"
+cfg.parent.mkdir(parents=True)
+state = home / ".local" / "state" / "agent-office" / "dictate"
+model = home / "models" / "ggml-probe.bin"
+model.parent.mkdir()
+model.write_bytes(b"not a real model")
+fake = root / "bin"
+fake.mkdir()
+log = root / "calls.log"
+
+# rec: FAKE_REC=quit fails at once, =cap stops by itself after a second, otherwise it records
+# until it is signalled. The file it writes is the WAV header plus some "sound".
+(fake / "rec").write_text(f"""#!/bin/sh
+echo "rec $*" >>'{log}'
+for a; do case $a in *.wav) out=$a ;; esac; done
+case ${{FAKE_REC:-}} in quit) echo "rec FAIL formats: can't open input: no default audio device" >&2; exit 2 ;; esac
+head -c 2044 /dev/zero >"$out"
+trap 'exit 0' INT TERM
+n=0
+while :; do
+  sleep 0.1
+  n=$((n + 1))
+  [ "${{FAKE_REC:-}}" = cap ] && [ $n -ge 10 ] && exit 0
+done
+""")
+(fake / "whisper-cli").write_text(f"""#!/bin/sh
+echo "whisper-cli $*" >>'{log}'
+[ -n "${{FAKE_WHISPER_FAIL:-}}" ] && {{ echo "error: failed to read the model" >&2; exit 3; }}
+printf '%b' "${{FAKE_TEXT:-}}"
+""")
+# herdr: one line per call, its arguments as JSON so a space or a dash in the text stays visible
+(fake / "herdr").write_text(f"""#!/bin/sh
+{sys.executable} -c 'import json, sys; print("herdr " + json.dumps(sys.argv[1:]))' "$@" >>'{log}'
+[ -n "${{FAKE_HERDR_FAIL:-}}" ] && [ "$2" = send-text ] && {{ echo "pane_not_found" >&2; exit 1; }}
+exit 0
+""")
+for f in fake.iterdir():
+    f.chmod(0o755)
+# bin/office and herdr/dictate find python3 on PATH: this probe's own, so 3.9 is tested there too
+(fake / "python3").symlink_to(sys.executable)
+SYSTEM = "/usr/bin:/bin:/usr/sbin:/sbin"
+env = {k: v for k, v in os.environ.items() if not k.startswith(("XDG_", "HERDR_", "FAKE_"))}
+env.update(HOME=str(home), PYTHONDONTWRITEBYTECODE="1", PATH=f"{fake}:{SYSTEM}",
+           HERDR_SOCKET_PATH=str(root / "herdr.sock"))
+
+
+def config(text):
+    cfg.write_text("schema = 1\n" + text)
+
+
+ON = f'[dictate]\nenabled = true\nmodel = "{model}"\n'
+
+
+def calls(kind=None):
+    lines = log.read_text().splitlines() if log.exists() else []
+    return [l for l in lines if kind is None or l.startswith(kind + " ")]
+
+
+def sent():
+    """What the stand-in herdr was asked to type: (pane, text) for each send-text."""
+    out = []
+    for l in calls("herdr"):
+        a = json.loads(l[len("herdr "):])
+        if a[:2] == ["pane", "send-text"]:
+            out.append((a[2], a[3:]))
+    return out
+
+
+def notes():
+    return [json.loads(l[len("herdr "):])[4] for l in calls("herdr")
+            if json.loads(l[len("herdr "):])[:2] == ["notification", "show"]]
+
+
+def office(*args, **extra):
+    e = dict(env, **extra)
+    return subprocess.run([sys.executable, str(OFFICE), "dictate", *args], env=e, capture_output=True,
+                          text=True, stdin=subprocess.DEVNULL, timeout=60)
+
+
+def fresh():
+    if log.exists():
+        log.unlink()
+
+
+def record():
+    files = list(state.glob("*.json")) if state.is_dir() else []
+    return json.loads(files[0].read_text()) if files else None
+
+
+def recording():
+    """The record, once the recorder has written sound: a new script can take a moment to start
+    (macOS checks it on its first run), and a second press before that has nothing to type."""
+    rec = record()
+    end = time.monotonic() + 5
+    while rec and time.monotonic() < end:
+        wav = Path(rec["wav"])
+        if wav.exists() and wav.stat().st_size > 44:
+            break
+        time.sleep(0.05)
+    return rec
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    r = subprocess.run(["ps", "-p", str(pid), "-o", "stat="], capture_output=True, text=True)
+    return r.returncode == 0 and not r.stdout.strip().startswith("Z")
+
+
+def wait_gone(pid, seconds=5):
+    end = time.monotonic() + seconds
+    while time.monotonic() < end and alive(pid):
+        time.sleep(0.05)
+    return not alive(pid)
+
+
+def press_twice(text, *second, **extra):
+    """One recording: the first press starts it, the second stops it and types the words."""
+    fresh()
+    a = office(**extra)
+    rec = recording()
+    b = office(*second, FAKE_TEXT=text, **extra)
+    return a, b, rec
+
+
+print("off by default")
+fresh()
+r = office()
+check("no config file: exit 1, nothing recorded", r.returncode == 1 and not calls("rec"), r.stdout + r.stderr)
+check("and herdr shows why", any("off" in n and "[dictate] enabled = true" in n for n in notes()), str(notes()))
+config(f'[dictate]\nmodel = "{model}"\n')
+fresh()
+r = office()
+check("a model alone does not turn it on", r.returncode == 1 and not calls("rec"), r.stdout + r.stderr)
+
+print("the config is checked")
+for text, says in [
+    ("[dictate]\nenabled = true\n", "dictate.model is required"),
+    ('[dictate]\nmodel = "models/x.bin"\n', "dictate.model must be an absolute path"),
+    ('[dictate]\nlanguage = "English"\n', "dictate.language must be"),
+    ("[dictate]\nmax_seconds = 1\n", "dictate.max_seconds must be a whole number from 5 to 600"),
+    ('[dictate]\nengine = "cloud"\n', "unknown key dictate.engine"),
+]:
+    config(text)
+    fresh()
+    r = office()
+    check(f"refused: {says}", r.returncode == 1 and says in r.stderr and not calls("rec"), r.stdout + r.stderr)
+
+print("what it needs, before it records")
+config(f'[dictate]\nenabled = true\nmodel = "{home}/models/missing.bin"\n')
+fresh()
+r = office()
+check("no model file: says so, records nothing", r.returncode == 1 and "no model file" in r.stderr
+      and not calls("rec"), r.stdout + r.stderr)
+config(ON)
+for gone, how in (("rec", "brew install sox"), ("whisper-cli", "brew install whisper.cpp")):
+    bare = root / f"no-{gone}"
+    bare.mkdir(exist_ok=True)
+    for f in fake.iterdir():
+        if f.name != gone and not (bare / f.name).exists():
+            (bare / f.name).symlink_to(f)
+    fresh()
+    r = office(PATH=f"{bare}:{SYSTEM}")
+    check(f"no {gone}: says how to get it", r.returncode == 1 and how in r.stderr and not calls("rec"),
+          r.stdout + r.stderr)
+
+print("press, talk, press")
+config(ON)
+fresh()
+r = office(HERDR_PANE_ID="w1:p1")
+rec = recording()
+check("the first press starts recording", r.returncode == 0 and rec is not None and alive(rec["pid"]),
+      r.stdout + r.stderr)
+check("16 kHz mono, stopped by itself at max_seconds",
+      calls("rec") and calls("rec")[0].endswith(f"-q -c 1 -r 16000 -b 16 {rec['wav']} trim 0 120"), str(calls("rec")))
+check("the recording is private: its folder is 0700", oct(state.stat().st_mode & 0o777) == "0o700",
+      oct(state.stat().st_mode))
+check("herdr shows that it records", any(n.startswith("recording") for n in notes()), str(notes()))
+check("the recorder outlives the key's action", alive(rec["pid"]))
+r = office(HERDR_PANE_ID="w1:p2", FAKE_TEXT=" Hello world.\n")
+check("the second press stops it", r.returncode == 0 and wait_gone(rec["pid"]), r.stdout + r.stderr)
+w = calls("whisper-cli")
+check("whisper-cli reads that file with your model, on this machine",
+      w == [f"whisper-cli -m {model} -l auto -nt -np -f {rec['wav']}"], str(w))
+check("the words go to the pane focused at the second press", sent() == [("w1:p2", ["--", "Hello world."])],
+      str(sent()))
+check("the recording is deleted once read", not Path(rec["wav"]).exists() and record() is None)
+check("nothing is submitted: no keys, no Enter", not [l for l in calls("herdr") if '"send-keys"' in l or '"run"' in l])
+
+print("what is typed")
+a, b, rec = press_twice(" [BLANK_AUDIO]\\n hello\\n there\\r\\n", "--pane", "w2:p1")
+check("line breaks become spaces and [marks] go", sent() == [("w2:p1", ["--", "hello there"])], str(sent()))
+a, b, rec = press_twice("--help \\033[31m", "--pane", "w2:p1")
+check("a leading dash stays text, and control characters go", sent() == [("w2:p1", ["--", "--help [31m"])],
+      str(sent()))
+a, b, rec = press_twice(" [BLANK_AUDIO]\\n", "--pane", "w2:p1")
+check("silence types nothing and says so", b.returncode == 0 and not sent()
+      and any("heard nothing" in n for n in notes()), b.stdout + b.stderr)
+a, b, rec = press_twice("printed here")
+check("outside herdr, with no pane, the words are printed", b.returncode == 0 and b.stdout == "printed here\n"
+      and not sent(), b.stdout + b.stderr)
+config(ON + 'language = "de"\nmax_seconds = 30\n')
+a, b, rec = press_twice("hallo", "--pane", "w1:p1")
+check("language and max_seconds come from the config", "-l de " in " ".join(calls("whisper-cli"))
+      and calls("rec")[0].endswith("trim 0 30"), str(calls()))
+config(ON)
+
+print("failures keep the words")
+a, b, rec = press_twice("keep me", "--pane", "w1:p1", FAKE_HERDR_FAIL="1")
+check("herdr cannot type it: exit 1, the words printed", b.returncode == 1 and b.stdout == "keep me\n"
+      and "did not type it" in b.stderr, b.stdout + b.stderr)
+a, b, rec = press_twice("x", "--pane", "w1:p1", FAKE_WHISPER_FAIL="1")
+check("whisper-cli fails: exit 1 with its reason, nothing typed", b.returncode == 1 and not sent()
+      and "failed to read the model" in b.stderr, b.stdout + b.stderr)
+check("and the recording is deleted anyway", not Path(rec["wav"]).exists())
+fresh()
+r = office(FAKE_REC="quit")
+check("rec fails at once: exit 1 with its reason, no recording left",
+      r.returncode == 1 and "no default audio device" in r.stderr and record() is None, r.stdout + r.stderr)
+
+print("cancel, the time limit, and what is not ours")
+fresh()
+office()
+rec = recording()
+r = office("cancel")
+check("cancel stops it and throws it away", r.returncode == 0 and wait_gone(rec["pid"]) and record() is None
+      and not Path(rec["wav"]).exists() and not calls("whisper-cli"), r.stdout + r.stderr)
+r = office("cancel")
+check("cancel with nothing recording is fine", r.returncode == 0 and "no recording" in r.stderr, r.stderr)
+fresh()
+office(FAKE_REC="cap")
+rec = recording()
+wait_gone(rec["pid"], 3)
+r = office("--pane", "w1:p1", FAKE_TEXT="the limit")
+check("stopped at max_seconds: the next press types it", r.returncode == 0
+      and sent() == [("w1:p1", ["--", "the limit"])], r.stdout + r.stderr)
+# a record left behind long ago, whose pid is now someone else's: this probe's own
+fresh()
+office()
+cur = record()
+office("cancel")
+old = state / Path(cur["wav"]).with_suffix(".json").name
+old.write_text(json.dumps({"schema": 1, "pid": os.getpid(), "wav": cur["wav"], "started": 1}))
+r = office()
+rec = recording()
+check("a stale record with a recycled pid is not ours: a new recording starts, nobody is signalled",
+      r.returncode == 0 and rec and rec["pid"] != os.getpid() and alive(rec["pid"]) and not calls("whisper-cli"),
+      r.stdout + r.stderr)
+office("cancel")
+fresh()
+office()
+rec = recording()
+r = office(HERDR_SOCKET_PATH=str(root / "other.sock"))
+other = [json.loads(f.read_text()) for f in state.glob("*.json")]
+check("each herdr server has its own recording", r.returncode == 0 and len(other) == 2, str(other))
+office("cancel")
+office("cancel", HERDR_SOCKET_PATH=str(root / "other.sock"))
+
+print("the herdr action")
+fresh()
+e = dict(env, HERDR_PANE_ID="w3:p1")
+r = subprocess.run(["sh", str(HOOK)], env=e, capture_output=True, text=True, timeout=60)
+rec = recording()
+e["FAKE_TEXT"] = "from the key"
+r = subprocess.run(["sh", str(HOOK)], env=e, capture_output=True, text=True, timeout=60)
+check("prefix+m twice types into the focused pane", r.returncode == 0 and sent() == [("w3:p1", ["--", "from the key"])],
+      r.stdout + r.stderr + str(calls()))
+
+print("nothing leaves the machine")
+tree = ast.parse((REPO / "lib" / "agent_office" / "dictate.py").read_text())
+mods = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module} | \
+       {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+net = sorted(m for m in mods if m.split(".")[0] in ("urllib", "http", "socket", "ssl", "requests", "ftplib"))
+check("dictate.py imports nothing that talks to a network", not net, str(net))
+ran = {l.split(" ", 1)[0] for l in calls()}
+check("the only programs it ran in this probe: rec, whisper-cli, herdr", ran <= {"rec", "whisper-cli", "herdr"}, str(ran))
+check("no recording is left behind", not list(state.glob("*.wav")), str(list(state.iterdir())))
+
+shutil.rmtree(root)
+print("dictate-probe: " + ("all pass" if not fails else f"{fails} failed"))
+sys.exit(1 if fails else 0)

@@ -8,7 +8,7 @@ import sys
 
 from . import config as C
 from . import doctor, install, lifecycle, tools
-from . import notify
+from . import dictate, notify
 from . import update
 
 VERSION = "1.0.0-dev"
@@ -23,6 +23,9 @@ office: Agent Office, one command for the whole agent setup.
   office keys                        one screen of every office key (preset/keys.txt)
   office notify needs-you|pr-ready <message>
                                      push one line to your phone, if [notify] is on
+  office dictate [--pane PANE] | cancel
+                                     push-to-talk, if [dictate] is on: run once to record,
+                                     again to type the words into the pane. Local whisper.cpp
   office tools [--check] [--yes]     install the missing tools the office uses, at pinned
                [--workstation]       versions, each through its owner; --workstation adds
                                      generic command-line tools
@@ -113,6 +116,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return lifecycle.run(verb, rest, out=out, err=err)
     if verb == "notify":
         return notify.run(rest, out=out, err=err)
+    if verb == "dictate":
+        return dictate.run(rest, out=out, err=err)
     if verb == "keys":
         # a text file, so changing a key means editing preset/keys.txt; preset-probe checks it
         print((C.REPO / "preset" / "keys.txt").read_text(), end="", file=out)

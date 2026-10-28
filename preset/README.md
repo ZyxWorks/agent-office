@@ -131,6 +131,7 @@ Shortcuts, Input Sources.
 | copy mode | `prefix+enter` | `copy_mode` |
 | leave herdr, everything keeps running | `prefix+d` | `detach` |
 | show or hide the sidebar | `prefix+b` | `toggle_sidebar` |
+| dictate: press, talk, press again to type it (opt-in) | `prefix+m` | `agent-office.meter.dictate` |
 | all keys | `prefix+?` | `help` |
 | reload the config: no key, it is in settings |  | `reload_config` |
 
