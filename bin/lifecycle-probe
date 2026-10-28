@@ -486,6 +486,16 @@ try:
     r = office("off", "--all", "--yes")
     check("with nothing left it says so, exit 0", r.returncode == 0 and "Nothing to stop" in r.stdout
           and running(F), r.stdout + r.stderr)
+    bad = state / "offices" / f"{B}.json"
+    bad.write_text("{not json")  # a record cut off half way: it may still name a server this home started
+    r = office("--yes", exe=OFFALL)
+    check("a record that cannot be read is no 'nothing to stop': incomplete, exit 1, the record is kept",
+          r.returncode == 1 and f"office '{B}': INCOMPLETE" in r.stderr and bad.exists()
+          and last_off()[B]["result"] == "incomplete" and running(F), r.stdout + r.stderr)
+    r = office("status")
+    check("and office status counts it as a problem", r.returncode == 1 and "unreadable" in r.stdout,
+          r.stdout + r.stderr)
+    bad.unlink()
 
     print("an office off that recorded no result")
     OPEN = "recorded no result: check what still runs"
