@@ -75,7 +75,7 @@ if [ "$(cat "$here/.fake-control" 2>/dev/null)" = fail ]; then
   echo "error: the stand-in refuses" >&2
   exit 1
 fi
-pane=$(sed -n 's/^herdr_pane_id=//p' "$FM_HOME/state/$1.meta")
+pane=$(sed -n 's/^herdr_pane_id=//p' "$FM_HOME/state/$1.meta" | tail -n 1)
 herdr --session "$HERDR_SESSION" pane report-agent --source fake --agent claude --state idle "$pane" >/dev/null
 '''
 
@@ -397,7 +397,11 @@ try:
 
     worker, other = agent_in("worker"), agent_in("mine")
     meta = fmhome / "state" / "lab-task.meta"
-    meta.write_text(f"backend=herdr\nwindow={A}:{worker}\nherdr_session={A}\nherdr_pane_id={worker}\n")
+    meta.write_text(f"backend=herdr\nwindow={A}:{worker}\nherdr_session={A}\nherdr_pane_id=old\n"
+                    f"herdr_pane_id={worker}\nworktree={root}\n")
+    # a record left from an earlier server whose pane id the agent that is not Firstmate's now has
+    stale = fmhome / "state" / "old-task.meta"
+    stale.write_text(f"backend=herdr\nherdr_session={A}\nherdr_pane_id={other}\nworktree={code[B]}\n")
     log = code[A] / ".fake-log"
 
     def controls():
@@ -405,9 +409,11 @@ try:
 
     n = len(sent(A))
     r = office("off", "--yes")
-    check("a busy worker of Firstmate's is listed by its task, and named apart from the agent that is not",
+    check("a busy worker of Firstmate's is listed by its task (the last pane its record names), and a stale record "
+          "does not make the agent that is not Firstmate's a worker",
           r.returncode == 1 and f"task lab-task  pane {worker}" in r.stdout and f"pane {other}" in r.stdout
-          and "not Firstmate's" in r.stdout and "--stop-workers" in r.stderr and "task lab-task" in r.stderr,
+          and "not Firstmate's" in r.stdout and "old-task" not in r.stdout and "--stop-workers" in r.stderr
+          and "task lab-task" in r.stderr,
           r.stdout + r.stderr)
     r = office("off", "--yes", "--stop-workers")
     check("--stop-workers still refuses while an agent that is not Firstmate's works, and stops no worker",
@@ -430,6 +436,7 @@ try:
           and record(A) is None, r.stdout + r.stderr + str(lines[-4:]))
     check("the worker's task record is kept for Firstmate", meta.exists())
     meta.unlink()
+    stale.unlink()
 
     print("office off typed in a pane of the session it stops")
     office("on")
