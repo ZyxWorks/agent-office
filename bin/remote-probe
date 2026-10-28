@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""remote-probe: `office remote`, against a stand-in herdr and Tailscale and an SSH port of its own.
+
+Every case runs in a throwaway $HOME. No herdr server, no SSH server, no network: the SSH check
+is pointed at a local port this probe listens on, or at one nothing listens on. Each case is a
+promise the README makes.
+
+  bin/remote-probe
+  /usr/bin/python3 bin/remote-probe      # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+root = Path(tempfile.mkdtemp(prefix="office-remote-probe."))
+home = root / "home"
+cfg = home / ".config" / "agent-office" / "config.toml"
+cfg.parent.mkdir(parents=True)
+cfg.write_text('schema = 1\n[office]\nsession = "probe-office"\n')
+shim = root / "bin"
+shim.mkdir()
+log = root / "herdr.log"
+(shim / "herdr").write_text(f"""#!/bin/sh
+echo "$*" >> '{log}'
+if [ "$FAKE_HERDR" = running ]; then echo '{{"server":{{"running":true}}}}'; else echo '{{"server":{{"running":false}}}}'; fi
+""")
+(shim / "tailscale").write_text('#!/bin/sh\n[ "$1 $2" = "status --json" ] && cat "$FAKE_TS"\n')
+for f in ("herdr", "tailscale"):
+    (shim / f).chmod(0o755)
+ts = root / "ts.json"
+
+listener = socket.socket()
+listener.bind(("127.0.0.1", 0))
+listener.listen(8)
+OPEN = listener.getsockname()[1]
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+CLOSED = s.getsockname()[1]
+s.close()  # a port that was free a moment ago, and that nothing listens on now
+
+# Through the real entry point, with the SSH port and the Tailscale app path pointed at the probe's
+DRIVER = """import sys
+sys.path.insert(0, sys.argv[1])
+from agent_office import cli, remote
+remote.SSH_PORT = int(sys.argv[2])
+remote.TAILSCALE_APP = sys.argv[3]
+sys.exit(cli.main(sys.argv[4:]))
+"""
+env = {k: v for k, v in os.environ.items() if not k.startswith(("XDG_", "HERDR_"))}
+env.update(HOME=str(home), PYTHONDONTWRITEBYTECODE="1", PATH=f"{shim}:/usr/bin:/bin", FAKE_TS=str(ts))
+
+
+def remote(*args, port=OPEN, herdr="running", tailscale=True, app=str(root / "no-app")):
+    e = dict(env, FAKE_HERDR=herdr or "")
+    if not tailscale:
+        e["PATH"] = "/usr/bin:/bin" if herdr is None else f"{root / 'herdr-only'}:/usr/bin:/bin"
+    elif herdr is None:
+        e["PATH"] = f"{root / 'ts-only'}:/usr/bin:/bin"
+    return subprocess.run([sys.executable, "-c", DRIVER, str(REPO / "lib"), str(port), app, "remote", *args],
+                          env=e, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+
+
+(root / "herdr-only").mkdir()
+(root / "herdr-only" / "herdr").symlink_to(shim / "herdr")
+(root / "ts-only").mkdir()
+(root / "ts-only" / "tailscale").symlink_to(shim / "tailscale")
+RUNNING = ('{"BackendState": "Running", "Self": {"DNSName": "desk.example-tailnet.ts.net.", '
+           '"TailscaleIPs": ["100.64.0.1", "fd7a::1"]}}')
+
+print("ready")
+# A CLI older than its daemon prints this warning on stdout, before the JSON
+ts.write_text('Warning: client version "1.0" != tailscaled server version "1.1"\n' + RUNNING)
+r = remote()
+out = r.stdout + r.stderr
+check("all three there: exit 0", r.returncode == 0 and "Ready." in r.stdout, out)
+check("names the session it checked", "herdr session 'probe-office' is running" in r.stdout, out)
+check("asks herdr about that session only", log.read_text().split("\n")[0] == "--session probe-office status --json",
+      log.read_text())
+check("reads the Tailscale name past a version warning, without the trailing dot",
+      "desk.example-tailnet.ts.net (100.64.0.1)" in r.stdout, out)
+check("prints the ssh line to type", f"ssh {os.environ.get('USER') or ''}" in r.stdout
+      and "@desk.example-tailnet.ts.net\n" in r.stdout, out)
+check("and office on, by its full path when office is not on PATH",
+      f"  {REPO / 'bin' / 'office'} on\n" in r.stdout, out)
+check("and how to leave without stopping anything", "then d" in r.stdout and "everything keeps running" in r.stdout,
+      out)
+check("says it turns nothing on", "turns nothing on and opens no port" in r.stdout, out)
+ts.write_text('{"BackendState": "Running", "Self": {"TailscaleIPs": ["100.64.0.1"]}}')
+r = remote()
+check("no MagicDNS name: the address will do", r.returncode == 0 and "@100.64.0.1\n" in r.stdout, r.stdout + r.stderr)
+(home / "bin").mkdir()
+(home / "bin" / "office").symlink_to(REPO / "bin" / "office")
+r = subprocess.run([sys.executable, "-c", DRIVER, str(REPO / "lib"), str(OPEN), str(root / "no-app"), "remote"],
+                   env=dict(env, FAKE_HERDR="running", PATH=f"{home / 'bin'}:{env['PATH']}"), capture_output=True,
+                   text=True, stdin=subprocess.DEVNULL)
+check("office on PATH: just office on", r.returncode == 0 and "\n  office on\n" in r.stdout, r.stdout + r.stderr)
+shutil.rmtree(home / "bin")
+
+print("not ready, and what to do")
+ts.write_text(RUNNING)
+r = remote(herdr="stopped")
+check("office not running: exit 1", r.returncode == 1 and "is not running" in r.stdout, r.stdout + r.stderr)
+check("start it at this machine, not from the phone", "Start the office at this machine" in r.stdout, r.stdout)
+check("and no ssh line to type", "ssh " not in r.stdout.split("Not ready.")[1].split("\n")[0], r.stdout)
+r = remote(herdr=None)
+check("no herdr: exit 1, said so", r.returncode == 1 and "herdr is not installed" in r.stdout, r.stdout + r.stderr)
+r = remote(port=CLOSED)
+check("nothing on the SSH port: exit 1", r.returncode == 1 and "nothing answers on port" in r.stdout,
+      r.stdout + r.stderr)
+check("how to turn SSH on, for this platform",
+      ("Remote Login" if sys.platform == "darwin" else "openssh-server") in r.stdout, r.stdout)
+check("and to keep the port off the internet", "never forward that port to the internet" in r.stdout, r.stdout)
+r = remote(tailscale=False)
+check("no tailscale command: exit 1", r.returncode == 1 and "no tailscale command" in r.stdout, r.stdout + r.stderr)
+check("how to get it", "Install Tailscale on this machine and on your phone" in r.stdout, r.stdout)
+r = remote(tailscale=False, app=str(shim / "tailscale"))
+check("the CLI inside the macOS app counts", r.returncode == 0 and "desk.example-tailnet.ts.net" in r.stdout,
+      r.stdout + r.stderr)
+ts.write_text('{"BackendState": "Stopped", "Self": {}}')
+r = remote()
+check("Tailscale stopped: exit 1", r.returncode == 1 and "Tailscale is Stopped" in r.stdout, r.stdout + r.stderr)
+check("how to connect it", "tailscale up" in r.stdout, r.stdout)
+ts.write_text("not json")
+r = remote()
+check("an answer it cannot read is unknown, not ready", r.returncode == 1 and "Tailscale is unknown" in r.stdout,
+      r.stdout + r.stderr)
+
+print("usage, config and side effects")
+ts.write_text(RUNNING)
+r = remote("--yes")
+check("an argument is a usage error", r.returncode == 2 and "usage: office remote" in r.stderr, r.stdout + r.stderr)
+r = remote("--help")
+check("--help", r.returncode == 0 and "usage: office remote" in r.stdout, r.stdout + r.stderr)
+cfg.write_text("[office]\n")
+r = remote()
+check("a bad config is reported, exit 1", r.returncode == 1 and "problems in" in r.stderr, r.stdout + r.stderr)
+cfg.write_text('schema = 1\n[office]\nsession = "probe-office"\n')
+before = sorted(str(p.relative_to(home)) for p in home.rglob("*"))
+remote()
+remote(port=CLOSED, tailscale=False, herdr="stopped")
+check("writes nothing in $HOME", sorted(str(p.relative_to(home)) for p in home.rglob("*")) == before)
+check("asks herdr only for status", all(l.endswith("status --json") for l in log.read_text().split("\n") if l),
+      log.read_text())
+
+listener.close()
+shutil.rmtree(root)
+print("remote-probe: " + ("all pass" if not fails else f"{fails} failed"))
+sys.exit(1 if fails else 0)
