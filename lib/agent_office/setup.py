@@ -165,6 +165,13 @@ def plan(cfg: dict, env=None) -> list:
     Each item is a dict: kind, target (a Path), and by kind content (the rendered text), to (the
     link's target, a Path), names (the flag files) and mode (an int, for owned files).
     """
+    harness = cfg["firstmate"]["harness"]
+    models = cfg["setup"]["models"]
+    missing = [f"setup.models.{m}.{k}" for m in ("default", "mechanical") for k in ("model", "effort")
+               if k not in models.get(m, {})]
+    if harness != "claude" and missing:
+        raise C.ConfigError([f"firstmate.harness is {harness}, and the shipped models are Claude's: "
+                             f"set {', '.join(missing)} in your config.toml to {harness}'s model ids and efforts"])
     vals = values(cfg, env)
     out = []
     for e in manifest():

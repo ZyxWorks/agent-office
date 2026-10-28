@@ -301,6 +301,10 @@ def effective(user: dict | None, where: str) -> dict:
         if "schema" not in user:
             problems.append(f"{where}: schema is missing: the first line must be schema = {SCHEMA}")
         problems += _check(user, where)
+    # the shipped models are Claude's: another harness gets none, so its models are the user's own
+    fm = (user or {}).get("firstmate")
+    if (fm.get("harness") if isinstance(fm, dict) else None) not in (None, "claude"):
+        defaults["setup"]["models"] = {}
     out = merge(defaults, {k: v for k, v in (user or {}).items() if k != "herdr"})
     meter = out.get("meter", {})
     if not problems and meter.get("warn_tokens", 0) >= meter.get("alarm_tokens", 0):
@@ -313,7 +317,7 @@ def effective(user: dict | None, where: str) -> dict:
     # an unset gate model is the default one, key by key: a gate that names only its effort keeps
     # the default model
     models = out["setup"]["models"]
-    models["gate"] = merge(models["default"], models.get("gate", {}))
+    models["gate"] = merge(models.get("default", {}), models.get("gate", {}))
     mine = (user or {}).get("herdr", {})
     out["herdr"] = merge(read_toml(PRESET, str(PRESET)), mine)
     # a tab_bar_right of your own is yours; the preset's follows the keys you rebind

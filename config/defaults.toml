@@ -41,7 +41,8 @@ max_subagents = 3                     # an agent spawns at most this many subage
 
 # A model is a harness's model id and its reasoning effort. default is for judgment work,
 # mechanical for work with a known result. gate is what no-mistakes reviews with; unset means
-# the default model.
+# the default model. These are Claude's: with firstmate.harness = "codex", set default and mechanical
+# in your own config.toml, or `office setup` refuses.
 [setup.models.default]
 model = "claude-opus-5-5"
 effort = "medium"
