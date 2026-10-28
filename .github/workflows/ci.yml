@@ -432,6 +432,9 @@ jobs:
           bin/office setup agents --yes | tee "$RUNNER_TEMP/skills.txt"
           for s in no-ai-slop marketing brag-slim; do test -f "$HOME/.claude/skills/$s/SKILL.md"; done
           bin/office setup agents --check | tee "$RUNNER_TEMP/skills-check.txt"
-          if grep -qE '^  (create|update|edit|replace|beside|remove) ' "$RUNNER_TEMP/skills-check.txt"; then
-            echo "a second office setup agents still has something to do"; exit 1
-          fi
+          grep -q '^Nothing to change' "$RUNNER_TEMP/skills-check.txt"
+          # every upstream skill the marketing skill names is in the pinned commit
+          pack="$HOME/.local/share/agent-office/vendors/marketingskills/skills"
+          for s in $(sed -n 's/^- [^:]*: //p' setup/skills/marketing/SKILL.md | tr -d ','); do
+            test -f "$pack/$s/SKILL.md" || { echo "setup/skills/marketing/SKILL.md names $s, not in the pack"; exit 1; }
+          done

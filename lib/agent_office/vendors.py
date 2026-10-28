@@ -9,8 +9,10 @@ pack is ever run by Agent Office.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -25,10 +27,24 @@ class Failed(Exception):
     pass
 
 
+# what points git at another repository than the one -C names: never passed on
+_ELSEWHERE = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR",
+              "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_PREFIX")
+
+
+def _env(env) -> dict:
+    """Your environment for git, proxy and certificate settings included, but bound to the pack's
+    own repository and never asking for a password: an upstream that is gone fails at once."""
+    env = {k: v for k, v in env.items() if k not in _ELSEWHERE}
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return env
+
+
 def call(argv, env) -> str:
     """Run git to its end and give what it printed; Failed says why it did not work."""
     try:
-        r = subprocess.run(argv, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=1800)
+        r = subprocess.run(argv, env=_env(env), stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                           timeout=1800)
     except (OSError, subprocess.SubprocessError) as e:
         raise Failed(f"`{' '.join(argv)}` did not run: {e}")
     if r.returncode != 0:
@@ -37,9 +53,37 @@ def call(argv, env) -> str:
     return r.stdout
 
 
+_HEX40 = re.compile(r"[0-9a-f]{40}")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+_PATH = re.compile(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*")
+
+
+@functools.lru_cache(maxsize=None)
+def _read(manifest: Path) -> dict:
+    data = C.read_toml(manifest, str(manifest)).get("skill", [])
+    problems, out = [], {}
+    for i, s in enumerate(data, 1):
+        where = f"{manifest}: skill {i}"
+        for k in ("name", "repo", "license"):
+            if not isinstance(s.get(k), str) or not s[k]:
+                problems.append(f"{where}: needs {k}")
+        if not _HEX40.fullmatch(str(s.get("commit", ""))):
+            problems.append(f"{where}: commit must be a full commit hash")
+        if not _HEX64.fullmatch(str(s.get("sha256", ""))):
+            problems.append(f"{where}: sha256 must be 64 hex digits")
+        paths = s.get("paths")
+        if not isinstance(paths, list) or not paths or not all(
+                isinstance(x, str) and _PATH.fullmatch(x) and ".." not in x.split("/") for x in paths):
+            problems.append(f"{where}: paths must be a list of folders inside the repository, say [\"skills\"]")
+        out[s.get("name")] = s
+    if problems:
+        raise C.ConfigError(problems)
+    return out
+
+
 def skills(manifest: Path = MANIFEST) -> dict:
-    """{name: the [[skill]] entry} from components.toml."""
-    return {s["name"]: s for s in C.read_toml(manifest, str(manifest)).get("skill", [])}
+    """{name: the [[skill]] entry} from components.toml, each checked. Raises C.ConfigError."""
+    return _read(manifest)
 
 
 def tree_hash(root: Path, paths: list) -> str:
@@ -71,7 +115,6 @@ def head(root: Path, env) -> Optional[str]:
 def fetch(skill: dict, dest: Path, env) -> None:
     """Check skill out at its pinned commit and put it at dest, replacing what is there. Raises
     Failed, and leaves dest as it was, when git fails or the files are not the pinned ones."""
-    env = {k: v for k, v in env.items() if not k.startswith("GIT_")}
     tmp = dest.with_name(f".{dest.name}.agent-office-fetch")
     old = dest.with_name(f".{dest.name}.agent-office-old")
     for p in (tmp, old):
@@ -81,7 +124,8 @@ def fetch(skill: dict, dest: Path, env) -> None:
     try:
         call(["git", "init", "-q", str(tmp)], env)
         call([*git, "remote", "add", "origin", skill["repo"]], env)
-        call([*git, "sparse-checkout", "set", "--cone", "--", *skill["paths"]], env)
+        # exactly the named folders: cone mode would also check out the files at the root
+        call([*git, "sparse-checkout", "set", "--no-cone", "--", *(f"/{x}/" for x in skill["paths"])], env)
         # only the pinned commit, and its file contents only for the folders checked out
         call([*git, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", skill["commit"]], env)
         call([*git, "checkout", "-q", "--detach", "FETCH_HEAD"], env)

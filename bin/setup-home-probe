@@ -43,9 +43,10 @@ class Home:
     def config(self, extra):
         (self.h / ".config" / "agent-office" / "config.toml").write_text("schema = 1\n" + extra)
 
-    def run(self, *args):
+    def run(self, *args, **extra):
         # PYTHONDONTWRITEBYTECODE: macOS's python3 puts its bytecode cache under $HOME/Library
-        env = {"HOME": str(self.h), "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONDONTWRITEBYTECODE": "1"}
+        env = {"HOME": str(self.h), "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONDONTWRITEBYTECODE": "1",
+               **extra}
         # start_new_session: no controlling terminal, so a question can never block the probe
         return subprocess.run([sys.executable, str(self.office), "setup", "agents", *args], env=env, capture_output=True,
                               text=True, stdin=subprocess.DEVNULL, start_new_session=True)
@@ -327,6 +328,7 @@ def skill_packs(tmp):
     src = Path(tmp) / "no-ai-slop-upstream"
     (src / "skills" / "no-ai-slop").mkdir(parents=True)
     (src / "skills" / "no-ai-slop" / "SKILL.md").write_text("one\n")
+    (src / "AGENTS.md").write_text("upstream's own rules, never checked out\n")
     (src / "tools").mkdir()
     (src / "tools" / "install.sh").write_text("echo not for you\n")
     git(src, "init", "-q", "-b", "main")
@@ -350,7 +352,9 @@ def skill_packs(tmp):
     def pin(commit, sha):
         entry = (f'name = "no-ai-slop"\nrepo = "{src}"\ncommit = "{commit}"\npaths = ["skills/no-ai-slop"]\n'
                  f'sha256 = "{sha}"\n')
-        comps.write_text(re.sub(r'name = "no-ai-slop"\n(?:[a-z0-9]+ = .*\n)+?(?=license)', lambda _: entry, orig))
+        text = re.sub(r'name = "no-ai-slop"\n(?:[a-z0-9]+ = .*\n)+?(?=license)', lambda _: entry, orig)
+        # every other pack from an upstream that is not there: the probe never downloads
+        comps.write_text(re.sub(r'repo = "https://[^"]*"', f'repo = "{Path(tmp) / "gone"}"', text))
 
     pack = ".local/share/agent-office/vendors/no-ai-slop"
     h = Home(tmp, "[setup.skills]\nno_ai_slop = true\n", office=copy / "bin" / "office")
@@ -363,13 +367,16 @@ def skill_packs(tmp):
     r = h.run()
     check("on: checked out at the pin, only the folders it names", r.returncode == 0
           and git(h.p(pack), "rev-parse", "HEAD") == one and h.text(f"{pack}/skills/no-ai-slop/SKILL.md") == "one\n"
-          and not h.p(f"{pack}/tools").exists(), out(r))
+          and not h.p(f"{pack}/tools").exists() and not h.p(f"{pack}/AGENTS.md").exists(), out(r))
     w = h.text(".agents/skills/no-ai-slop/SKILL.md") if h.p(".agents/skills/no-ai-slop/SKILL.md").is_file() else ""
     check("its skill points at the checkout, and Claude Code sees it through a link",
           f"`{h.p(pack)}/skills/no-ai-slop/SKILL.md`" in w and "{{" not in w
           and os.readlink(h.p(".claude/skills/no-ai-slop")) == str(h.p(".agents/skills/no-ai-slop")), w)
     r = h.run("--check")
     check("a second run has nothing to do", r.returncode == 0 and "Nothing to change" in r.stdout, out(r))
+    r = h.run("--check", GIT_DIR=str(src / ".git"))
+    check("also from inside another repository's git hook (GIT_DIR set)", r.returncode == 0
+          and "Nothing to change" in r.stdout, out(r))
     pin(two, sha_two)
     r = h.run("--check")
     check("a new pin is an update, with where to read the change", "update   ~/" + pack in r.stdout
@@ -378,9 +385,15 @@ def skill_packs(tmp):
     check("and moves it", r.returncode == 0 and git(h.p(pack), "rev-parse", "HEAD") == two
           and h.p(f"{pack}/skills/no-ai-slop/eval.md").is_file(), out(r))
     r = h.run("--remove")
-    check("--remove takes out the pack, its skill and the link", r.returncode == 0 and not h.p(pack).exists()
-          and not h.p(".agents/skills/no-ai-slop/SKILL.md").exists() and not h.p(".claude/skills/no-ai-slop").is_symlink(),
+    check("--remove takes out the pack, its skill folder and the link", r.returncode == 0 and not h.p(pack).exists()
+          and not h.p(".agents/skills/no-ai-slop").exists() and not h.p(".claude/skills/no-ai-slop").is_symlink(),
           out(r))
+    h.config("[setup.skills]\nno_ai_slop = true\nmarketing = true\n")
+    r = h.run()
+    check("an upstream that cannot be reached: the run goes on, says which, and exits 1", r.returncode == 1
+          and "1 skill pack(s) could not be checked out" in r.stderr and "marketingskills" in r.stderr
+          and h.p(pack).is_dir() and h.p(".agents/skills/marketing/SKILL.md").is_file(), out(r))
+    h.config("[setup.skills]\nno_ai_slop = true\n")
     h.run()
     (h.p(pack) / "skills" / "no-ai-slop" / "SKILL.md").write_text("mine\n")
     pin(one, sha_one)

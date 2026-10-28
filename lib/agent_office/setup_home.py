@@ -369,6 +369,7 @@ class Setup(install.Installer):
         super().__init__(env, out)
         self.manifest_path = self.state / "setup-manifest.json"
         self.manifest = self._read_manifest()
+        self.failed = []                       # what could not be done; the rest still ran
 
     def prev(self, p: Path) -> dict:
         return self.manifest["owned"].get(str(p), {})
@@ -511,22 +512,36 @@ class Setup(install.Installer):
         if link:
             return install.Step("manual", p, f"{what}: {link}. Links are never written through")
         if not (p.exists() or p.is_symlink()):
-            return install.Step("create", p, what + ", checked against its SHA-256",
-                                lambda: V.fetch(skill, p, self.env), record=record)
+            return self._fetch_step(install.Step("create", p, what + ", checked against its SHA-256",
+                                                 record=record), skill)
         rec = self.prev(p)
         have = V.head(p, self.env) if p.is_dir() else None
         if rec.get("kind") != "vendor" or have is None:
             return install.Step("manual", p, f"{what}: something Agent Office did not check out is there; "
                                 "move it, then run this again")
-        got = V.tree_hash(p, skill["paths"] if have == skill["commit"] else rec.get("paths", []))
-        if have == skill["commit"] and got == skill["sha256"]:
-            return install.Step("keep", p, what, record=record)
-        if have != rec.get("commit") or got != rec.get("sha256"):
+        # unchanged means as it was checked out: the record's commit, folders and hash
+        if have != rec.get("commit") or V.tree_hash(p, rec.get("paths", [])) != rec.get("sha256"):
             return install.Step("manual", p, f"{what}: changed by hand since Agent Office checked it out, so "
                                 f"it is left as it is. Delete {self.show(p)} and run this again for the pinned one")
-        return install.Step("update", p, what + ", checked against its SHA-256", lambda: V.fetch(skill, p, self.env),
-                            [f"{have[:12]} -> {skill['commit'][:12]}: read the change at "
-                             f"{skill['repo']}/compare/{have}...{skill['commit']}"], record)
+        if have == skill["commit"] and V.tree_hash(p, skill["paths"]) == skill["sha256"]:
+            return install.Step("keep", p, what, record=record)
+        return self._fetch_step(install.Step(
+            "update", p, what + ", checked against its SHA-256",
+            diff=[f"{have[:12]} -> {skill['commit'][:12]}: read the change at "
+                  f"{skill['repo']}/compare/{have}...{skill['commit']}"] if have != skill["commit"] else [],
+            record=record), skill)
+
+    def _fetch_step(self, step, skill: dict):
+        """step, its run the checkout. A pack that cannot be checked out is said at the end and kept
+        off the record; the steps after it still run."""
+        def run():
+            try:
+                V.fetch(skill, step.path, self.env)
+            except V.Failed as e:
+                step.record = None
+                self.failed.append(f"{self.show(step.path)}: {e}")
+        step.run = run
+        return step
 
     def want_starter(self, p: Path, text: str, what: str):
         if p.exists() or p.is_symlink():
@@ -626,6 +641,12 @@ class Setup(install.Installer):
             self._backup(p)
             p.unlink()
 
+        def remove_and_folder():
+            remove()
+            # a folder left empty goes too: a skill folder without its SKILL.md is no skill
+            if p.parent != self.home and not any(p.parent.iterdir()):
+                p.parent.rmdir()
+
         if kind == "link":
             if p.is_symlink() and os.readlink(p) == rec.get("target"):
                 return install.Step("remove", p, "a link Agent Office made", lambda: p.unlink(),
@@ -643,7 +664,7 @@ class Setup(install.Installer):
             return self._forget(p, "a skill pack changed by hand since Agent Office checked it out: left alone")
         if kind == "file":
             if _sha(p.read_bytes()) == rec.get("sha256"):
-                return install.Step("remove", p, "a file Agent Office wrote, unchanged", remove,
+                return install.Step("remove", p, "a file Agent Office wrote, unchanged", remove_and_folder,
                                     record={"forget": True})
             return self._forget(p, "changed by hand since Agent Office wrote it: left alone")
         cur = p.read_text(encoding="utf-8")
@@ -748,7 +769,7 @@ WHAT = {
     "yaml": "Agent Office's top-level keys; your own keys stay",
     "owned": "a file Agent Office keeps up to date",
     "starter": "a starter to edit",
-    "link": "one rules file for every agent",
+    "link": "a link, so every agent reads the same one",
     "flags": "a Firstmate switch",
     "vendor": "a skill pack",
 }
@@ -848,8 +869,14 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
             return 1
     try:
         st.apply(steps)
-    except (OSError, V.Failed) as e:
+    except OSError as e:
         print(f"{verb}: {e}. Stopped there: run it again when that is fixed.", file=err)
+        return 1
+    if st.failed:
+        print(f"{verb}: {len(st.failed)} skill pack(s) could not be checked out; the rest is done. "
+              "Run it again when that is fixed:", file=err)
+        for f in st.failed:
+            print(f"  {f}", file=err)
         return 1
     if any(s.kind not in ("keep", "manual") for s in steps):
         st.say(f"Done. Backups and the list of what Agent Office wrote: {st.show(st.state)}")
