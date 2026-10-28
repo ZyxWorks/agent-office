@@ -118,7 +118,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20                 # macOS runs about 11 minutes; a slow runner reached 15
 
     steps:
       - uses: actions/checkout@v4
