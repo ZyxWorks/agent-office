@@ -297,9 +297,9 @@ shows the plan, asks, and then works through it one component at a time:
 | this checkout (the CLI, preset and meter) | the tip of the branch it follows | `git fetch`, then `git merge --ff-only`. Never a merge commit, a rebase or a reset. When it moved, the new release's `office update` takes over, so the rest follows the new release's list. |
 | a tool npm owns | its pin | `npm install -g --ignore-scripts <package>@<pin>` |
 | a tool Homebrew owns | its pin or tested version | `brew info` first; `brew upgrade` only if Homebrew has exactly that version, otherwise skipped |
-| herdr, treehouse, no-mistakes, where `office tools` puts them | its pin or tested version | the owner's release asset at that version, SHA-256 checked, put over the program |
+| herdr, treehouse, no-mistakes, where `office tools` puts them | its pin or tested version | the owner's release asset at that version, SHA-256 checked, put over the program. The program it replaces is kept in `~/.local/state/agent-office/previous/`, and put back when the new one does not report the target version |
 | a tool Nix or the system's packages own, or that sits somewhere else | | skipped: it tells you to update it there |
-| Firstmate | the newest tested revision | Firstmate's own updater when the checkout has one and its `origin` is at a tested revision; otherwise `git fetch` and `git merge --ff-only` to that revision |
+| Firstmate | the newest tested revision | Firstmate's own updater when the checkout has one and its `origin` is at a tested revision; otherwise `git fetch` and `git merge --ff-only` to that revision. Each secondmate its updater reports gets a result of its own |
 | the generated herdr config, meter settings and links | your config | `office install --yes`, with its backups |
 | the agent working setup, once `office setup agents` has written it | your config and this release's templates | `office setup agents --yes`, with its backups. A whole file you changed is never replaced: the new version goes beside it once, and then it is yours to compare. A block or key of Agent Office's that you changed is put back after the plan's one question, backed up first. A key you took out stays out. Off with `setup.enabled = false` |
 
@@ -326,20 +326,31 @@ After each update it reads the version again, and only the target counts:
 
 - **updated**: it is at the target now. **unchanged**: it already was.
 - **skipped**: a blocker, nothing was changed. **failed**: the owner's command
-  failed or left another version.
+  failed or left another version. A release asset that does not report the
+  target version is undone: the program it replaced is put back, and the
+  result says so.
 - **updated on disk but not yet active**: the new version is installed, but
   what is running is still the old one. This is said for the running herdr
   server, a generated config or meter the running session has not loaded, a
-  Firstmate that was updated while it runs, and the no-mistakes daemon.
+  Firstmate that was updated while it runs, a live secondmate Firstmate's
+  updater moved, and the no-mistakes daemon.
   `office update` prints the restart to run and never runs it: it stops,
-  restarts or reloads no server, no Firstmate and no daemon.
+  restarts or reloads no server, no Firstmate, no secondmate and no daemon.
+  For the office session's herdr, config and meter, every later `office
+  update` checks again, and reports them pending until the session runs them.
 
 It exits 0 only when every component is updated or unchanged, and 1 otherwise.
 One component's failure does not hide the others' results, and running it
-again does only what is left. There is no rollback: a component that was
-updated stays updated.
+again does only what is left: a component the last run failed or was cut off
+on is tried again, also when its program no longer reports a version, and so
+is a secondmate Firstmate's updater skipped, by running that updater again.
+There is no rollback across components: one that was updated stays updated.
+For a release asset the program it replaced stays in
+`~/.local/state/agent-office/previous/` until its next update, for a rollback
+you decide on.
 
-Only one runs at a time (a lock in `~/.local/state/agent-office/`). Its
+Only one runs at a time (a lock in `~/.local/state/agent-office/`, held
+across the move to a new release too). Its
 progress is recorded there in `update.json`, so a run that was killed or lost
 its terminal is reported by `office update --check` and picked up by the next
 `office update`. `--check` asks each remote for its tip with `git ls-remote`.
