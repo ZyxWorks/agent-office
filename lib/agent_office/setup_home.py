@@ -15,11 +15,12 @@ wrote from what you changed:
   removed it, until `office setup --reset-key <file>:<key>` takes that off again,
 - everything outside what Agent Office owns (your lines around its block, your own keys, your
   own hooks and permission entries) is never touched,
-- a link is never written through: a target that is a link (into a dotfiles repo, say) is left
-  alone and you are told what to change in it yourself.
+- a link is never written through: a target that is a link, or sits in a linked folder (a
+  dotfiles repo, say), is left alone and you are told what to change in it yourself.
 
 `office setup --remove` takes out what the record says Agent Office put in, as long as it is
-still what it put in. Your starter files (data/captain.md) stay: they were yours from the start.
+still what it put in. A value of yours it replaced goes back, unless you changed it again since.
+Your starter files (data/captain.md) stay: they were yours from the start.
 """
 
 from __future__ import annotations
