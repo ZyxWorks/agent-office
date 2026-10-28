@@ -148,6 +148,9 @@ def main():
           "setup": {"models": {"default": {"model": "cx-a", "effort": "high"},
                                "mechanical": {"model": "cx-b", "effort": "low"}}}}
     t = by_target(S.plan(C.effective(cx, "codex"), ENV))
+    g = t["/home/user/.gnhf/config.yml"]
+    check("codex: gnhf is not written, and the plan says why", g["kind"] == "skip" and "content" not in g
+          and "agentArgsOverride.codex" in g["why"] and "skip permissions" in g["why"], g)
     texts = {k: i["content"] for k, i in t.items() if "content" in i}
     d = json.loads(texts["/home/user/firstmate/config/crew-dispatch.json"])
     check("codex with models renders them",
@@ -156,6 +159,9 @@ def main():
           and texts["/home/user/firstmate/config/supervision-host"] == "codex cx-a\n"
           and "model: cx-a\n    effort: high" in texts["/home/user/.no-mistakes/config.yaml"], texts)
     t = by_target(S.plan(C.effective({"schema": 1, "firstmate": {"harness": "claude"}}, "claude"), ENV))
+    g = t["/home/user/.gnhf/config.yml"]
+    check("claude: gnhf is written with auto mode", g["kind"] == "yaml"
+          and "agent: claude\nagentArgsOverride:\n  claude:\n    - --permission-mode\n    - auto" in g["content"], g)
     check("claude keeps the shipped models",
           t["/home/user/firstmate/config/supervision-host"]["content"] == "claude claude-opus-5-5\n")
 

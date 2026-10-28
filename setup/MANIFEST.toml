@@ -4,6 +4,8 @@
 # setup-probe fails on a file under setup/ that it does not name. A target is a path in your
 # home: a leading ~/ is your home, {{firstmate.home}} and {{firstmate.code}} are your config's.
 # `when` names a true-or-false config key; the entry is left out while it is false.
+# `harness` names the one harness the entry is for; on another, it is not written and `why` says
+# what to do instead.
 #
 # kind:
 #   block   Markdown. Agent Office owns only the text between its begin and end markers.
@@ -105,3 +107,5 @@ kind = "yaml"
 source = "gnhf/config.yml"
 target = "~/.gnhf/config.yml"
 kind = "yaml"
+harness = "claude"
+why = "gnhf has no {{firstmate.harness}} permission override here, so its default would skip permissions: set agentArgsOverride.{{firstmate.harness}} yourself in ~/.gnhf/config.yml"

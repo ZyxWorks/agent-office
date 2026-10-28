@@ -20,7 +20,7 @@ Planned: `office setup` writes these into your home, shows every change first an
 | `setup.firstmate.flags` | the Firstmate home's `config/`, one empty file each | flags |
 | `firstmate/captain.md` | the Firstmate home's `data/captain.md` | starter |
 | `no-mistakes/config.yaml` | `~/.no-mistakes/config.yaml` | yaml |
-| `gnhf/config.yml` | `~/.gnhf/config.yml` | yaml |
+| `gnhf/config.yml` | `~/.gnhf/config.yml` | yaml, Claude only |
 
 ## The kinds: what is yours and what is Agent Office's
 
@@ -36,7 +36,7 @@ Planned: `office setup` writes these into your home, shows every change first an
 
 A template says `{{setup.machine.test_workers}}` where a value goes, or `{{setup.gates.quick|the repo's quick checks}}` for words to use while the key is unset. Names are config keys: `setup.*`, `firstmate.code`, `firstmate.home` (its checkout when unset) and `firstmate.harness`. `setup.repos.protected` is the integration and release branch, named once when they are the same. A path in a target is rendered from your home and your config, never written into a template.
 
-The shipped `[setup.models.*]` defaults are Claude model ids, so they apply only while `firstmate.harness` is `claude`. With `codex`, set `setup.models.default` and `setup.models.mechanical` (model and effort) in your own config.toml; until then the setup refuses to render.
+The shipped `[setup.models.*]` defaults are Claude model ids, so they apply only while `firstmate.harness` is `claude`. With `codex`, set `setup.models.default` and `setup.models.mechanical` (model and effort) in your own config.toml; until then the setup refuses to render. gnhf's config is not written with `codex` either: it has no codex permission override here, so gnhf's default would skip permissions. Set `agentArgsOverride.codex` yourself in `~/.gnhf/config.yml`.
 
 ## Nothing private
 
