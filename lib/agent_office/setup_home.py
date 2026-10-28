@@ -144,8 +144,9 @@ def merge_json(cur: dict, frag: dict, prev: dict):
     """(new, record, conflicts, left out). prev is what the last run put in, from the record.
 
     What the last run put in and this one does not is taken out again, where it is still as
-    it was put in. A value this run sets over one of yours (one that is neither missing nor
-    what the last run put there) is a conflict: the caller asks before writing it. A key or an
+    it was put in; where it replaced a value of yours, that value goes back. A value this run
+    sets over one of yours (one that is neither missing nor what the last run put there) is a
+    conflict: the caller asks before writing it, and your value goes on the record. A key or an
     entry an earlier run put in that you took out stays out, on the record as removed by you;
     left out names those this run found gone for the first time.
     """
@@ -156,12 +157,16 @@ def merge_json(cur: dict, frag: dict, prev: dict):
     gone = prev.get("removed", {})
     gone_sets = {tuple(p) for p in gone.get("set", [])}
     gone_adds = [(tuple(p), x) for p, x in gone.get("added", [])]
+    before = {tuple(p): v for p, v in prev.get("before", [])}
     removed_sets, removed_adds, left_out = [], [], []
     conflicts = []
     new_paths = {p for p, _ in sets}
     emptied = []
     for p, v in prev_sets:
         if p not in new_paths and _get(out, p) == v:
+            if p in before:  # the value of yours it replaced goes back
+                _get(out, p[:-1])[p[-1]] = before[p]
+                continue
             del _get(out, p[:-1])[p[-1]]
             emptied.append(p[:-1])
     for p, x in prev_adds:
@@ -190,6 +195,7 @@ def merge_json(cur: dict, frag: dict, prev: dict):
             continue
         if now is not _MISSING and now != v and (p not in was or was[p] != now):
             conflicts.append(f"{'.'.join(p)}: yours is {json.dumps(now)}, Agent Office's is {json.dumps(v)}")
+            before[p] = now
         _parent(out, p, conflicts)[p[-1]] = v
         my_sets.append((p, v))
     for p, x in adds:
@@ -212,6 +218,8 @@ def merge_json(cur: dict, frag: dict, prev: dict):
             my_adds.append((p, x))
     record = {"kind": "json", "set": [[list(p), v] for p, v in my_sets],
               "added": [[list(p), x] for p, x in my_adds]}
+    if any(p in before for p, _ in my_sets):
+        record["before"] = [[list(p), before[p]] for p, _ in my_sets if p in before]
     if removed_sets or removed_adds:
         record["removed"] = {"set": [list(p) for p in removed_sets],
                              "added": [[list(p), x] for p, x in removed_adds]}
@@ -271,7 +279,8 @@ def yaml_blocks(text: str):
 
 
 def merge_yaml(cur: Optional[str], frag: str, prev: dict):
-    """(new text, record, conflicts, left out), as merge_json, for top-level keys."""
+    """(new text, record, conflicts, left out), as merge_json, for top-level keys: a key of yours
+    it replaces goes on the record whole, and goes back when Agent Office's is taken out."""
     fheader, fblocks, forder, _ = yaml_blocks(frag)
     record = {"kind": "yaml", "blocks": {k: _sha(fblocks[k]) for k in forder}, "header": fheader}
     if cur is None:
@@ -281,6 +290,7 @@ def merge_yaml(cur: Optional[str], frag: str, prev: dict):
     lines = cur.splitlines(keepends=True)
     _, blocks, _, spans = yaml_blocks(cur)
     was = prev.get("blocks", {})
+    before = dict(prev.get("before", {}))
     gone = prev.get("removed", [])
     removed = [k for k in forder if k not in blocks and (k in was or k in gone)]
     for k in removed:
@@ -292,7 +302,7 @@ def merge_yaml(cur: Optional[str], frag: str, prev: dict):
     conflicts, replace = [], {}
     for k, sha in was.items():  # a key the last run wrote that this one does not
         if k not in fblocks and k in blocks and _sha(blocks[k]) == sha:
-            replace[k] = ""
+            replace[k] = before.get(k, "")
     for k in forder:
         if k in blocks:
             if blocks[k] == fblocks[k] and k not in was:
@@ -300,7 +310,10 @@ def merge_yaml(cur: Optional[str], frag: str, prev: dict):
                 continue
             if blocks[k] != fblocks[k] and was.get(k) != _sha(blocks[k]):
                 conflicts.append(f"{k}: yours differs from Agent Office's")
+                before[k] = blocks[k]
             replace[k] = fblocks[k]
+    if any(k in before for k in record["blocks"]):
+        record["before"] = {k: before[k] for k in record["blocks"] if k in before}
     out = []
     i = 0
     starts = {spans[k][0]: k for k in replace}
@@ -326,11 +339,14 @@ def merge_yaml(cur: Optional[str], frag: str, prev: dict):
 def yaml_without(cur: str, prev: dict) -> str:
     _, blocks, _, spans = yaml_blocks(cur)
     lines = cur.splitlines(keepends=True)
-    drop = set()
+    before = prev.get("before", {})
+    drop, put_back = set(), {}
     for k, sha in prev.get("blocks", {}).items():
         if k in blocks and _sha(blocks[k]) == sha:
             drop.update(range(*spans[k]))
-    out = "".join(l for i, l in enumerate(lines) if i not in drop)
+            if k in before:  # the key of yours it replaced goes back
+                put_back[spans[k][0]] = before[k]
+    out = "".join(put_back.get(i, "") if i in drop else l for i, l in enumerate(lines))
     header = prev.get("header") or ""
     if header and header in out:  # the comment Agent Office wrote above its keys
         out = out.replace(header, "", 1)
@@ -790,7 +806,8 @@ written through. A key or entry Agent Office put in that you took out stays out:
 
   --check    show what it would do, change nothing
   --yes      do not ask before changing a file of yours (backups are still made)
-  --remove   take out what Agent Office put in, where it is still as it was put in
+  --remove   take out what Agent Office put in, where it is still as it was put in;
+             a value of yours it replaced (after the question or --yes) goes back
   --reset-key <file>:<key path or entry>
              let the next run put back a key or entry you took out, for example
              --reset-key "~/.claude/settings.json:Bash(gh-axi:*)" (deleting the

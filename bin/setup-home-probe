@@ -263,6 +263,30 @@ def main():
         check("a YAML file with none of Agent Office's keys left is not rewritten",
               r.returncode == 0 and h.text(".gnhf/config.yml") == "mine: 1", out(r))
 
+        print("--remove puts back a value of yours it replaced")
+        h = Home(tmp)
+        h.p(".claude").mkdir()
+        h.p(".claude/settings.json").write_text(json.dumps({"model": "opus", "permissions": {"defaultMode": "ask"}}))
+        h.p(".gnhf").mkdir()
+        h.p(".gnhf/config.yml").write_text("maxConsecutiveFailures: 9\npreventSleep: false\n")
+        r = h.run("--yes")
+        check("--yes replaces them", r.returncode == 0 and h.json(".claude/settings.json")["model"] == "claude-opus-5-5"
+              and "maxConsecutiveFailures: 3" in h.text(".gnhf/config.yml"), out(r))
+        s = h.json(".claude/settings.json")
+        s["permissions"]["defaultMode"] = "plan"
+        h.p(".claude/settings.json").write_text(json.dumps(s))
+        h.p(".gnhf/config.yml").write_text(h.text(".gnhf/config.yml").replace("preventSleep: true", "preventSleep: no"))
+        r = h.run("--remove", "--yes")
+        s = h.json(".claude/settings.json")
+        check("--remove runs", r.returncode == 0, out(r))
+        check("JSON: your old value goes back, one you changed since stays, one never there goes",
+              s.get("model") == "opus" and s["permissions"].get("defaultMode") == "plan"
+              and "hooks" not in s and "allow" not in s["permissions"], json.dumps(s))
+        g = h.text(".gnhf/config.yml")
+        check("YAML: your old value goes back, one you changed since stays, one never there goes",
+              "maxConsecutiveFailures: 9" in g and "preventSleep: no" in g and "agent:" not in g
+              and "agentArgsOverride" not in g, repr(g))
+
         print("a bad config")
         h = Home(tmp, "[setup.machine]\ntest_workers = 0\n")
         r = h.run()
