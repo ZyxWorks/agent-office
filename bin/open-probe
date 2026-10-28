@@ -14,10 +14,12 @@ import json
 import os
 import pty
 import select
+import signal
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -142,7 +144,7 @@ def did():
 
 def office(*args, **extra):
     return subprocess.run([sys.executable, str(OFFICE), "open", *args], env=dict(env, **extra),
-                          capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60)
+                          capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=30)
 
 
 def on_tty(*args, **extra):
@@ -152,10 +154,14 @@ def on_tty(*args, **extra):
         os.environ.clear()
         os.environ.update(dict(env, **extra))
         os.execv(sys.executable, [sys.executable, str(OFFICE), "open", *args])
-    text = b""
+    # a hard limit: a real fzf that slipped onto PATH waits for keys for ever, so a case that
+    # does not end by itself is killed and fails, and the probe goes on
+    text, end = b"", time.monotonic() + 30
     while True:
-        r, _, _ = select.select([fd], [], [], 30)
+        r, _, _ = select.select([fd], [], [], max(0, end - time.monotonic()))
         if not r:
+            os.kill(pid, signal.SIGKILL)
+            text += b"\n[killed: still running after 30 seconds]"
             break
         try:
             chunk = os.read(fd, 4096)
@@ -233,6 +239,13 @@ r = office("alp")
 check("no terminal: a part that matches two lists both and opens nothing",
       r.returncode == 1 and "'alp' matches 2 projects" in r.stderr and "alphabet" in r.stderr and did() == [],
       r.stderr)
+m, sl = pty.openpty()
+r = subprocess.run([sys.executable, str(OFFICE), "open"], env=dict(env, FAKE_FZF="delta"), stdin=sl,
+                   capture_output=True, text=True, timeout=30)
+os.close(m)
+os.close(sl)
+check("keys from a terminal but output to a pipe: no picker, the projects are listed",
+      r.returncode == 1 and calls("fzf") == [] and "delta" in r.stderr and did() == [], r.stderr)
 r = office()
 check("no terminal and no name: lists the projects, opens nothing", r.returncode == 1 and "delta" in r.stderr
       and did() == [], r.stderr)
@@ -295,7 +308,8 @@ check("inside the office session: it goes there and attaches nothing",
       rc == 0 and did()[0][:2] == ["workspace", "create"] and ["session", "attach", "probe"] not in calls(),
       f"{rc} {calls()}")
 fresh()
-rc, text = on_tty(PATH=f"{nofzf}:{SYSTEM}")
+# nofzf only: CI's Linux has a real fzf in /usr/bin, and nothing else here needs the system's PATH
+rc, text = on_tty(PATH=str(nofzf))
 check("no fzf: says to name the project or install fzf", rc == 1 and "fzf is not installed" in text and did() == [],
       text)
 

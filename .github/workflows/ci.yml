@@ -282,10 +282,12 @@ jobs:
 
       # `office open`, with stand-ins for herdr and fzf: no server.
       - name: open-probe
+        timeout-minutes: 5
         run: bin/open-probe
 
       - name: open-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
+        timeout-minutes: 5
         run: /usr/bin/python3 bin/open-probe
 
       # fm and fm restart against a herdr server of the probe's own, in a throwaway HOME, with a

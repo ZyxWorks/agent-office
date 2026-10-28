@@ -160,7 +160,9 @@ def choose(found: list, missing: list, arg: str | None, env) -> Project | None:
     if not found:
         raise fm.Fail("no projects to open: Firstmate has registered none that are cloned, and "
                       "open.roots names no folder with git checkouts in it. See `office open --help`.")
-    if sys.stdin.isatty():
+    # fzf only on a terminal it can read keys from and draw on: anywhere else it would wait for
+    # keys no one types (a script, a pipe, CI)
+    if sys.stdin.isatty() and sys.stdout.isatty():
         return _pick(found, arg or "", env)
     # no terminal for a picker: only a unique match opens
     near = [p for p in found if arg and arg.lower() in p.name.lower()]
