@@ -1,0 +1,4 @@
+# gitleaks: findings read by hand and found harmless. Each line is a fingerprint gitleaks prints.
+# terminals/windows-terminal-keys.json (removed since): terminal escape sequences such as \u001b[1;6A, not keys.
+3b400c8a0062e7a34d4f8b18ee4e899978dace80:terminals/windows-terminal-keys.json:generic-api-key:13
+0d682bf5d9f5f6b9cb7673ae028856008d59e488:terminals/windows-terminal-keys.json:generic-api-key:28

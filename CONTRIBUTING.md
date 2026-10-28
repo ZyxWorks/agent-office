@@ -78,6 +78,22 @@ components, commands, config, what stays private, platforms.
 - **Comments say why, not what.** The useful comments record a trap someone
   already fell into.
 
+## Keeping it private
+
+"Nothing private in the package" is checked, not hoped for. `bin/leak-scan` runs in CI on every push and PR, next to gitleaks:
+
+- **Public rules**, readable by anyone: a home path (`/Users/<name>/`, `/home/<name>/`), an email address that is not a placeholder (`@example.com`, `.invalid`, a GitHub noreply address), a private key, a secrets file (`.env`, `*.pem`, `*.key`).
+- **Commit emails.** Every new commit's author and committer must be a GitHub noreply address (`<id>+<login>@users.noreply.github.com`). Set it once in your clone: `git config user.email <id>+<login>@users.noreply.github.com`. Older commits are not rewritten.
+- **A private denylist** of words only the maintainer knows: names, handles, client and private repository names. It never enters the repository. CI reads it from the `LEAK_DENYLIST` secret; locally `bin/leak-scan` reads `~/.config/agent-office/leak-denylist` (or the file named by `$AGENT_OFFICE_LEAK_DENYLIST`). A hit prints the line number in that file, never the word, and a file name with a denylist word in it is never printed either. One entry per line; a tab after the word starts a comma-separated list of files where it is allowed.
+
+Run it before a push with the hook in `.githooks`, which scans the files of each commit the push sends (as git has them, not as they are on disk) and every commit on the way: names, emails, messages, file names and added lines, merges included:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+Touched `bin/leak-scan`? Run `bin/leak-scan-probe`. A finding gitleaks reports that you read and found harmless goes into `.gitleaksignore` with a comment saying why.
+
 ## Verifying a change
 
 Every PR says what you ran and what you saw.

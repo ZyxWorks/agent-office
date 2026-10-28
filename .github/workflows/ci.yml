@@ -22,6 +22,96 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Nothing from one person's machine ships (CONTRIBUTING.md, "Keeping it private"). Three checks:
+  # gitleaks for credentials over the whole history, bin/leak-scan's public rules over the tree
+  # and over the commits this run brings, and the maintainer's private denylist, which lives only
+  # in the LEAK_DENYLIST secret. A PR from a fork or Dependabot gets no secrets, so it runs the
+  # first two; the push to main after the merge runs all three.
+  leaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                # gitleaks and --commits read history
+
+      # From its own GitHub release at a reviewed version, checked against the hash in its
+      # checksums file.
+      - name: install gitleaks 8.30.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          gh release download v8.30.1 -R gitleaks/gitleaks -p gitleaks_8.30.1_linux_x64.tar.gz -O "$RUNNER_TEMP/gitleaks.tgz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tgz" | shasum -a 256 -c
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+
+      # .gitleaksignore holds the findings read by hand and found harmless.
+      - name: gitleaks, every commit
+        run: gitleaks git --no-banner --redact .
+
+      - name: leak-scan-probe
+        run: bin/leak-scan-probe
+
+      - name: leak-scan, tracked files
+        run: bin/leak-scan
+
+      # Older commits are what they are: author emails were not checked before this job, and the
+      # history is not rewritten. Every commit from here on is.
+      - name: the commits this run brings
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          case "$EVENT" in
+            pull_request) range="$PR_BASE..$PR_HEAD" ;;
+            push) if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] \
+                     || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                    range="origin/main..$GITHUB_SHA"   # a new branch: what it adds over main
+                  else
+                    range="$BEFORE..$GITHUB_SHA"
+                  fi ;;
+            *) range= ;;
+          esac
+          echo "range: ${range:-none for a $EVENT run}"
+          echo "RANGE=$range" >> "$GITHUB_ENV"
+
+      - name: leak-scan, those commits
+        if: env.RANGE != ''
+        run: bin/leak-scan --commits "$RANGE"
+
+      # The secret is written to a file only this job reads; leak-scan names a hit by its line in
+      # that file, so the log never shows a private word. Missing on this repository is a failure,
+      # not a skip: a scan that silently checks nothing is the leak this job exists to stop.
+      - name: leak-scan, the private denylist
+        env:
+          LEAK_DENYLIST: ${{ secrets.LEAK_DENYLIST }}
+          FORK: ${{ github.event.pull_request.head.repo.fork }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [ -z "$LEAK_DENYLIST" ]; then
+            if [ "$FORK" = true ] || [ "$ACTOR" = "dependabot[bot]" ]; then
+              echo "::warning::a fork's or Dependabot's run gets no Actions secrets: the private denylist runs on the push to main after the merge"
+              exit 0
+            fi
+            echo "::error::the LEAK_DENYLIST secret is not set on this repository"
+            exit 1
+          fi
+          printf '%s\n' "$LEAK_DENYLIST" > "$RUNNER_TEMP/leak-denylist"
+          status=0
+          bin/leak-scan --denylist "$RUNNER_TEMP/leak-denylist" || status=1
+          if [ -n "$RANGE" ]; then
+            bin/leak-scan --denylist "$RUNNER_TEMP/leak-denylist" --commits "$RANGE" || status=1
+          fi
+          rm -f "$RUNNER_TEMP/leak-denylist"
+          exit "$status"
+
   probes:
     strategy:
       fail-fast: false                  # a macOS-only break must not hide a Linux one
@@ -89,7 +179,8 @@ jobs:
           sh -n bin/office-cwd
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
             bin/office bin/install-probe bin/update-probe bin/notify-probe bin/fm bin/fm-probe lib/agent_office/*.py \
-            bin/officeoff-all bin/lifecycle-probe
+            bin/officeoff-all bin/lifecycle-probe bin/leak-scan bin/leak-scan-probe
+          sh -n .githooks/pre-push
           sh -n herdr/notify
           sh -n herdr/nav
           sh -n herdr/nav-probe

@@ -322,11 +322,13 @@ def main():
     else:
         print("skip ffmpeg not installed: silence of sounds/silent.mp3 not measured")
 
-    # 8. Nothing from one person's machine.
+    # 8. Nothing from one person's machine. bin/leak-scan owns the repo-wide rules and the private
+    # denylist; this keeps the one rule that is the preset's own: no Homebrew prefix in a file
+    # every platform reads.
     for path in (CONFIG, WEZTERM, README, SHEET):
         with open(path, encoding="utf-8") as f:
             body = f.read()
-        hits = re.findall(r"/Users/\w+|/home/\w+|/opt/homebrew|\.zyx/", body)
+        hits = re.findall(r"/Users/\w+|/home/\w+|/opt/homebrew", body)
         check(not hits, f"{os.path.relpath(path, ROOT)} has no private path" + (f": {hits}" if hits else ""))
 
     print(f"\n{len(failures)} failed" if failures else "\nall passed")

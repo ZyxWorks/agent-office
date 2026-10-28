@@ -155,11 +155,11 @@ mv "$fake/.claude/sessions/$pid.gone" "$fake/.claude/sessions/$pid.json"
 #
 # The desk is stood in a directory the probe OWNS, and one with a dot in its
 # name. Not the checkout's own path: this ran green on the author's machine and
-# red on both CI runners for one reason — /Users/.../.zyx/... has a dot in it and
+# red on both CI runners for one reason - /Users/.../.hidden/... has a dot in it and
 # /home/runner/work/agent-office/agent-office does not, so the regex check below
 # was comparing a path against itself and passing on nothing. A probe that only
 # works from one directory is not a probe.
-pcwd="$fake/work/.zyx/repo"
+pcwd="$fake/work/.hidden/repo"
 mkdir -p "$pcwd"
 tmux -L ctxprobe respawn-pane -k -t "$pane" -c "$pcwd" 'exec cat'
 sleep 0.5
@@ -211,15 +211,15 @@ want "a Codex desk: but its clock is read"    \
   "$(tmux -L ctxprobe show -pqv -t "$pane" @office_wrote)" "$(zstat +mtime "$roll")"
 
 # ...and a directory that only matches as a REGEX is a different directory. The
-# desk stands in .../.zyx/repo, and an unanchored `grep` reads that dot as "any
+# desk stands in .../.hidden/repo, and an unanchored `grep` reads that dot as "any
 # character" — so a rollout recorded one character away is handed over as this
-# desk's. Real paths are full of dots: .zyx, .config, .claude, tmp.XXXXXXXX.
+# desk's. Real paths are full of dots: .config, .claude, .local, tmp.XXXXXXXX.
 #
 # The near-miss has to BE a rollout: same directory, and a name the reader's own
 # `-name 'rollout-*.jsonl'` accepts. The first version of this check parked it
 # under another name, so the file was invisible and the check passed against code
 # that was still wrong.
-near=${pcwd/\/.zyx\//\/Xzyx\/}
+near=${pcwd/\/.hidden\//\/Xhidden\/}
 nearroll="${roll:h}/rollout-2026-09-18T09-40-00-0000near-0000-0000-0000-000000000000.jsonl"
 print -r -- "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"$near\"}}" > "$nearroll"
 mv "$roll" "$roll.keep"

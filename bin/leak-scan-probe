@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""leak-scan-probe: bin/leak-scan against throwaway git repositories.
+
+Each case is a leak the scan must catch, or a stand-in it must let through. No network, no herdr.
+The private strings are built at run time, so this file itself stays clean for the scan.
+
+  bin/leak-scan-probe
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+SCAN = REPO / "bin" / "leak-scan"
+fails = 0
+
+HOME_PATH = "/Us" + "ers/jane/work"
+EMAIL = "jane" + "@" + "corp-mail.de"
+KEY = "-----BEGIN " + "RSA PRIVATE KEY-----"
+WORD = "Wintermute"  # stands in for a private word; it is in no real denylist
+NOREPLY = "12345+probe@users.noreply.github.com"
+GITHUB_MERGER = "noreply" + "@" + "github.com"
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+EMPTY_HOME = tempfile.mkdtemp()  # so a maintainer's own ~/.config/agent-office/leak-denylist is not read
+
+
+def run(*args, env=None):
+    e = dict(os.environ, AGENT_OFFICE_LEAK_DENYLIST="", HOME=EMPTY_HOME)
+    e.update(env or {})
+    p = subprocess.run([sys.executable, str(SCAN), *args], capture_output=True, text=True, env=e)
+    return p.returncode, p.stdout + p.stderr
+
+
+def git(repo, *args, email=NOREPLY):
+    env = dict(os.environ, GIT_AUTHOR_NAME="probe", GIT_AUTHOR_EMAIL=email,
+               GIT_COMMITTER_NAME="probe", GIT_COMMITTER_EMAIL=email,
+               GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=env)
+
+
+def repo_with(tmp, files, email=NOREPLY):
+    r = Path(tempfile.mkdtemp(dir=tmp))
+    git(r, "init", "-q", "-b", "main")
+    for name, body in files.items():
+        p = r / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(body, bytes):
+            p.write_bytes(body)
+        else:
+            p.write_text(body, encoding="utf-8")
+    git(r, "add", "-A")
+    git(r, "commit", "-q", "-m", "probe", email=email)
+    return r
+
+
+def main():
+    with tempfile.TemporaryDirectory() as tmp:
+        print("public rules, tracked files")
+        clean = repo_with(tmp, {
+            "README.md": "elided /Users/.../x, CI at /home/runner/work, pin gh-axi@0.1.35\n"
+                         "probe@example.invalid and " + NOREPLY + "\n",
+            ".env.example": "TOKEN=\n",
+            "font.bin": b"\0" + HOME_PATH.encode(),
+            "CLONE.md": "git clone git@github.com:org/repo.git\n",
+        })
+        code, out = run("--repo", str(clean))
+        check("stand-ins, a pin, .env.example, a clone URL and a binary file pass", code == 0, out)
+
+        ln = repo_with(tmp, {"a.txt": "x\n"})
+        os.symlink(HOME_PATH + "/notes.md", ln / "notes.md")
+        git(ln, "add", "-A")
+        git(ln, "commit", "-q", "-m", "a link")
+        code, out = run("--repo", str(ln))
+        check("a link ships as its target path, and that is a hit", code == 1 and "notes.md:1: a home path" in out, out)
+
+        for name, files, want in (
+            ("a home path", {"a.txt": f"cd {HOME_PATH}\n"}, "a.txt:1: a home path"),
+            ("an email address", {"a.txt": f"mail {EMAIL}\n"}, "a.txt:1: an email address"),
+            ("a private key", {"k.txt": KEY + "\n"}, "k.txt:1: a private key"),
+            ("a .env file", {"sub/.env": "X=1\n"}, "sub/.env: a secrets file"),
+            ("a .pem file", {"cert.pem": "x\n"}, "cert.pem: a secrets file"),
+        ):
+            code, out = run("--repo", str(repo_with(tmp, files)))
+            check(f"{name} is a hit", code == 1 and want in out, out)
+
+        print("private denylist")
+        deny = Path(tmp) / "denylist"
+        deny.write_text(f"# private words\n{WORD.lower()}\nJane Q\tLICENSE,docs/*\n", encoding="utf-8")
+        r = repo_with(tmp, {"a.txt": f"from {WORD} Corp\n", "LICENSE": "Copyright Jane Q\n",
+                            "docs/x.md": "Jane Q\n", "b.txt": "Jane Q.\n", "c.txt": f"{WORD}s and x{WORD}\n"})
+        code, out = run("--repo", str(r), "--denylist", str(deny))
+        check("a denylist word is a hit, any case", code == 1 and "a.txt:1: denylist line 2" in out, out)
+        check("the hit never prints the word", WORD.lower() not in out.lower() and "Jane" not in out, out)
+        check("an entry's allowed files are let through", "LICENSE" not in out and "docs/x.md" not in out, out)
+        check("an entry outside its allowed files is a hit", "b.txt:1: denylist line 3" in out, out)
+        check("only whole words match", "c.txt" not in out, out)
+        code, out = run("--repo", str(r), env={"AGENT_OFFICE_LEAK_DENYLIST": str(deny)})
+        check("the denylist is read from $AGENT_OFFICE_LEAK_DENYLIST", code == 1 and "denylist line 2" in out, out)
+        n = repo_with(tmp, {f"{WORD.lower()}-notes.md": "clean\n", "d.txt": f"{HOME_PATH}\n"})
+        (n / f"{WORD.lower()}-notes.md").write_text(f"{HOME_PATH}\n", encoding="utf-8")
+        code, out = run("--repo", str(n), "--denylist", str(deny))
+        check("a file name with a denylist word is a hit, and never printed",
+              code == 1 and "<a file name on the denylist>: its file name has denylist line 2" in out
+              and "<a file name on the denylist>:1: a home path" in out and WORD.lower() not in out.lower(), out)
+        code, out = run("--repo", str(n), "--rev", "HEAD")
+        check("--rev reads the commit, not the files on disk", code == 1 and "d.txt:1: a home path" in out
+              and "notes.md:1" not in out, out)
+        code, out = run("--repo", str(r), "--denylist", str(Path(tmp) / "missing"))
+        check("a named denylist that is not there is a usage error", code == 2, out)
+
+        print("commits")
+        h = repo_with(tmp, {"a.txt": "one\n"})
+        git(h, "tag", "base")
+        (h / "b.txt").write_text(f"see {HOME_PATH}\n", encoding="utf-8")
+        git(h, "add", "-A")
+        git(h, "commit", "-q", "-m", "add b")
+        (h / "b.txt").unlink()
+        git(h, "add", "-A")
+        git(h, "commit", "-q", "-m", f"drop b, ask {WORD}")
+        code, out = run("--repo", str(h))
+        check("the tree is clean once the line is gone", code == 0, out)
+        code, out = run("--repo", str(h), "--commits", "base..HEAD", "--denylist", str(deny))
+        check("a line added and removed inside the range is still a hit",
+              code == 1 and "b.txt: an added line has a home path" in out, out)
+        check("a commit message is scanned", "message line 1: denylist line 2" in out, out)
+        check("noreply authors pass", "email is not a GitHub noreply" not in out, out)
+        noprefix = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "diff.noprefix", "GIT_CONFIG_VALUE_0": "true"}
+        code, out = run("--repo", str(h), "--commits", "base..HEAD", env=noprefix)
+        check("a user's diff.noprefix hides no line", code == 1 and "b.txt: an added line has a home path" in out, out)
+
+        q = repo_with(tmp, {"a.txt": "one\n"})
+        git(q, "tag", "base")
+        (q / "Übersicht\tx.md").write_text(f"{HOME_PATH}\n", encoding="utf-8")
+        (q / "sub").mkdir()
+        (q / "sub" / ".env").write_text("TOKEN=1\n", encoding="utf-8")
+        git(q, "add", "-A")
+        git(q, "commit", "-q", "-m", "odd names")
+        git(q, "rm", "-q", "Übersicht\tx.md", "sub/.env")
+        git(q, "commit", "-q", "-m", "gone again")
+        code, out = run("--repo", str(q), "--commits", "base..HEAD")
+        check("a quoted file name is still read", code == 1 and "Übersicht\tx.md: an added line has a home path" in out, out)
+        check("a secrets file added and removed in the range is a hit", "sub/.env: a secrets file" in out, out)
+
+        g = repo_with(tmp, {"a.txt": "one\n"})
+        git(g, "tag", "base")
+        git(g, "checkout", "-q", "-b", "side")
+        (g / "b.txt").write_text("side\n", encoding="utf-8")
+        git(g, "add", "-A")
+        git(g, "commit", "-q", "-m", "side")
+        git(g, "checkout", "-q", "main")
+        (g / "c.txt").write_text("main\n", encoding="utf-8")
+        git(g, "add", "-A")
+        git(g, "commit", "-q", "-m", "main")
+        git(g, "merge", "-q", "--no-commit", "--no-ff", "side")
+        (g / "a.txt").write_text(f"one\n{HOME_PATH}\n", encoding="utf-8")
+        git(g, "commit", "-q", "-am", "merge side")
+        code, out = run("--repo", str(g), "--commits", "base..HEAD")
+        check("a line only a merge adds is a hit", code == 1 and "a.txt: an added line has a home path" in out, out)
+
+        w = repo_with(tmp, {"a.txt": "one\n"})
+        git(w, "tag", "base")
+        git(w, "commit", "-q", "--allow-empty", "-m", "named", "--author", f"{WORD} <{NOREPLY}>")
+        code, out = run("--repo", str(w), "--commits", "base..HEAD", "--denylist", str(deny))
+        check("an author name is checked against the denylist", code == 1 and "the author name has denylist line 2" in out, out)
+
+        m = repo_with(tmp, {"a.txt": "one\n"})
+        git(m, "tag", "base")
+        (m / "a.txt").write_text("two\n", encoding="utf-8")
+        git(m, "commit", "-q", "-am", "by mail", email=EMAIL)
+        code, out = run("--repo", str(m), "--commits", "base..HEAD")
+        check("an author email that is not noreply is a hit",
+              code == 1 and "the author email is not a GitHub noreply address" in out, out)
+        check("the hit never prints the address", EMAIL not in out, out)
+        git(m, "commit", "-q", "--allow-empty", "-m", "web merge", email=GITHUB_MERGER)
+        code, out = run("--repo", str(m), "--commits", "HEAD~1..HEAD")
+        check("GitHub's own merge committer passes", code == 0, out)
+
+        print("a rendered tree")
+        t = Path(tmp) / "tree"
+        (t / ".git").mkdir(parents=True)
+        (t / ".git" / "x").write_text(HOME_PATH, encoding="utf-8")
+        (t / "a.md").write_text(f"{EMAIL}\n", encoding="utf-8")
+        code, out = run("--root", str(t))
+        check("--root scans every file but .git", code == 1 and "a.md:1: an email address" in out
+              and ".git" not in out.split("leak-scan:")[0], out)
+
+    print("this repository")
+    code, out = run()
+    check("this checkout passes the public rules", code == 0, out)
+
+    shutil.rmtree(EMPTY_HOME)  # git may leave files in the home it was given
+    print(f"\n{fails} failed" if fails else "\nall passed")
+    return 1 if fails else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
