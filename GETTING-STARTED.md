@@ -13,7 +13,7 @@ the tmux office (0.x)? Its guide is
 | **Firstmate** | an agent that supervises other agents. You tell it what you want; it starts workers, watches them and reports back |
 | **worker** | a coding agent Firstmate started for one task |
 | **treehouse** | hands each worker its own git worktree from a pool, so workers never step on each other or on you |
-| **meter** | the Agent Office herdr plugin that shows how full each agent's context window is and how long since it last wrote to its transcript |
+| **meter** | the Agent Office herdr plugin that shows how full each agent's context window is, how long since it last wrote to its transcript, the quota left on its provider, and its git branch and open PR |
 
 ## 2. What you need first
 
@@ -88,12 +88,13 @@ it is closed. It does not come back.
 
 Talk to Firstmate like any agent: say what you want done. It starts workers,
 each in its own treehouse worktree. You see every agent in the sidebar on the
-left, with its state and, from the meter, its context size and how long since
-it last wrote to its transcript:
+left, with its state and, from the meter, its context size, how long since
+it last wrote to its transcript, the quota left, and its branch and open PR:
 
 ```
  ○ api
    claude · 412k▲ · 47m · idle
+   89% · #109 · fix/login
 ```
 
 ## 5. Move without a mouse
@@ -166,6 +167,7 @@ read at any time.
 ```
  ○ api
    claude · 412k▲ · 47m · idle
+   89% · #109 · fix/login
 ```
 
 `47m` is transcript age: how long since the agent last wrote to its
@@ -205,6 +207,8 @@ Put it on a separate row to keep the default 26-column sidebar readable:
 ```toml
 ["$model"], # add inside ui.sidebar.agents.rows
 ```
+
+The third row is the quota left and where the agent works. `89%` is what [quota-axi](https://github.com/kunchenguid/quota-axi) says is left on the pane's provider (Claude or Codex), on pace to last until the limit resets. `41%▼2h` (amber) means it is projected to run out in about two hours, `0%▼▼` (red) that it is out now. A Claude session on a model with its own limit (Fable has a weekly one) shows that model's figure. `#109` is the open pull request for the branch checked out where the agent runs, as `gh pr view` finds it there, and `fix/login` is that branch. quota-axi and gh ask a server, so the meter asks them in the background at most once every five minutes (once per branch for gh) and shows the last answer. Anything it does not know stays blank: no quota-axi or gh, a stale or unreadable quota reading, two accounts for one provider, a detached HEAD, no open PR.
 
 ### Apply meter updates without restarting Herdr
 

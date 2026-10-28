@@ -189,6 +189,12 @@ want "a rollout in this directory is NOT enough to claim the desk" \
 # What that looked like here was the whole tmux server going away mid-probe. The
 # symlink leaves the real binary alone, and `ps` still reports the name it was
 # reached by, which is the whole point of the check under test.
+#
+# A link to bash, never to sleep. Ubuntu 26.04's coreutils is one program that
+# picks the tool by the name it was called by: called as codex it knows no such
+# tool and exits, the pane closes, and the tmux server goes away mid-probe again.
+# bash called as codex is still bash. The `; exit` keeps it from exec'ing sleep
+# in its place, so the codex process stays in the pane's group.
 say_pid() {                            # the session file, for the pane's CURRENT pid
   pid=$(tmux -L ctxprobe display -p -t "$pane" '#{pane_pid}')
   rm -f "$fake/.claude/sessions"/*.json(N)
@@ -196,8 +202,8 @@ say_pid() {                            # the session file, for the pane's CURREN
     > "$fake/.claude/sessions/$pid.json"
   return 0
 }
-ln -sf "$(command -v sleep)" "$shim/codex"
-tmux -L ctxprobe respawn-pane -k -t "$pane" -c "$pcwd" "exec $shim/codex 300"
+ln -sf "$(command -v bash)" "$shim/codex"
+tmux -L ctxprobe respawn-pane -k -t "$pane" -c "$pcwd" "exec $shim/codex -c 'sleep 300; exit'"
 sleep 0.5
 say_pid                                # no Claude session: the Codex reader is all that is left
 want "a Codex desk: no number on the border"  "$(ctx)" ""
