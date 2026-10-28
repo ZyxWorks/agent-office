@@ -337,8 +337,18 @@ updated stays updated.
 Only one runs at a time (a lock in `~/.local/state/agent-office/`). Its
 progress is recorded there in `update.json`, so a run that was killed or lost
 its terminal is reported by `office update --check` and picked up by the next
-`office update`. `--check` asks each remote for its tip with `git ls-remote`,
-which fetches nothing, and writes nothing at all.
+`office update`. `--check` asks each remote for its tip with `git ls-remote`.
+It changes no checkout, installs nothing and writes no record. To read a commit
+it does not have yet, it fetches only that commit into a temporary folder and
+removes the folder again.
+
+`office update --check` shows one plan for all components, taken from one release. When this checkout will move, the `Targets:` line names the release it moves to, and every target comes from that release's `components.toml`. When it cannot read that release, the line says the targets are this release's. For each component the plan shows its owner, its target and what runs. Under it, it shows:
+
+- for this checkout: the `cli:` version change, the `preset:` files that change, and the `meter:` version change.
+- for a checkout with uncommitted changes: how many files are dirty, and which of them the update changes too, so they conflict.
+- for Firstmate: the `secondmates:` it has registered in `data/secondmates.md`, read with Firstmate's own parser. It says which of them Firstmate's own updater moves, and that this check reaches no remote host.
+- for the generated config: each file `office install` changes, with its diff. When this checkout moves, it is planned again from the new release.
+- for each restart: whether the office session runs now, and on which herdr.
 
 ### How `fm` finds Firstmate
 
