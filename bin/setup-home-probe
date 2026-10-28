@@ -196,6 +196,64 @@ def main():
         r = h.run("--remove")
         check("a second --remove has nothing to do", r.returncode == 0 and "Nothing to change" in r.stdout, out(r))
 
+        print("what you took out stays out")
+        h = Home(tmp)
+        h.run()
+        s = h.json(".claude/settings.json")
+        s["permissions"]["allow"].remove("Bash(git push -u origin fm/*)")
+        del s["permissions"]["defaultMode"]
+        h.p(".claude/settings.json").write_text(json.dumps(s, indent=2) + "\n")
+        g = h.text(".gnhf/config.yml")
+        h.p(".gnhf/config.yml").write_text(g.replace("agentArgsOverride:\n  claude:\n    - --permission-mode\n"
+                                                     "    - auto\n", ""))
+        r = h.run()
+        s = h.json(".claude/settings.json")
+        check("a deleted allow entry, JSON key and YAML key stay gone", r.returncode == 0
+              and "Bash(git push -u origin fm/*)" not in s["permissions"]["allow"]
+              and "defaultMode" not in s["permissions"] and "agentArgsOverride" not in h.text(".gnhf/config.yml"), out(r))
+        check("the run says each is left out",
+              'you removed permissions.allow entry "Bash(git push -u origin fm/*)" in ~/.claude/settings.json: '
+              "left out" in r.stdout
+              and "you removed permissions.defaultMode in ~/.claude/settings.json: left out" in r.stdout
+              and "you removed agentArgsOverride in ~/.gnhf/config.yml: left out" in r.stdout, out(r))
+        r = h.run()
+        check("a third run has nothing to change", r.returncode == 0 and "Nothing to change" in r.stdout, out(r))
+        r = h.run("--reset-key", "~/.claude/settings.json:permissions.defaultMode")
+        check("--reset-key takes it off the record", r.returncode == 0 and "back on the record" in r.stdout, out(r))
+        r = h.run()
+        s = h.json(".claude/settings.json")
+        check("the next run puts back only that one", r.returncode == 0 and s["permissions"]["defaultMode"] == "auto"
+              and "Bash(git push -u origin fm/*)" not in s["permissions"]["allow"]
+              and "agentArgsOverride" not in h.text(".gnhf/config.yml"), out(r))
+        r = h.run("--reset-key", "~/.claude/settings.json:nothing.like.this")
+        check("--reset-key for what you did not remove is an error that lists what you did",
+              r.returncode == 1 and "~/.gnhf/config.yml:agentArgsOverride" in r.stderr, out(r))
+        r = h.run("--remove", "--yes")
+        s = h.json(".claude/settings.json")
+        check("--remove still works after a deletion", r.returncode == 0 and "permissions" not in s
+              and not h.p(".gnhf/config.yml").exists(), out(r))
+
+        print("--remove leaves alone what it should")
+        h = Home(tmp)
+        h.run()
+        dot = Path(tempfile.mkdtemp(dir=tmp)) / "claude"
+        os.rename(h.p(".claude"), dot)
+        os.symlink(dot, h.p(".claude"))
+        settings = (dot / "settings.json").read_text()
+        r = h.run("--remove", "--yes")
+        check("nothing is taken out through a linked folder", r.returncode == 0
+              and (dot / "settings.json").read_text() == settings and (dot / "hooks" / "text-check.mjs").is_file()
+              and "never written through" in r.stdout, out(r))
+        r = h.run("--remove", "--yes")
+        check("it stays on the record, a manual item", "never written through" in r.stdout, out(r))
+        h = Home(tmp)
+        h.run()
+        mine = json.dumps({"mine": 1}, indent=4) + "\n"
+        h.p(".claude/settings.json").write_text(mine)
+        r = h.run("--remove", "--yes")
+        check("a JSON file with none of Agent Office's keys left is not rewritten",
+              r.returncode == 0 and h.text(".claude/settings.json") == mine, out(r))
+
         print("a bad config")
         h = Home(tmp, "[setup.machine]\ntest_workers = 0\n")
         r = h.run()

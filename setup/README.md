@@ -4,6 +4,8 @@ Agent Office ships the office (herdr, the meter, `office` and `fm`) and, in this
 
 `office setup` writes these into your home. It shows every change first, backs up what it changes, and records what it wrote in `~/.local/state/agent-office/setup-manifest.json`. `office setup --check` only plans. `office setup --remove` takes out what it put in, where that is still as it was put in; your starter files stay.
 
+A JSON key, a JSON list entry or a top-level YAML key that Agent Office put in and you took out stays out. The next run says `you removed <key or entry> in <file>: left out` once, records it in the setup manifest as removed by you, and leaves it out from then on. To get it back, run `office setup --reset-key <file>:<key path or entry>` (for example `office setup --reset-key "~/.claude/settings.json:permissions.defaultMode"` or `office setup --reset-key "~/.claude/settings.json:Bash(gh-axi:*)"`), or delete the file's entry in the setup manifest; the next `office setup` puts it in again. A key that is new in a template is always added.
+
 ## What goes where
 
 `MANIFEST.toml` lists every template, its target and its kind. Only what it lists ships.

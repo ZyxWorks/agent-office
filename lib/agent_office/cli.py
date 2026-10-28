@@ -19,7 +19,7 @@ office: Agent Office, one command for the whole agent setup.
 
   office install [--check] [--yes]   check your config and write what the office needs,
                                      showing every change and backing up what it replaces
-  office setup [--check] [--yes] [--remove]
+  office setup [--check] [--yes] [--remove] [--reset-key <file>:<key>]
                                      write the agent working setup (rules, Claude Code
                                      settings and hooks, Firstmate, no-mistakes, gnhf) from
                                      your [setup] keys, showing every change first

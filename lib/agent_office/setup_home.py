@@ -11,6 +11,8 @@ wrote from what you changed:
 - a change of yours inside what Agent Office owns is shown, backed up and asked about first,
 - a whole file you changed is never replaced: the new version lands beside it as
   <file>.agent-office-new,
+- a key, list entry or YAML key it put in that you took out stays out: the record says you
+  removed it, until `office setup --reset-key <file>:<key>` takes that off again,
 - everything outside what Agent Office owns (your lines around its block, your own keys, your
   own hooks and permission entries) is never touched,
 - a link is never written through: a target that is a link (into a dotfiles repo, say) is left
@@ -134,17 +136,27 @@ def _parent(d, path, conflicts):
     return d
 
 
+def entry_name(p, x) -> str:
+    return f"{'.'.join(p)} entry {json.dumps(x, ensure_ascii=False)}"
+
+
 def merge_json(cur: dict, frag: dict, prev: dict):
-    """(new, record, conflicts). prev is what the last run put in, from the record.
+    """(new, record, conflicts, left out). prev is what the last run put in, from the record.
 
     What the last run put in and this one does not is taken out again, where it is still as
     it was put in. A value this run sets over one of yours (one that is neither missing nor
-    what the last run put there) is a conflict: the caller asks before writing it.
+    what the last run put there) is a conflict: the caller asks before writing it. A key or an
+    entry an earlier run put in that you took out stays out, on the record as removed by you;
+    left out names those this run found gone for the first time.
     """
     out = copy.deepcopy(cur)
     sets, adds = flatten(frag)
     prev_sets = [(tuple(p), v) for p, v in prev.get("set", [])]
     prev_adds = [(tuple(p), x) for p, x in prev.get("added", [])]
+    gone = prev.get("removed", {})
+    gone_sets = {tuple(p) for p in gone.get("set", [])}
+    gone_adds = [(tuple(p), x) for p, x in gone.get("added", [])]
+    removed_sets, removed_adds, left_out = [], [], []
     conflicts = []
     new_paths = {p for p, _ in sets}
     emptied = []
@@ -169,6 +181,11 @@ def merge_json(cur: dict, frag: dict, prev: dict):
     my_sets, my_adds = [], []
     for p, v in sets:
         now = _get(out, p)
+        if now is _MISSING and (p in was or p in gone_sets):
+            removed_sets.append(p)
+            if p not in gone_sets:
+                left_out.append(".".join(p))
+            continue
         if now == v and p not in was:
             continue
         if now is not _MISSING and now != v and (p not in was or was[p] != now):
@@ -176,6 +193,12 @@ def merge_json(cur: dict, frag: dict, prev: dict):
         _parent(out, p, conflicts)[p[-1]] = v
         my_sets.append((p, v))
     for p, x in adds:
+        now = _get(out, p)
+        if not (isinstance(now, list) and x in now) and ((p, x) in prev_adds or (p, x) in gone_adds):
+            removed_adds.append((p, x))
+            if (p, x) not in gone_adds:
+                left_out.append(entry_name(p, x))
+            continue
         holder = _parent(out, p, conflicts)
         lst = holder.get(p[-1])
         if not isinstance(lst, list):
@@ -189,7 +212,10 @@ def merge_json(cur: dict, frag: dict, prev: dict):
             my_adds.append((p, x))
     record = {"kind": "json", "set": [[list(p), v] for p, v in my_sets],
               "added": [[list(p), x] for p, x in my_adds]}
-    return out, record, conflicts
+    if removed_sets or removed_adds:
+        record["removed"] = {"set": [list(p) for p in removed_sets],
+                             "added": [[list(p), x] for p, x in removed_adds]}
+    return out, record, conflicts, left_out
 
 
 def json_text(d: dict) -> str:
@@ -245,16 +271,24 @@ def yaml_blocks(text: str):
 
 
 def merge_yaml(cur: Optional[str], frag: str, prev: dict):
-    """(new text, record, conflicts), as merge_json, for top-level keys."""
+    """(new text, record, conflicts, left out), as merge_json, for top-level keys."""
     fheader, fblocks, forder, _ = yaml_blocks(frag)
     record = {"kind": "yaml", "blocks": {k: _sha(fblocks[k]) for k in forder}, "header": fheader}
-    if not cur:
-        return frag, record, []
+    if cur is None:
+        return frag, record, [], []
     # the header comment is on the record only while a run of Agent Office wrote it
     record["header"] = prev["header"] if prev.get("header") and prev["header"] in cur else ""
     lines = cur.splitlines(keepends=True)
     _, blocks, _, spans = yaml_blocks(cur)
     was = prev.get("blocks", {})
+    gone = prev.get("removed", [])
+    removed = [k for k in forder if k not in blocks and (k in was or k in gone)]
+    for k in removed:
+        del record["blocks"][k]
+    if removed:
+        record["removed"] = removed
+    left_out = [k for k in removed if k not in gone]
+    forder = [k for k in forder if k not in removed]
     conflicts, replace = [], {}
     for k, sha in was.items():  # a key the last run wrote that this one does not
         if k not in fblocks and k in blocks and _sha(blocks[k]) == sha:
@@ -286,7 +320,7 @@ def merge_yaml(cur: Optional[str], frag: str, prev: dict):
             add = fheader + add  # the template's comment says where the keys came from
             record["header"] = fheader
         text = text + ("" if text.endswith("\n") or not text else "\n") + ("\n" if text.strip() else "") + add
-    return text, record, conflicts
+    return text, record, conflicts, left_out
 
 
 def yaml_without(cur: str, prev: dict) -> str:
@@ -367,8 +401,15 @@ class Setup(install.Installer):
         why = "" if mine else " (the block was changed by hand)"
         return self._edit_step(p, cur, with_block(cur, body, at), what + why, record, asks=not mine)
 
+    def _left_out(self, step, p: Path, left_out: list):
+        """step, telling which of what an earlier run put in you took out: it stays out."""
+        if left_out and step.kind == "keep":
+            step.kind = "left-out"
+        step.diff = [*(f"you removed {k} in {self.show(p)}: left out" for k in left_out), *step.diff]
+        return step
+
     def want_json(self, p: Path, frag: dict, what: str):
-        new_empty, record, _ = merge_json({}, frag, {})
+        new_empty, record, _, _ = merge_json({}, frag, {})
         link = self._where_link(p)
         if link:
             return install.Step("manual", p, f"{what}: {link}. Links are never written through: add these "
@@ -384,12 +425,12 @@ class Setup(install.Installer):
             return install.Step("manual", p, f"{what}: it is not valid JSON ({e}); fix it, then run this again")
         if not isinstance(data, dict):
             return install.Step("manual", p, f"{what}: it is JSON but not an object; fix it, then run this again")
-        new, record, conflicts = merge_json(data, frag, self.prev(p))
+        new, record, conflicts, left_out = merge_json(data, frag, self.prev(p))
         if new == data:
-            return install.Step("keep", p, what, record=record)
+            return self._left_out(install.Step("keep", p, what, record=record), p, left_out)
         step = self._edit_step(p, cur, json_text(new), what, record, asks=bool(conflicts))
         step.diff = [*conflicts, *step.diff]
-        return step
+        return self._left_out(step, p, left_out)
 
     def want_yaml(self, p: Path, frag: str, what: str):
         link = self._where_link(p)
@@ -399,10 +440,10 @@ class Setup(install.Installer):
         if p.is_dir():
             return install.Step("manual", p, f"{what}: a folder is in the way; move it, then run this again")
         cur = self._read(p)
-        new, record, conflicts = merge_yaml(cur, frag, self.prev(p))
+        new, record, conflicts, left_out = merge_yaml(cur, frag, self.prev(p))
         step = self._edit_step(p, cur, new, what, record, asks=bool(conflicts))
         step.diff = [*conflicts, *step.diff]
-        return step
+        return self._left_out(step, p, left_out)
 
     def want_owned(self, p: Path, text: str, what: str, mode: Optional[int]):
         data = text.encode()
@@ -521,8 +562,10 @@ class Setup(install.Installer):
             return self._forget(p, "yours from the start: it stays")
         if not (p.exists() or p.is_symlink()):
             return self._forget(p, "already gone")
-        if p.is_symlink() and kind != "link":
-            return self._forget(p, "now a link: left alone")
+        link = self._where_link(p, itself=kind != "link")
+        if link:
+            return install.Step("manual", p, f"{link}. Links are never written through: take out what "
+                                "Agent Office put in yourself")
 
         def remove():
             self._backup(p)
@@ -556,7 +599,9 @@ class Setup(install.Installer):
                 data = json.loads(cur)
             except ValueError:
                 return install.Step("manual", p, "not valid JSON: take out Agent Office's keys yourself")
-            new_data, _, _ = merge_json(data, {}, rec)
+            new_data = merge_json(data, {}, rec)[0]
+            if new_data == data:
+                return self._forget(p, "nothing of Agent Office's left in it")
             new, asks, what = json_text(new_data), False, "take out the keys Agent Office put in"
         elif kind == "yaml":
             new, asks, what = yaml_without(cur, rec), False, "take out the keys Agent Office put in"
@@ -573,6 +618,52 @@ class Setup(install.Installer):
             self._write(p, new.encode(), p.stat().st_mode & 0o7777)
         return install.Step("edit" if asks else "update", p, what, go,
                             self._diff(cur.encode(), new.encode(), p.name), {"forget": True})
+
+    def reset_key(self, spec: str) -> list:
+        """Takes what spec names (<file>:<key path or entry>) off the record of what you removed, so
+        the next run puts it in again. The names of what it took off; none when nothing matched."""
+        name, sep, key = spec.partition(":")
+        if not sep or not name or not key:
+            return []
+        p = self.home / name[2:] if name.startswith("~/") else Path(os.path.abspath(name))
+        rec = self.manifest["owned"].get(str(p), {})
+        gone = rec.get("removed")
+        back = []
+        if rec.get("kind") == "json" and gone:
+            for path in list(gone["set"]):
+                if ".".join(path) == key:
+                    gone["set"].remove(path)
+                    back.append(key)
+            for path, x in list(gone["added"]):
+                if key in (".".join(path), x, json.dumps(x, ensure_ascii=False)):
+                    gone["added"].remove([path, x])
+                    back.append(entry_name(path, x))
+            if not gone["set"] and not gone["added"]:
+                del rec["removed"]
+        elif rec.get("kind") == "yaml" and key in (gone or []):
+            gone.remove(key)
+            back.append(key)
+            if not gone:
+                del rec["removed"]
+        if back:
+            self._write(self.manifest_path, (json.dumps(self.manifest, indent=2) + "\n").encode())
+        return [f"{k} in {self.show(p)}" for k in back]
+
+    def removed_by_you(self) -> list:
+        """<file>:<key or entry> for everything on the record as removed by you."""
+        out = []
+        for path, rec in sorted(self.manifest["owned"].items()):
+            gone = rec.get("removed")
+            if not gone:
+                continue
+            f = self.show(Path(path))
+            if rec.get("kind") == "json":
+                out += [f"{f}:{'.'.join(k)}" for k in gone["set"]]
+                out += [f"{f}:{x if isinstance(x, str) else json.dumps(x, ensure_ascii=False)}"
+                        for _, x in gone["added"]]
+            else:
+                out += [f"{f}:{k}" for k in gone]
+        return out
 
     def apply(self, steps):
         # a step whose record is {"forget": True} takes its path off the record once it has run
@@ -604,21 +695,46 @@ WHAT = {
 
 def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
     check_only = yes = remove = False
-    for a in args:
+    resets = []
+    it = iter(args)
+    for a in it:
         if a in ("--check", "-n", "--dry-run"):
             check_only = True
         elif a in ("--yes", "-y"):
             yes = True
         elif a == "--remove":
             remove = True
+        elif a == "--reset-key":
+            spec = next(it, None)
+            if spec is None:
+                print(f"office setup: --reset-key needs <file>:<key path or entry>\n{USAGE}", file=err)
+                return 2
+            resets.append(spec)
         elif a in ("-h", "--help"):
             print(USAGE, file=out)
             return 0
         else:
             print(f"office setup: unknown option {a}\n{USAGE}", file=err)
             return 2
+    if resets and (check_only or remove):
+        print(f"office setup: --reset-key goes on its own, not with --check or --remove\n{USAGE}", file=err)
+        return 2
 
     st = Setup(env, out)
+    if resets:
+        for spec in resets:
+            back = st.reset_key(spec)
+            if not back:
+                print(f"office setup: nothing you removed matches {spec}.", file=err)
+                listed = st.removed_by_you()
+                print("  On the record as removed by you:" if listed else "  Nothing is on the record as "
+                      "removed by you.", file=err)
+                for line in listed:
+                    print(f"    {line}", file=err)
+                return 1
+            for b in back:
+                st.say(f"{b}: back on the record; the next office setup puts it in again")
+        return 0
     cfg_path = C.config_path(st.env)
     try:
         cfg = C.load(cfg_path)
@@ -660,7 +776,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
 
 
 USAGE = """\
-usage: office setup [--check] [--yes] [--remove]
+usage: office setup [--check] [--yes] [--remove] [--reset-key <file>:<key>]
 
 Write the agent working setup into your home: the agent rules (~/AGENTS.md, linked as
 ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md), the review and release process, Claude Code's
@@ -671,8 +787,13 @@ Agent Office owns only what it put in: a marked block in a Markdown file, its ow
 or YAML file, and its own whole files. Your lines, keys, hooks and entries stay. A change of
 yours to what it owns is shown, backed up and asked about first; a whole file you changed is
 never replaced (the new version goes beside it as <file>.agent-office-new). A link is never
-written through.
+written through. A key or entry Agent Office put in that you took out stays out: the run says
+"you removed <key> in <file>: left out" once and records it.
 
   --check    show what it would do, change nothing
   --yes      do not ask before changing a file of yours (backups are still made)
-  --remove   take out what Agent Office put in, where it is still as it was put in"""
+  --remove   take out what Agent Office put in, where it is still as it was put in
+  --reset-key <file>:<key path or entry>
+             let the next run put back a key or entry you took out, for example
+             --reset-key "~/.claude/settings.json:Bash(gh-axi:*)" (deleting the
+             file's entry in the setup manifest does it for the whole file)"""
