@@ -69,7 +69,7 @@ office off     stop this office: list what stops, ask, let Firstmate save its wo
                a Firstmate worker still working or waiting: have Firstmate stop it first
                (bin/fm-control.sh <task> exit), keeping its worktree and task record, instead
                of refusing the stop. Firstmate then saves, so it picks the task up next time.
-  --force     when the save fails or agents are still busy, offer to stop anyway: asked
+  --force      when the save fails or agents are still busy, offer to stop anyway: asked
                separately, on the terminal, by typing the session name. Unsaved work may be lost.
   --timeout    minutes to wait for Firstmate's save (default 30)
 office status  read-only: what runs, what the office owns, the meter, pending restarts, and the
@@ -361,9 +361,16 @@ class Target:
             agents, self.block = [], f"herdr did not list what runs in session '{self.session}': {e}"
         mine = (self.first or {}).get("pane_id")
         tasks = _tasks(self.o, self.session)
-        self.workers = [dict(a, task=tasks[a["pane_id"]]) for a in agents
-                        if a.get("pane_id") != mine and a.get("pane_id") in tasks]
-        self.others = [a for a in agents if a.get("pane_id") != mine and a.get("pane_id") not in tasks]
+
+        def task(a):
+            # a record outlives its server, and a new server reuses pane ids: the agent in that
+            # pane is the task's only while it runs in the task's worktree
+            got = tasks.get(a.get("pane_id"))
+            return got[0] if got and _in(a.get("foreground_cwd") or a.get("cwd") or "", got[1]) else None
+
+        rest = [a for a in agents if a.get("pane_id") != mine]
+        self.workers = [dict(a, task=task(a)) for a in rest if task(a)]
+        self.others = [a for a in rest if not task(a)]
         self.meter = _meter(self.rec["socket"], self.env)
 
     def busy(self, agents=None) -> list:
@@ -376,8 +383,8 @@ def _home(o: fm.Office) -> Path:
 
 
 def _tasks(o: fm.Office, session: str) -> dict:
-    """Firstmate's own tasks in this session, by pane: {pane id: task id}. Its records say which
-    pane each task runs in, so a worker is never guessed from its folder or its name."""
+    """Firstmate's own tasks in this session, by pane: {pane id: (task id, worktree)}. Its records
+    say which pane each task runs in, so a worker is never guessed from its folder or its name."""
     found = {}
     for meta in sorted((_home(o) / "state").glob("*.meta")):
         rec = {}
@@ -385,33 +392,53 @@ def _tasks(o: fm.Office, session: str) -> dict:
             for line in meta.read_text(errors="replace").splitlines():
                 k, eq, v = line.partition("=")
                 if eq:
-                    rec.setdefault(k, v)
+                    rec[k] = v  # the last one wins, as Firstmate's own fm_meta_get reads it
         except OSError:
             continue
-        if rec.get("backend") == "herdr" and rec.get("herdr_session") == session and rec.get("herdr_pane_id"):
-            found[rec["herdr_pane_id"]] = meta.stem
+        if (rec.get("backend") == "herdr" and rec.get("herdr_session") == session and rec.get("herdr_pane_id")
+                and rec.get("worktree")):
+            found[rec["herdr_pane_id"]] = (meta.stem, rec["worktree"])
     return found
 
 
-def _exit_worker(o: fm.Office, task: str) -> str | None:
-    """Ask Firstmate's control plane to stop one task's agent. None when it says it did, else why not."""
+def _in(cwd: str, worktree: str) -> bool:
+    if not cwd:
+        return False
+    a, b = os.path.realpath(cwd), os.path.realpath(worktree)
+    return a == b or a.startswith(b.rstrip(os.sep) + os.sep)
+
+
+def _exit_workers(o: fm.Office, tasks: list) -> dict:
+    """Ask Firstmate's control plane to stop these tasks' agents, all at once, so the wait is one
+    timeout and not one per worker. Returns {task: None when it says it did, else why not}."""
     exe = o.code / "bin" / "fm-control.sh"
     if not os.access(exe, os.X_OK):
-        return f"the Firstmate checkout has no {exe}, so its worker {task} cannot be stopped through Firstmate"
+        return {t: f"the Firstmate checkout has no {exe}, so its worker {t} cannot be stopped through Firstmate"
+                for t in tasks}
     # the office's session, never the one the caller's own pane variables point at
     env = {k: v for k, v in o.env.items() if k not in ("HERDR_SOCKET_PATH", "HERDR_PANE_ID")}
     env.update(FM_HOME=str(_home(o)), HERDR_SESSION=o.session)
-    try:
-        r = subprocess.run([str(exe), task, "exit"], cwd=str(o.code), env=env, capture_output=True, text=True,
-                           stdin=subprocess.DEVNULL, timeout=WORKER_EXIT_SECONDS)
-    except subprocess.TimeoutExpired:
-        return f"Firstmate did not stop its worker {task} within {WORKER_EXIT_SECONDS // 60} minutes"
-    except OSError as e:
-        return f"could not run {exe}: {e}"
-    if r.returncode != 0:
-        said = (r.stderr.strip() or r.stdout.strip()).splitlines()
-        return f"Firstmate did not stop its worker {task}: {said[-1] if said else f'exit {r.returncode}'}"
-    return None
+    said, runs = {}, {}
+    for t in tasks:
+        try:
+            # a session of its own: a Ctrl-C on office off must not cut a stop off half way
+            runs[t] = subprocess.Popen([str(exe), t, "exit"], cwd=str(o.code), env=env, stdin=subprocess.DEVNULL,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                       start_new_session=True)
+        except OSError as e:
+            said[t] = f"could not run {exe}: {e}"
+    end = time.time() + WORKER_EXIT_SECONDS
+    for t, r in runs.items():
+        try:
+            got, why = r.communicate(timeout=max(1, end - time.time()))
+        except subprocess.TimeoutExpired:
+            said[t] = (f"Firstmate did not stop its worker {t} within {WORKER_EXIT_SECONDS // 60} minutes; "
+                       "its stop may still be running")
+            continue
+        lines = (why.strip() or got.strip()).splitlines()
+        said[t] = None if r.returncode == 0 else (
+            f"Firstmate did not stop its worker {t}: {lines[-1] if lines else f'exit {r.returncode}'}")
+    return said
 
 
 def _meter(socket: str, env) -> dict | None:
@@ -556,6 +583,11 @@ class Run:
         return next((t for t in got.get("targets", []) if t.get("session") == session), {})
 
 
+def _claude_only(o: fm.Office) -> str:
+    return ("saving through /stow is built and tested for harness claude only; firstmate.harness "
+            f"is {o.harness}, so the save cannot be confirmed")
+
+
 def _one(t: Target, run: Run, minutes: int, force: bool, stop_workers: bool, out) -> tuple:
     """Stop one office, or say why not. Returns (result, detail)."""
     if t.state == "stopped":
@@ -587,27 +619,41 @@ def _one(t: Target, run: Run, minutes: int, force: bool, stop_workers: bool, out
     why = ([t.block] if t.block else []) + busy(not stop_workers)
     if why and not force:
         return "kept", _why(why) + ". Nothing was sent and nothing was stopped." + hint
-    drain = t.busy(t.workers) if stop_workers and not t.block else []
+    drain = t.busy(t.workers) if stop_workers else []
     if drain:
-        # before the save, so the save records them as stopped and the next session picks them up
-        print(f"office off: asking Firstmate to stop {len(drain)} busy worker(s) in '{t.session}' "
-              f"(fm-control.sh <task> exit): task {', '.join(a['task'] for a in drain)}.", file=out)
-        out.flush()
-        for a in drain:
-            failed = _exit_worker(t.o, a["task"])
-            if failed:
-                why.append(failed)
-            else:
-                print(f"office off: Firstmate stopped worker {a['task']}; its worktree and task record are kept.",
-                      file=out)
+        # every reason the save could not happen is checked first: a worker is never stopped for a
+        # save that was never going to be asked for
+        if t.first and t.o.harness != "claude":
+            why.append(_claude_only(t.o))
+        here = t.env.get("HERDR_PANE_ID") if t.inside else None
+        if any(a.get("pane_id") == here for a in drain):
+            why.append(f"this pane ({here}) is one of the workers --stop-workers would stop, so it would end "
+                       "this command. Run office off from another pane or terminal")
         if why and not force:
-            return "kept", (_why(why) + ". Workers Firstmate did stop keep their worktrees and task records; "
-                            "the session was not stopped." + hint)
-        t.look()
+            return "kept", _why(why) + ". No worker was stopped and nothing was stopped." + hint
+        if not why:
+            # before the save, so the save records them as stopped and the next session picks them up
+            print(f"office off: asking Firstmate to stop {len(drain)} busy worker(s) in '{t.session}' "
+                  f"(fm-control.sh <task> exit): task {', '.join(a['task'] for a in drain)}.", file=out)
+            out.flush()
+            first = (t.first or {}).get("pane_id")
+            for task, failed in _exit_workers(t.o, [a["task"] for a in drain]).items():
+                if failed:
+                    why.append(failed)
+                else:
+                    print(f"office off: Firstmate stopped worker {task}; its worktree and task record are kept.",
+                          file=out)
+            t.look()
+            if first and (t.first or {}).get("pane_id") != first and not t.block:
+                t.block = "Firstmate changed while its workers were stopped"
+            why += ([t.block] if t.block else []) + busy()
+            if why and not force:
+                return "kept", (_why(why) + ". Workers Firstmate did stop keep their worktrees and task records; "
+                                "the session was not stopped." + hint)
     if t.first and not t.block:
         if t.o.harness != "claude":
-            why.append("saving through /stow is built and tested for harness claude only; firstmate.harness "
-                       f"is {t.o.harness}, so the save cannot be confirmed")
+            if _claude_only(t.o) not in why:
+                why.append(_claude_only(t.o))
         else:
             try:
                 fm.stow(t.o, t.first, minutes, out, "Nothing was stopped", "run office off again")

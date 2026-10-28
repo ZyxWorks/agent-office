@@ -392,25 +392,29 @@ name, is somebody else's: `office off` says so, leaves it running and exits 1.
   become, and `office break` sends exactly those the hangup a closing terminal
   window sends. A herdr you attached yourself is not on that record: for it,
   `office break` prints the detach key.
-- **`office off`** lists what stops: the session and its server, Firstmate with
-  its checkout and home, Firstmate's workers by task, every other agent in the
-  session, the pane count, the
-  meter, the attached terminals. It asks, then asks Firstmate to save through
-  the same `/stow` contract as `fm restart`, and stops the session with
-  `herdr session stop` only when Firstmate answers that the save worked. A
-  failed, unclear, timed out or cancelled save stops nothing. So does an agent
-  in the session that is still working or waiting for an answer: `office off`
-  refuses and names it. After the session it stops that session's meter,
-  checks both are gone, and clears the record. It never deletes a worktree,
-  empties a pool or touches a repo.
+- **`office off`** lists what stops: the session and its server, Firstmate
+  with its checkout and home, Firstmate's workers by task, every other agent
+  in the session, the pane count, the meter, the attached terminals. It asks,
+  then asks Firstmate to save through the same `/stow` contract as
+  `fm restart`, and stops the session with `herdr session stop` only when
+  Firstmate answers that the save worked. A failed, unclear, timed out or
+  cancelled save stops nothing. So does an agent in the session that is still
+  working or waiting for an answer: `office off` refuses and names it. After
+  the session it stops that session's meter, checks both are gone, and clears
+  the record. It never deletes a worktree, empties a pool or touches a repo.
 - **`--stop-workers`** drains Firstmate's workers instead of refusing. A
   worker is an agent whose pane a task record in Firstmate's home names
-  (`state/<task>.meta`, `herdr_session` and `herdr_pane_id`): never a guess
-  from its folder or name. Each busy one is stopped by Firstmate itself, with
-  `bin/fm-control.sh <task> exit` in the Firstmate checkout, which keeps its
-  pane, worktree, uncommitted changes and task record. Only then does Firstmate
-  save, so the save records the stopped workers and its next session picks the
-  tasks up. If Firstmate does not confirm a worker stopped, the session keeps
+  (`state/<task>.meta`, `herdr_session` and `herdr_pane_id`) while it runs in
+  that record's `worktree`: never a guess from its folder or name alone, and a
+  record left from an earlier server makes no agent a worker. Each busy one is
+  stopped by Firstmate itself, with `bin/fm-control.sh <task> exit` in the
+  Firstmate checkout, which keeps its pane, worktree, uncommitted changes and
+  task record. Only then does Firstmate save, so the save records the stopped
+  workers and its next session picks the tasks up. No worker is stopped when
+  the save could not be asked for anyway (a harness other than claude, a
+  Firstmate that cannot be reached), or from a worker's own pane. The stops
+  run at once, each in a session of its own, so a Ctrl-C does not cut one off
+  half way. If Firstmate does not confirm a worker stopped, the session keeps
   running. An agent with no task record is not Firstmate's: while it is busy,
   `--stop-workers` still refuses.
 - **`--force`** is for a save that cannot be confirmed. The save is still tried
