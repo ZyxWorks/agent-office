@@ -428,7 +428,7 @@ for name, want in (("agent-office", r"updated: \w{12} -> " + tip[:12] + r" \(ear
                    ("firstmate", rf"updated: {fm_old[:12]} -> {fm_new[:12]}"),
                    ("config", r"updated: written by office install")):
     check(f"{name}: {want[:60]}", re.fullmatch(want, got.get(name, "")), said)
-check("and the counts", "6 updated, 3 unchanged, 3 skipped, 1 failed, 1 updated on disk but not yet active." in said, said)
+check("and the counts", "6 updated, 4 unchanged, 3 skipped, 1 failed, 1 updated on disk but not yet active." in said, said)
 calls = h.calls()
 check("the rest ran from the new release: npm got its pin, not the old one",
       "npm install -g --ignore-scripts gh-axi@0.1.36" in calls and not any("gh-axi@0.1.35" in c for c in calls), str(calls))
@@ -535,7 +535,7 @@ r = h.run("--yes")
 check("applying skips it, exit 1, and the checkout is where it was", r.returncode == 1
       and rows(r.stdout.split("Results:")[-1]).get("agent-office", "").startswith("skipped: it has commits")
       and h.git(h.office, "rev-parse", "HEAD") == head, r.stdout + r.stderr)
-check("the others' results are all there", len(rows(r.stdout.split("Results:")[-1])) == 9, r.stdout)
+check("the others' results are all there", len(rows(r.stdout.split("Results:")[-1])) == 10, r.stdout)
 h.git(h.office, "remote", "set-url", "origin", str(h.root / "gone.git"))
 r = h.run("--check")
 check("offline is reported, not a crash", r.returncode == 0 and "Traceback" not in r.stderr

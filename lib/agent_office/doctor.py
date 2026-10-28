@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 
 from . import config as C
+from . import setup_home
 
 MANIFEST = C.REPO / "config" / "components.toml"
 METER = C.REPO / "herdr"
@@ -252,6 +253,29 @@ class Report:
                           problems=["older than your config or this release: run `office install`"])
             else:
                 self.fact(name, f"{self.show(path)}, matches your config")
+
+    def agents(self, cfg: dict):
+        """The agent working setup that office setup agents wrote, against your config and this release."""
+        name = "agent setup"
+        try:
+            state, _, steps = setup_home.status(cfg, self.env)
+        except C.ConfigError as e:
+            self.fact(name, "unknown", problems=e.problems)
+            return
+        except (OSError, UnicodeDecodeError) as e:
+            self.fact(name, "unknown", problems=[str(e)])
+            return
+        if state != "planned":
+            self.fact(name, "off (setup.enabled is false)" if state == "off" else
+                      "not set up (optional: `office setup agents`)")
+            return
+        behind, manual = setup_home.behind(steps), [s for s in steps if s.kind == "manual"]
+        left = f", {len(manual)} left for you (`office setup agents --check` says which)" if manual else ""
+        if behind:
+            self.fact(name, f"{len(behind)} file(s) behind{left}",
+                      problems=["older than your config or this release: run `office setup agents`"])
+        else:
+            self.fact(name, f"in place{left}")
 
     def meter_plugin(self):
         """The meter herdr links: the folder in its plugins.json, read like herdr reads it.
@@ -478,6 +502,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
         rep.fact("workstation tools", f"{len(have)} of {len(extra)} installed"
                  + ("" if len(have) == len(extra) else " (optional: `office tools --workstation`)"))
     rep.installed(cfg)
+    rep.agents(cfg)
     rep.meter_plugin()
     rep.active(cfg, cfg["office"]["session"])
     rep.print(out)
