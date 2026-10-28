@@ -32,6 +32,12 @@ schema = 1
 # url = "https://ntfy.sh/<a-long-random-topic>"   # anyone who knows a ntfy.sh topic can read it
 # quiet = false                       # true: only "needs you" gets through
 
+# [dictate]                           # push-to-talk dictation, local only, off by default
+# enabled = true
+# model = "~/.local/share/whisper.cpp/ggml-base.en.bin"   # a whisper.cpp model you downloaded
+# language = "auto"                   # or "en", "de", ...
+# max_seconds = 120
+
 # The agent working setup (config/defaults.toml has every key, setup/README.md what each does).
 # [setup.machine]
 # test_workers = 2

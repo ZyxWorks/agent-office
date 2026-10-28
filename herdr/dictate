@@ -1,0 +1,9 @@
+#!/bin/sh
+# dictate - prefix+m in the preset: start a recording, and on the next press type what you said
+# into the focused pane. `office dictate` does the work and reads [dictate] from your config.toml:
+# off by default, and local only (whisper.cpp on this machine, nothing sent anywhere).
+# herdr names the focused pane in HERDR_PANE_ID for a plugin action (see nav).
+pane=${HERDR_ACTIVE_PANE_ID:-${HERDR_PANE_ID:-}}
+office=$(cd "$(dirname "$0")/.." && pwd)/bin/office
+[ -x "$office" ] || office=office
+exec "$office" dictate ${pane:+--pane "$pane"} </dev/null

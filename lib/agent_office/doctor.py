@@ -229,6 +229,20 @@ class Report:
         self.fact("treehouse root", self.show(root),
                   problems=[] if root.is_dir() else [f"no folder at {self.show(root)} (treehouse.root)"])
 
+    def dictation(self, d: dict):
+        """Off is not a problem. On, it needs sox's rec, whisper-cli and the model file: nothing else."""
+        if not d.get("enabled"):
+            self.fact("dictation", "off (opt-in: [dictate])")
+            return
+        path = self.env.get("PATH", "")
+        problems = [f"{c} is not on PATH: {how}" for c, how in (("rec", "brew install sox"),
+                                                                ("whisper-cli", "brew install whisper.cpp"))
+                    if not shutil.which(c, path=path)]
+        model = C.expand(d["model"], self.env)
+        if not model.is_file():
+            problems.append(f"no model file at {self.show(model)} (dictate.model; README, \"Dictation\")")
+        self.fact("dictation", f"on, local: {self.show(model)}, language {d['language']}", problems=problems)
+
     def installed(self, cfg: dict):
         """What office install wrote, against what your config and this release make now."""
         try:
@@ -501,6 +515,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     if extra:
         rep.fact("workstation tools", f"{len(have)} of {len(extra)} installed"
                  + ("" if len(have) == len(extra) else " (optional: `office tools --workstation`)"))
+    rep.dictation(cfg["dictate"])
     rep.installed(cfg)
     rep.agents(cfg)
     rep.meter_plugin()

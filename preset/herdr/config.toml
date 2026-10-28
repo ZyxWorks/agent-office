@@ -19,6 +19,7 @@
 #     Space / p          next / previous tab         1..9   tab by number
 #     s                  settings                    a      adjust pane size (resize mode)
 #     Enter              copy mode                   d      leave herdr (keeps running)
+#     m                  dictate: press, talk, press (opt-in, [dictate] in your config)
 #     ?                  all keys
 # Small letter for the space, capital for the tab: a space holds tabs, so it is the bigger step.
 # Ctrl+Space and not herdr's Ctrl+B: Ctrl+B is "back one character" in the shell and in the
@@ -96,6 +97,14 @@ key = "shift+down"
 type = "plugin_action"
 command = "agent-office.meter.nav-down"
 description = "pane below, then the space below"
+
+# Push-to-talk into the focused pane: off until [dictate] is on in your Agent Office config.
+# herdr has no key-up, so the first press records and the second types the words (herdr/dictate).
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "agent-office.meter.dictate"
+description = "dictate: press, talk, press again to type it"
 
 [ui]
 # Agents panel grouped by space. herdr's default too, kept explicit because it is a choice
