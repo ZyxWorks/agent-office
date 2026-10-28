@@ -74,7 +74,9 @@ today, and each has a probe that CI runs on macOS and Linux.
   treehouse version with no tested run as not tested and exit 1. The office
   starts and runs either way.
 - **`office off` and workers.** It refuses while an agent is still working or
-  waiting, and names it.
+  waiting, and names it. `--stop-workers` drains only Firstmate's own workers,
+  through Firstmate's control plane: an agent Firstmate has no task record for
+  is yours to stop.
 - **The tmux office (0.x)** still answers the verbs 1.0 has no version of. See
   [the tmux office (legacy)](#the-tmux-office-legacy).
 
@@ -214,7 +216,7 @@ The rules the config follows:
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect |
 | `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; attach. Running it again focuses what is there. Starts no workers. |
 | `office break` | detach only: the terminals `office on` and `fm` attached. Firstmate, the workers and the terminals keep running. herdr has no detach command, so a herdr you attached yourself detaches with its key, which `office break` prints. |
-| `office off` | stop this office: show what will stop, ask, let Firstmate save its work, and only when the save is confirmed stop the owned session and its meter. A session `office on` did not start is left running. It refuses while an agent in the session is working or waiting; asking Firstmate to drain its workers is planned. `--force`, confirmed separately on the terminal, stops when the save fails. Repos and worktree pools are kept. |
+| `office off` | stop this office: show what will stop, ask, let Firstmate save its work, and only when the save is confirmed stop the owned session and its meter. A session `office on` did not start is left running. It refuses while an agent in the session is working or waiting; `--stop-workers` has Firstmate stop its own busy workers first, keeping their worktrees and task records. `--force`, confirmed separately on the terminal, stops when the save fails. Repos and worktree pools are kept. |
 | `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. Anything left running makes it exit non-zero. |
 | `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing. |
 | `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. |
@@ -391,7 +393,8 @@ name, is somebody else's: `office off` says so, leaves it running and exits 1.
   window sends. A herdr you attached yourself is not on that record: for it,
   `office break` prints the detach key.
 - **`office off`** lists what stops: the session and its server, Firstmate with
-  its checkout and home, every other agent in the session, the pane count, the
+  its checkout and home, Firstmate's workers by task, every other agent in the
+  session, the pane count, the
   meter, the attached terminals. It asks, then asks Firstmate to save through
   the same `/stow` contract as `fm restart`, and stops the session with
   `herdr session stop` only when Firstmate answers that the save worked. A
@@ -400,6 +403,16 @@ name, is somebody else's: `office off` says so, leaves it running and exits 1.
   refuses and names it. After the session it stops that session's meter,
   checks both are gone, and clears the record. It never deletes a worktree,
   empties a pool or touches a repo.
+- **`--stop-workers`** drains Firstmate's workers instead of refusing. A
+  worker is an agent whose pane a task record in Firstmate's home names
+  (`state/<task>.meta`, `herdr_session` and `herdr_pane_id`): never a guess
+  from its folder or name. Each busy one is stopped by Firstmate itself, with
+  `bin/fm-control.sh <task> exit` in the Firstmate checkout, which keeps its
+  pane, worktree, uncommitted changes and task record. Only then does Firstmate
+  save, so the save records the stopped workers and its next session picks the
+  tasks up. If Firstmate does not confirm a worker stopped, the session keeps
+  running. An agent with no task record is not Firstmate's: while it is busy,
+  `--stop-workers` still refuses.
 - **`--force`** is for a save that cannot be confirmed. The save is still tried
   first. If it fails, `office off --force` warns that unsaved conversations may
   be lost and asks again, on the terminal, for the session name typed out.

@@ -21,8 +21,14 @@ What herdr 0.9.1 gives, and what it does not (its --help is the contract):
   anything is printed: a pane that ends with its session loses no result.
 
 Firstmate saves through the same /stow contract `fm restart` uses (fm.stow); when the save is
-not confirmed, nothing is stopped. Workers are Firstmate's: off lists the agents in the session,
-refuses while one is working or waiting, and never touches a worktree or a pool.
+not confirmed, nothing is stopped. Workers are Firstmate's, so their drain is too: a worker is
+an agent whose pane a task record in Firstmate's home (state/<task>.meta, herdr_session and
+herdr_pane_id) names. off refuses while one is working or waiting, or, with --stop-workers,
+stops each through Firstmate's own control plane (`bin/fm-control.sh <task> exit`), which keeps
+its pane, worktree, uncommitted changes and task record, and only then asks Firstmate to save:
+the save then records the stopped workers, so its next session picks them up. Any other agent
+in the session is not Firstmate's to stop, and still refuses the stop while it is busy. Nothing
+here touches a worktree or a pool.
 """
 
 from __future__ import annotations
@@ -42,11 +48,12 @@ from .install import _confirm, ask
 
 START_SECONDS = 30
 STOP_SECONDS = 30
+WORKER_EXIT_SECONDS = 300
 
 USAGE = """\
 usage: office on
        office break
-       office off [--all] [--yes] [--force] [--timeout MINUTES]
+       office off [--all] [--yes] [--stop-workers] [--force] [--timeout MINUTES]
        office status
 
 office on      check the config and herdr, start the herdr session office.session against the
@@ -58,7 +65,11 @@ office off     stop this office: list what stops, ask, let Firstmate save its wo
                session office on started is ever stopped. Repos, worktrees and pools are kept.
   --all        every office this installation started, not only the configured one
   --yes        do not ask before stopping. It never forces.
-  --force      when the save fails or agents are still busy, offer to stop anyway: asked
+  --stop-workers
+               a Firstmate worker still working or waiting: have Firstmate stop it first
+               (bin/fm-control.sh <task> exit), keeping its worktree and task record, instead
+               of refusing the stop. Firstmate then saves, so it picks the task up next time.
+  --force     when the save fails or agents are still busy, offer to stop anyway: asked
                separately, on the terminal, by typing the session name. Unsaved work may be lost.
   --timeout    minutes to wait for Firstmate's save (default 30)
 office status  read-only: what runs, what the office owns, the meter, pending restarts, and the
@@ -333,7 +344,7 @@ class Target:
         self.state, self.srv = _state(rec, o.herdr)
         self.inside = _inside(env, rec["socket"])
         self.first = self.block = self.meter = None
-        self.others, self.panes = [], 0
+        self.workers, self.others, self.panes = [], [], 0
         if self.state == "owned":
             self.look()
 
@@ -349,11 +360,58 @@ class Target:
         except fm.HerdrError as e:
             agents, self.block = [], f"herdr did not list what runs in session '{self.session}': {e}"
         mine = (self.first or {}).get("pane_id")
-        self.others = [a for a in agents if a.get("pane_id") != mine]
+        tasks = _tasks(self.o, self.session)
+        self.workers = [dict(a, task=tasks[a["pane_id"]]) for a in agents
+                        if a.get("pane_id") != mine and a.get("pane_id") in tasks]
+        self.others = [a for a in agents if a.get("pane_id") != mine and a.get("pane_id") not in tasks]
         self.meter = _meter(self.rec["socket"], self.env)
 
-    def busy(self) -> list:
-        return [a for a in self.others if a.get("agent_status") in ("working", "blocked")]
+    def busy(self, agents=None) -> list:
+        return [a for a in (self.workers + self.others if agents is None else agents)
+                if a.get("agent_status") in ("working", "blocked")]
+
+
+def _home(o: fm.Office) -> Path:
+    return o.code if o.home is None else o.home
+
+
+def _tasks(o: fm.Office, session: str) -> dict:
+    """Firstmate's own tasks in this session, by pane: {pane id: task id}. Its records say which
+    pane each task runs in, so a worker is never guessed from its folder or its name."""
+    found = {}
+    for meta in sorted((_home(o) / "state").glob("*.meta")):
+        rec = {}
+        try:
+            for line in meta.read_text(errors="replace").splitlines():
+                k, eq, v = line.partition("=")
+                if eq:
+                    rec.setdefault(k, v)
+        except OSError:
+            continue
+        if rec.get("backend") == "herdr" and rec.get("herdr_session") == session and rec.get("herdr_pane_id"):
+            found[rec["herdr_pane_id"]] = meta.stem
+    return found
+
+
+def _exit_worker(o: fm.Office, task: str) -> str | None:
+    """Ask Firstmate's control plane to stop one task's agent. None when it says it did, else why not."""
+    exe = o.code / "bin" / "fm-control.sh"
+    if not os.access(exe, os.X_OK):
+        return f"the Firstmate checkout has no {exe}, so its worker {task} cannot be stopped through Firstmate"
+    # the office's session, never the one the caller's own pane variables point at
+    env = {k: v for k, v in o.env.items() if k not in ("HERDR_SOCKET_PATH", "HERDR_PANE_ID")}
+    env.update(FM_HOME=str(_home(o)), HERDR_SESSION=o.session)
+    try:
+        r = subprocess.run([str(exe), task, "exit"], cwd=str(o.code), env=env, capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL, timeout=WORKER_EXIT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return f"Firstmate did not stop its worker {task} within {WORKER_EXIT_SECONDS // 60} minutes"
+    except OSError as e:
+        return f"could not run {exe}: {e}"
+    if r.returncode != 0:
+        said = (r.stderr.strip() or r.stdout.strip()).splitlines()
+        return f"Firstmate did not stop its worker {task}: {said[-1] if said else f'exit {r.returncode}'}"
+    return None
 
 
 def _meter(socket: str, env) -> dict | None:
@@ -376,7 +434,7 @@ def _agent_line(a: dict, show) -> str:
             f"{show(a.get('cwd') or '?')}{name}")
 
 
-def _plan(t: Target, show, out):
+def _plan(t: Target, show, out, stop_workers: bool):
     o, rec = t.o, t.rec
     if t.state == "stopped":
         print(f"  office '{t.session}': not running any more. Only its record is cleared.", file=out)
@@ -399,7 +457,14 @@ def _plan(t: Target, show, out):
         print(f"    Firstmate      {where}: not running, so there is nothing to save", file=out)
     if t.block:
         print(f"    Firstmate      cannot be asked to save: {t.block}", file=out)
-    print(f"    other agents   {len(t.others) or 'none'}" + (", each ends with the session:" if t.others else ""), file=out)
+    print(f"    workers        {len(t.workers) or 'none'}" + (
+        ", Firstmate's tasks: each ends with the session, its worktree and task record are kept" +
+        (". One still busy is stopped through Firstmate first (fm-control.sh <task> exit)" if stop_workers else "")
+        + ":" if t.workers else ""), file=out)
+    for a in t.workers:
+        print(f"      task {a['task']}  {_agent_line(a, show)}", file=out)
+    print(f"    other agents   {len(t.others) or 'none'}" + (", not Firstmate's, each ends with the session:"
+                                                              if t.others else ""), file=out)
     for a in t.others:
         print(f"      {_agent_line(a, show)}", file=out)
     print(f"    panes          {t.panes} in all, agents and terminals", file=out)
@@ -491,7 +556,7 @@ class Run:
         return next((t for t in got.get("targets", []) if t.get("session") == session), {})
 
 
-def _one(t: Target, run: Run, minutes: int, force: bool, out) -> tuple:
+def _one(t: Target, run: Run, minutes: int, force: bool, stop_workers: bool, out) -> tuple:
     """Stop one office, or say why not. Returns (result, detail)."""
     if t.state == "stopped":
         _forget(t.session, t.env)
@@ -509,14 +574,36 @@ def _one(t: Target, run: Run, minutes: int, force: bool, out) -> tuple:
                         "command. Run office off from another pane or terminal. Nothing was stopped.")
     hint = "" if force else " `office off --force` offers to stop anyway."
 
-    def busy():
-        return [f"{len(t.busy())} agent(s) still working or waiting for an answer (pane "
-                f"{', '.join(str(a.get('pane_id')) for a in t.busy())}): let them finish, or ask Firstmate "
-                "to stop them"] if t.busy() else []
+    def busy(workers=True):
+        w, o = t.busy(t.workers) if workers else [], t.busy(t.others)
+        return ([f"{len(w)} of Firstmate's workers still working or waiting for an answer (task "
+                 f"{', '.join(a['task'] for a in w)}): let them finish, or run `office off --stop-workers` "
+                 "to have Firstmate stop them, keeping their worktrees"] if w else []) + (
+                [f"{len(o)} other agent(s), not Firstmate's, still working or waiting for an answer (pane "
+                 f"{', '.join(str(a.get('pane_id')) for a in o)}): let them finish, or stop them yourself"]
+                if o else [])
 
-    why = ([t.block] if t.block else []) + busy()
+    # with --stop-workers a busy worker is not a reason to refuse: Firstmate stops it below
+    why = ([t.block] if t.block else []) + busy(not stop_workers)
     if why and not force:
         return "kept", _why(why) + ". Nothing was sent and nothing was stopped." + hint
+    drain = t.busy(t.workers) if stop_workers and not t.block else []
+    if drain:
+        # before the save, so the save records them as stopped and the next session picks them up
+        print(f"office off: asking Firstmate to stop {len(drain)} busy worker(s) in '{t.session}' "
+              f"(fm-control.sh <task> exit): task {', '.join(a['task'] for a in drain)}.", file=out)
+        out.flush()
+        for a in drain:
+            failed = _exit_worker(t.o, a["task"])
+            if failed:
+                why.append(failed)
+            else:
+                print(f"office off: Firstmate stopped worker {a['task']}; its worktree and task record are kept.",
+                      file=out)
+        if why and not force:
+            return "kept", (_why(why) + ". Workers Firstmate did stop keep their worktrees and task records; "
+                            "the session was not stopped." + hint)
+        t.look()
     if t.first and not t.block:
         if t.o.harness != "claude":
             why.append("saving through /stow is built and tested for harness claude only; firstmate.harness "
@@ -554,7 +641,7 @@ def _one(t: Target, run: Run, minutes: int, force: bool, out) -> tuple:
 
 
 def off(args, env, out, err) -> int:
-    everything = yes = force = False
+    everything = yes = force = stop_workers = False
     rest = []
     for a in args:
         if a == "--all":
@@ -563,11 +650,13 @@ def off(args, env, out, err) -> int:
             yes = True
         elif a == "--force":
             force = True
+        elif a == "--stop-workers":
+            stop_workers = True
         else:
             rest.append(a)
     who = "office off --all" if everything else "office off"
     try:
-        minutes = fm.minutes_arg(rest, "office off, besides --all, --yes and --force,")
+        minutes = fm.minutes_arg(rest, "office off, besides --all, --yes, --stop-workers and --force,")
     except fm.Usage as e:
         print(f"office off: {e}\n{USAGE}", file=err)
         return 2
@@ -589,7 +678,7 @@ def off(args, env, out, err) -> int:
         ts.sort(key=lambda t: t.inside)  # the session this command sits in goes last
         print(f"{who}: this stops" + (" every office this installation started" if everything else "") + ":", file=out)
         for t in ts:
-            _plan(t, show, out)
+            _plan(t, show, out, stop_workers)
         print("Kept: repos, worktrees, worktree pools and Firstmate's own records. Nothing is deleted.", file=out)
         if everything:
             _others(env, {t.session for t in ts if t.state != "stopped"}, out)
@@ -607,11 +696,11 @@ def off(args, env, out, err) -> int:
                 result, detail = "kept", "cancelled before its turn. Nothing was stopped."
             else:
                 try:
-                    result, detail = _one(t, run, minutes, force, out)
+                    result, detail = _one(t, run, minutes, force, stop_workers, out)
                 except KeyboardInterrupt:
                     cancelled = True
-                    result, detail = "kept", ("cancelled. Nothing was stopped. A save already asked for keeps "
-                                              "running in Firstmate.")
+                    result, detail = "kept", ("cancelled. The session was not stopped. A save or a worker stop "
+                                              "already asked for keeps running in Firstmate.")
             run.set(t.session, result, detail)
             good = result in ("stopped", "already stopped")
             print(f"{who}: office '{t.session}': {result if good else result.upper()}: {detail}",

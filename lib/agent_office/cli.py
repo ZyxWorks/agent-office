@@ -32,11 +32,12 @@ office: Agent Office, one command for the whole agent setup.
                                      focus them, and attach. Starts no workers
   office break                       detach the terminals office on and fm attached; everything
                                      keeps running
-  office off [--all] [--yes] [--force] [--timeout MINUTES]
+  office off [--all] [--yes] [--stop-workers] [--force] [--timeout MINUTES]
                                      stop this office (--all: every office this installation
                                      started) after showing what stops and asking; Firstmate
-                                     saves first, and a failed save stops nothing. A session
-                                     office on did not start is never stopped
+                                     saves first, and a failed save stops nothing. A busy
+                                     worker refuses it, or --stop-workers has Firstmate stop it
+                                     first. A session office on did not start is never stopped
   office status                      read-only: what runs, what the office owns, the meter,
                                      pending restarts, the last office off
   office update [--check] [--yes]    bring every component to the versions this release is
