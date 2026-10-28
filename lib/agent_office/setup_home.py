@@ -1,4 +1,4 @@
-"""office setup: write the agent working setup (setup/) into your home, showing every change first.
+"""office setup agents: write the agent working setup (setup/) into your home, showing every change first.
 
 setup/MANIFEST.toml says what goes where; lib/agent_office/setup.py fills the templates in from
 your [setup] keys. This module decides, for each target, what a write would do to what is there
@@ -12,13 +12,13 @@ wrote from what you changed:
 - a whole file you changed is never replaced: the new version lands beside it as
   <file>.agent-office-new,
 - a key, list entry or YAML key it put in that you took out stays out: the record says you
-  removed it, until `office setup --reset-key <file>:<key>` takes that off again,
+  removed it, until `office setup agents --reset-key <file>:<key>` takes that off again,
 - everything outside what Agent Office owns (your lines around its block, your own keys, your
   own hooks and permission entries) is never touched,
 - a link is never written through: a target that is a link, or sits in a linked folder (a
   dotfiles repo, say), is left alone and you are told what to change in it yourself.
 
-`office setup --remove` takes out what the record says Agent Office put in, as long as it is
+`office setup agents --remove` takes out what the record says Agent Office put in, as long as it is
 still what it put in. A value of yours it replaced goes back, unless you changed it again since.
 Your starter files (data/captain.md) stay: they were yours from the start.
 """
@@ -493,7 +493,7 @@ class Setup(install.Installer):
     def want_starter(self, p: Path, text: str, what: str):
         if p.exists() or p.is_symlink():
             return install.Step("keep", p, f"{what} (yours: never written again)")
-        return install.Step("create", p, f"{what}, a starter to edit; never written again",
+        return install.Step("create", p, f"{what}; never written again",
                             lambda: self._write(p, text.encode()), record={"kind": "starter"})
 
     def want_symlink(self, p: Path, to: Path, what: str):
@@ -534,7 +534,7 @@ class Setup(install.Installer):
                     continue
                 fm_noted = True
                 steps.append(install.Step("manual", p, f"Firstmate's home {self.show(fm_home)} is not there yet: "
-                                          "these are written once it is. Run office setup again then"))
+                                          "these are written once it is. Run office setup agents again then"))
                 continue
             if kind == "block":
                 steps.append(self.want_block(p, it["content"], what))
@@ -702,7 +702,7 @@ WHAT = {
     "json": "Agent Office's keys; your own keys, hooks and entries stay",
     "yaml": "Agent Office's top-level keys; your own keys stay",
     "owned": "a file Agent Office keeps up to date",
-    "starter": "a starter",
+    "starter": "a starter to edit",
     "link": "one rules file for every agent",
     "flags": "a Firstmate switch",
 }
@@ -722,17 +722,17 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
         elif a == "--reset-key":
             spec = next(it, None)
             if spec is None:
-                print(f"office setup: --reset-key needs <file>:<key path or entry>\n{USAGE}", file=err)
+                print(f"office setup agents: --reset-key needs <file>:<key path or entry>\n{USAGE}", file=err)
                 return 2
             resets.append(spec)
         elif a in ("-h", "--help"):
             print(USAGE, file=out)
             return 0
         else:
-            print(f"office setup: unknown option {a}\n{USAGE}", file=err)
+            print(f"office setup agents: unknown option {a}\n{USAGE}", file=err)
             return 2
     if resets and (check_only or remove):
-        print(f"office setup: --reset-key goes on its own, not with --check or --remove\n{USAGE}", file=err)
+        print(f"office setup agents: --reset-key goes on its own, not with --check or --remove\n{USAGE}", file=err)
         return 2
 
     st = Setup(env, out)
@@ -740,7 +740,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
         for spec in resets:
             back = st.reset_key(spec)
             if not back:
-                print(f"office setup: nothing you removed matches {spec}.", file=err)
+                print(f"office setup agents: nothing you removed matches {spec}.", file=err)
                 listed = st.removed_by_you()
                 print("  On the record as removed by you:" if listed else "  Nothing is on the record as "
                       "removed by you.", file=err)
@@ -748,22 +748,22 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
                     print(f"    {line}", file=err)
                 return 1
             for b in back:
-                st.say(f"{b}: back on the record; the next office setup puts it in again")
+                st.say(f"{b}: back on the record; the next office setup agents puts it in again")
         return 0
     cfg_path = C.config_path(st.env)
     try:
         cfg = C.load(cfg_path)
         steps = st.unwanted() if remove else st.plan(cfg)
     except C.ConfigError as e:
-        print("office setup: the config or a template has problems. Nothing was changed.", file=err)
+        print("office setup agents: the config or a template has problems. Nothing was changed.", file=err)
         for p in e.problems:
             print("  " + p.replace(str(st.home), "~"), file=err)
         return 1
     except (OSError, UnicodeDecodeError) as e:
-        print(f"office setup: {e}. Nothing was changed.", file=err)
+        print(f"office setup agents: {e}. Nothing was changed.", file=err)
         return 1
 
-    verb = "office setup --remove" if remove else "office setup"
+    verb = "office setup agents --remove" if remove else "office setup agents"
     st.say(f"{verb}{' --check' if check_only else ''}: config {st.show(cfg_path)}")
     st.print_plan(steps)
     asks = [s for s in steps if s.asks]
@@ -791,7 +791,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
 
 
 USAGE = """\
-usage: office setup [--check] [--yes] [--remove] [--reset-key <file>:<key>]
+usage: office setup agents [--check] [--yes] [--remove] [--reset-key <file>:<key>]
 
 Write the agent working setup into your home: the agent rules (~/AGENTS.md, linked as
 ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md), the review and release process, Claude Code's

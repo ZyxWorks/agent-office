@@ -483,8 +483,8 @@ class Update:
         it = Item("firstmate", head[:12] if head else "-", tested[-1][:12] if tested else "-", "unknown",
                   after="a running Firstmate: `fm restart`")
         if head is None:
-            it.blocker = (f"no git checkout at {self.show(code)} (firstmate.code): Agent Office does not "
-                          "install Firstmate")
+            it.blocker = (f"no git checkout at {self.show(code)} (firstmate.code): `office setup` clones "
+                          "Firstmate there")
             return it
         remote = next((n for n, url in doctor.remotes(code, self.env).items()
                        if url == doctor._norm(fm["source"])), None)

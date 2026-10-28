@@ -164,7 +164,7 @@ def _target(t: str, vals: dict, where: str, env) -> Path:
 
 
 def plan(cfg: dict, env=None) -> list:
-    """Every write `office setup` would make for this config, in manifest order.
+    """Every write `office setup agents` would make for this config, in manifest order.
 
     Each item is a dict: kind, target (a Path), and by kind content (the rendered text), to (the
     link's target, a Path), names (the flag files) and mode (an int, for owned files). An entry

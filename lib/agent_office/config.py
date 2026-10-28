@@ -172,6 +172,7 @@ KEYS = {
         "quiet": _boolean,
     },
     "setup": {
+        "enabled": _boolean,
         "machine": {"test_workers": _int_in(1, 256), "max_subagents": _int_in(0, 64)},
         "models": {"default": _MODEL, "mechanical": _MODEL, "gate": _MODEL},
         "tokens": {"cold_cache_minutes": _int_in(1, 1440), "auto_compact_tokens": _int_in(10_000, 10_000_000)},

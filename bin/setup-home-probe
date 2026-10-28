@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""setup-home-probe: `office setup`, `--check` and `--remove`, each in a throwaway $HOME.
+"""setup-home-probe: `office setup agents`, `--check` and `--remove`, each in a throwaway $HOME.
 
 Never your own home. Every case is a fresh folder as HOME with a config, a stand-in Firstmate
-checkout and whatever files of "yours" the case needs, then `office setup` run as a user runs
+checkout and whatever files of "yours" the case needs, then `office setup agents` run as a user runs
 it, with no terminal, so a question it asks can only ever be answered "no". Each case is a
-promise setup/README.md and `office setup --help` make. Needs Python and nothing else.
+promise setup/README.md and `office setup agents --help` make. Needs Python and nothing else.
 
   bin/setup-home-probe
   /usr/bin/python3 bin/setup-home-probe     # macOS: also proves Python 3.9 and the vendored reader
@@ -44,7 +44,7 @@ class Home:
         # PYTHONDONTWRITEBYTECODE: macOS's python3 puts its bytecode cache under $HOME/Library
         env = {"HOME": str(self.h), "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONDONTWRITEBYTECODE": "1"}
         # start_new_session: no controlling terminal, so a question can never block the probe
-        return subprocess.run([sys.executable, str(OFFICE), "setup", *args], env=env, capture_output=True,
+        return subprocess.run([sys.executable, str(OFFICE), "setup", "agents", *args], env=env, capture_output=True,
                               text=True, stdin=subprocess.DEVNULL, start_new_session=True)
 
     def p(self, rel):

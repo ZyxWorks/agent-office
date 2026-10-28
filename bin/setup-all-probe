@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""setup-all-probe: `office setup`, the one-line install, in throwaway homes.
+
+Each case runs bin/office setup as a user does, with $HOME a fresh folder. The tools office tools
+would install are stand-ins on PATH that report their pinned version, so nothing is downloaded;
+herdr is the real one, because office install asks it to check the config and herdr installs its
+own integration. Firstmate is cloned from a local repository. The questions are answered on a
+real terminal (a pty). No network, no herdr server.
+
+  bin/setup-all-probe
+  /usr/bin/python3 bin/setup-all-probe     # macOS: also proves Python 3.9
+"""
+
+import hashlib
+import os
+import pty
+import select
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OFFICE = REPO / "bin" / "office"
+sys.path.insert(0, str(REPO / "lib"))
+from agent_office import config as C  # noqa: E402
+
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+if not shutil.which("herdr"):
+    sys.exit("setup-all-probe: needs herdr on PATH (https://herdr.dev); it never talks to a server")
+
+# under /tmp: herdr refuses a socket path longer than a Unix socket allows
+ROOT = Path(tempfile.mkdtemp(prefix="aosa.", dir="/tmp"))
+STUBS = ROOT / "stubs"
+STUBS.mkdir()
+comps = C.read_toml(REPO / "config" / "components.toml", "components.toml")
+for c in comps["component"] + comps["harness"]:
+    if c.get("profile") == "workstation" or c["command"] == "herdr":
+        continue
+    version = c.get("pin") or (c.get("tested") or ["1.0.0"])[-1]
+    stub = STUBS / c["command"]
+    stub.write_text(f"#!/bin/sh\necho '{c['command']} {version}'\n")
+    stub.chmod(0o755)
+(STUBS / "python3").symlink_to(sys.executable)  # for bin/office's own #! line, without the rest of its folder
+PATH = os.pathsep.join([str(STUBS), os.path.dirname(shutil.which("herdr")), "/usr/bin", "/bin"])
+
+# Firstmate's stand-in: a repository with two commits
+SOURCE = ROOT / "firstmate-source"
+SOURCE.mkdir()
+for args in (["init", "-q", "-b", "main"], ["commit", "-q", "--allow-empty", "-m", "one"],
+             ["commit", "-q", "--allow-empty", "-m", "two"]):
+    subprocess.run(["git", "-C", str(SOURCE), "-c", "user.name=probe", "-c", "user.email=probe@example.invalid",
+                    *args], check=True, capture_output=True)
+TIP = subprocess.run(["git", "-C", str(SOURCE), "rev-parse", "HEAD"], check=True, capture_output=True,
+                     text=True).stdout.strip()
+
+
+class Home:
+    def __init__(self, config=None):
+        self.h = Path(tempfile.mkdtemp(dir=ROOT))
+        if config is not None:
+            p = self.h / ".config" / "agent-office" / "config.toml"
+            p.parent.mkdir(parents=True)
+            p.write_text("schema = 1\n" + config)
+
+    def p(self, rel):
+        return self.h / rel
+
+    def env(self):
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("XDG_", "HERDR_", "GIT_"))
+               and k not in ("ZDOTDIR", "NO_COLOR")}
+        env.update(HOME=str(self.h), PATH=PATH, PYTHONDONTWRITEBYTECODE="1")
+        return env
+
+    def run(self, *args):
+        # start_new_session: no controlling terminal, the way CI and a pipe meet it
+        return subprocess.run([sys.executable, str(OFFICE), "setup", *args], env=self.env(), capture_output=True,
+                              text=True, stdin=subprocess.DEVNULL, start_new_session=True, timeout=300)
+
+    def run_tty(self, answers):
+        """office setup on a terminal, the answers typed one line each. (exit code, what it printed)"""
+        pid, fd = pty.fork()
+        if pid == 0:
+            os.execve(sys.executable, [sys.executable, str(OFFICE), "setup"], self.env())
+        os.write(fd, "".join(a + "\n" for a in answers).encode())
+        said, end = b"", time.time() + 300
+        while time.time() < end:
+            ready, _, _ = select.select([fd], [], [], 1)
+            if not ready:
+                continue
+            try:
+                chunk = os.read(fd, 65536)
+            except OSError:  # the other end closed: the run is over
+                break
+            if not chunk:
+                break
+            said += chunk
+        _, status = os.waitpid(pid, 0)
+        os.close(fd)
+        return os.waitstatus_to_exitcode(status) if hasattr(os, "waitstatus_to_exitcode") else status >> 8, \
+            said.decode(errors="replace")
+
+    def snapshot(self):
+        out = {}
+        for p in sorted(self.h.rglob("*")):
+            if ".git" in p.relative_to(self.h).parts:
+                continue
+            if p.is_symlink():
+                out[str(p)] = "-> " + os.readlink(p)
+            elif p.is_file():
+                out[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
+        return out
+
+
+def out(r):
+    return (r.stdout + r.stderr)[-3000:]
+
+
+def head(path):
+    r = subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def main():
+    print("no terminal")
+    h = Home()
+    r = h.run()
+    check("without a terminal and without --yes it stops before any step, and says why",
+          r.returncode == 2 and "no terminal to ask on" in r.stderr and not h.snapshot(), out(r))
+
+    print("--check")
+    h = Home(f'[firstmate]\nsource = "{SOURCE}"\n')
+    before = h.snapshot()
+    r = h.run("--check")
+    check("plans every step and changes nothing", r.returncode == 0 and h.snapshot() == before
+          and "clone    " in r.stdout and "office install --check" in r.stdout
+          and "office setup agents --check" in r.stdout and "nothing was changed" in r.stdout, out(r))
+
+    print("--yes on a new machine")
+    h = Home(f'[firstmate]\nsource = "{SOURCE}"\ncode = "~/fm"\n')
+    r = h.run("--yes")
+    check("every step runs, and the run ends well", r.returncode == 0 and "Done. Start the office" in r.stdout,
+          out(r))
+    check("no tool is installed: the stand-ins are there", "Nothing to install" in r.stdout, out(r))
+    check("Firstmate is cloned into firstmate.code, at the newest commit while none is tested",
+          head(h.p("fm")) == TIP and "no Firstmate revision is tested" in r.stdout, out(r))
+    check("office install ran: the office command and herdr's config", h.p(".local/bin/office").is_symlink()
+          and h.p(".local/state/agent-office/herdr/config.toml").is_file(), out(r))
+    check("herdr's claude integration is installed", "ok       herdr's claude integration" in r.stdout, out(r))
+    check("the agent working setup is written, the Firstmate files too: Firstmate came first",
+          h.p("AGENTS.md").is_file() and h.p("fm/config/crew-dispatch.json").is_file(), out(r))
+    check("office doctor reports at the end", "office doctor: read-only" in r.stdout, out(r))
+    check("~/.local/bin not on PATH is said, with the line to add",
+          'export PATH="$HOME/.local/bin:$PATH"' in r.stdout, out(r))
+    before = h.snapshot()
+    r = h.run("--yes")
+    check("a second run changes nothing", r.returncode == 0 and h.snapshot() == before
+          and "Firstmate is there already" in r.stdout and "integration is current" in r.stdout, out(r))
+
+    print("the questions, on a terminal")
+    h = Home()
+    code = h.p("mine/fm")
+    subprocess.run(["git", "clone", "-q", str(SOURCE), str(code)], check=True, capture_output=True)
+    # both harnesses are stand-ins on PATH, so the first question is asked; a wrong answer is asked again
+    rc, said = h.run_tty(["gemini", "", "mine/fm", "~/mine/fm", "", "maybe", "y", "0", "4", "", "y"])
+    cfg = h.p(".config/agent-office/config.toml")
+    got = C.tomllib.loads(cfg.read_text()) if cfg.is_file() else {}
+    check("the run ends well", rc == 0 and "Done. Start the office" in said, said[-3000:])
+    check("a wrong answer is said why and asked again", "Answer claude or codex." in said
+          and "starts with ~/ or /" in said and "Answer y or n." in said and "from 1 to 256" in said, said[-3000:])
+    check("the answers are in the new config", got.get("firstmate") == {"code": "~/mine/fm", "harness": "claude"}
+          and got.get("setup", {}).get("enabled") is True
+          and got.get("setup", {}).get("machine") == {"test_workers": 4, "max_subagents": 3}, str(got))
+    check("the config is the starter, with its comments, and the answers below",
+          cfg.read_text().startswith(C.STARTER.read_text()), cfg.read_text()[-600:] if cfg.is_file() else "")
+    check("a Firstmate that is there is left as it is", "Firstmate is there already, ~/mine/fm" in said
+          and head(code) == TIP, said[-3000:])
+    rules = h.p("AGENTS.md").read_text() if h.p("AGENTS.md").is_file() else ""
+    check("the answers reach the rules", "test runners with 4 workers, at most 3 subagents" in rules, rules[:1500])
+    check("nothing asks for a token, an account, a name or an email address",
+          not any(w in said.lower() for w in ("token", "password", "account", "e-mail", "email", "your name")),
+          said[-3000:])
+
+    print("setup.enabled = false, and something else where Firstmate goes")
+    h = Home(f'[firstmate]\nsource = "{SOURCE}"\ncode = "~/fm"\n[setup]\nenabled = false\n')
+    h.p("fm").mkdir()
+    (h.p("fm") / "notes.txt").write_text("mine\n")
+    r = h.run("--yes")
+    check("the agent working setup is left out", r.returncode == 0 and not h.p("AGENTS.md").exists()
+          and "setup.enabled is false" in r.stdout, out(r))
+    check("a folder that is not a Firstmate checkout is not touched, and left for you",
+          "Something else is at ~/fm" in r.stdout and sorted(os.listdir(h.p("fm"))) == ["notes.txt"]
+          and "left for you  Firstmate" in r.stdout, out(r))
+
+    print("office setup agents")
+    h = Home()
+    r = h.run("agents", "--check")
+    check("runs the agent working setup alone", r.returncode == 0 and "office setup agents --check" in r.stdout
+          and "office tools" not in r.stdout, out(r))
+
+    shutil.rmtree(ROOT)
+    print(f"\n{fails} failed" if fails else "\nall passed")
+    return 1 if fails else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

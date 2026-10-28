@@ -2,9 +2,9 @@
 
 Agent Office ships the office (herdr, the meter, `office` and `fm`) and, in this folder, the way agents work in it: the rules every agent reads, Claude Code's settings and hooks, Firstmate's model picks and captain starter, and the no-mistakes and gnhf settings. Each file here is a template. Your own values come from the `[setup]` keys in `~/.config/agent-office/config.toml` (every key and its default: `config/defaults.toml`).
 
-`office setup` writes these into your home. It shows every change first, backs up what it changes, and records what it wrote in `~/.local/state/agent-office/setup-manifest.json`. `office setup --check` only plans. `office setup --remove` takes out what it put in, where that is still as it was put in; your starter files stay. Where it replaced a JSON key or a top-level YAML key of yours (after the question or `--yes`), it records your old value and `--remove` puts that value back; a key you changed again since then stays as you left it, and a key that was not there before is taken out.
+`office setup agents` writes these into your home. It shows every change first, backs up what it changes, and records what it wrote in `~/.local/state/agent-office/setup-manifest.json`. `office setup agents --check` only plans. `office setup agents --remove` takes out what it put in, where that is still as it was put in; your starter files stay. Where it replaced a JSON key or a top-level YAML key of yours (after the question or `--yes`), it records your old value and `--remove` puts that value back; a key you changed again since then stays as you left it, and a key that was not there before is taken out.
 
-A JSON key, a JSON list entry or a top-level YAML key that Agent Office put in and you took out stays out. The next run says `you removed <key or entry> in <file>: left out` once, records it in the setup manifest as removed by you, and leaves it out from then on. To get it back, run `office setup --reset-key <file>:<key path or entry>` (for example `office setup --reset-key "~/.claude/settings.json:permissions.defaultMode"` or `office setup --reset-key "~/.claude/settings.json:Bash(gh-axi:*)"`), or delete the file's entry in the setup manifest; the next `office setup` puts it in again. A key that is new in a template is always added.
+A JSON key, a JSON list entry or a top-level YAML key that Agent Office put in and you took out stays out. The next run says `you removed <key or entry> in <file>: left out` once, records it in the setup manifest as removed by you, and leaves it out from then on. To get it back, run `office setup agents --reset-key <file>:<key path or entry>` (for example `office setup agents --reset-key "~/.claude/settings.json:permissions.defaultMode"` or `office setup agents --reset-key "~/.claude/settings.json:Bash(gh-axi:*)"`), or delete the file's entry in the setup manifest; the next `office setup agents` puts it in again. A key that is new in a template is always added.
 
 ## What goes where
 
@@ -34,7 +34,7 @@ A JSON key, a JSON list entry or a top-level YAML key that Agent Office put in a
 - **link**: a symbolic link, made only when nothing is there.
 - **flags**: one empty file per name; Firstmate reads them as switches.
 
-A target that is a link, or sits in a folder that is a link (a `~/.claude` linked into a dotfiles repo, say), is never written through: `office setup` shows what to put there and leaves it to you. The Firstmate files wait until the Firstmate home is there.
+A target that is a link, or sits in a folder that is a link (a `~/.claude` linked into a dotfiles repo, say), is never written through: `office setup agents` shows what to put there and leaves it to you. The Firstmate files wait until the Firstmate home is there.
 
 ## Placeholders
 
@@ -44,4 +44,4 @@ The shipped `[setup.models.*]` defaults are Claude model ids, so they apply only
 
 ## Nothing private
 
-A template names no person, no account and no path of anyone's machine. `bin/setup-probe` renders every template for a stand-in user and runs `bin/leak-scan` over the result; `bin/setup-home-probe` runs `office setup` in throwaway homes. CI runs both on every push (CONTRIBUTING.md, "Keeping it private").
+A template names no person, no account and no path of anyone's machine. `bin/setup-probe` renders every template for a stand-in user and runs `bin/leak-scan` over the result; `bin/setup-home-probe` runs `office setup agents` in throwaway homes. CI runs both on every push (CONTRIBUTING.md, "Keeping it private").

@@ -32,9 +32,12 @@ provider = "ntfy"
 # url: where to push, for ntfy the server and topic. Unset means nothing can be sent.
 quiet = false                         # true: only "needs you" gets through
 
-# The agent working setup: the values `office setup` puts into the agent rules, Claude Code,
+# The agent working setup: the values `office setup agents` puts into the agent rules, Claude Code,
 # Firstmate, no-mistakes and gnhf. The templates live in setup/ (setup/README.md). Nothing here
 # names a person, a path or an account: those stay in your own config.toml.
+[setup]
+enabled = true                        # false: office setup leaves the agent working setup out
+
 [setup.machine]
 test_workers = 2                      # test runners run with this many workers
 max_subagents = 3                     # an agent spawns at most this many subagents
@@ -42,7 +45,7 @@ max_subagents = 3                     # an agent spawns at most this many subage
 # A model is a harness's model id and its reasoning effort. default is for judgment work,
 # mechanical for work with a known result. gate is what no-mistakes reviews with; unset means
 # the default model. These are Claude's: with firstmate.harness = "codex", set default and mechanical
-# in your own config.toml, or `office setup` refuses.
+# in your own config.toml, or `office setup agents` refuses.
 [setup.models.default]
 model = "claude-opus-5-5"
 effort = "medium"
