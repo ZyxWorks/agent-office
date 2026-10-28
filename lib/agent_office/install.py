@@ -356,6 +356,11 @@ class Installer:
         return changed
 
 
+def behind(steps: list) -> list:
+    """The steps of a plan that would change a file."""
+    return [s for s in steps if s.kind not in ("keep", "manual")]
+
+
 def ask(prompt: str) -> Optional[str]:
     """The line typed in answer on the terminal, or None when there is no terminal to ask on."""
     try:
@@ -385,7 +390,8 @@ def wanted(env) -> tuple:
     return starter, C.herdr_config(cfg), C.meter_settings(cfg)
 
 
-def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
+def run(args, env=None, out=sys.stdout, err=sys.stderr, outcome: Optional[dict] = None) -> int:
+    """outcome, when given, gets "declined": True when the question was answered no."""
     check_only = yes = False
     for a in args:
         if a in ("--check", "-n", "--dry-run"):
@@ -412,7 +418,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
         for p in e.problems:
             print("  " + p.replace(str(inst.home), "~"), file=err)
         return 1
-    ok, said = C.herdr_check(herdr_text)
+    ok, said = C.herdr_check(herdr_text, inst.env)
     if not ok and said.startswith("herdr is not installed"):
         print(f"office install: {said}. Nothing was changed.", file=err)
         return 1
@@ -433,6 +439,8 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
         return 0
     if asks and not yes:
         if not _confirm(f"Replace or edit {len(asks)} file(s) above, backing each up first? [y/N] "):
+            if outcome is not None:
+                outcome["declined"] = True
             print("office install: not confirmed. Nothing was changed. "
                   "Run it in a terminal to answer, or pass --yes.", file=err)
             return 1

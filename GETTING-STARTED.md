@@ -23,55 +23,30 @@ the tmux office (0.x)? Its guide is
 - git.
 - Node 22.19 or newer with npm, for the Node-based agent tools.
 
-Everything else is what `office tools` and `office install` are for.
+Everything else is what `office setup` is for.
 
 ## 3. Install
 
-Four steps. Each one shows what it will do and asks before it does it.
+One line:
 
 ```sh
-git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-~/agent-office/bin/office tools
-~/agent-office/install.sh
-herdr integration install claude     # or: codex
+git clone https://github.com/ZyxWorks/agent-office ~/agent-office && ~/agent-office/bin/office setup
 ```
 
-**`office tools`** installs each tool you lack at a pinned version, through its
-owner: herdr, treehouse and no-mistakes from their GitHub releases, checked
-against a pinned SHA-256; the Node-based tools with `npm install -g
---ignore-scripts`; `jq` and `gh` with Homebrew. A tool you already have is left
-as it is. `office tools --workstation` adds the optional
-[workstation tools](README.md#workstation-profile-optional).
-[The README](README.md#what-office-tools-installs) has the details.
+**The questions.** The first run asks four, and only while you have no config yet: which coding agent Firstmate runs on (only when you have both Claude Code and Codex), where Firstmate's code and its private home go, whether to write the agent working setup, and how many workers one test run and how many subagents one agent may use. Enter keeps the answer in brackets. The answers go into `~/.config/agent-office/config.toml`, which is yours: nothing writes it again. Nothing asks for a token, an account, a name or an email address. `office setup --yes` takes the answer in brackets for each and asks nothing.
 
-**`install.sh`** is `office install`. It writes a starter
-`~/.config/agent-office/config.toml`, generates herdr's config from the preset
-and your `[herdr]` keys, links the meter plugin into herdr, puts `office`, `fm`
-and `officeoff-all` in `~/.local/bin`, and stops your zsh loading the tmux
-office's `office` function if you had it. It backs up anything it replaces.
-`--check` shows the plan and changes nothing. It starts nothing, and it never
-touches your own `~/.config/herdr/config.toml`.
-[The README](README.md#what-office-install-writes) lists every file.
+Then six steps, in order. Each one shows what it changes first, and asks before it installs anything or changes a file of yours:
 
-If `~/.local/bin` is not on your `PATH`, it prints the line to add to your
-shell's startup file. Add it and open a new terminal.
+1. **`office tools`** installs each tool you lack at a pinned version, through its owner: herdr, treehouse and no-mistakes from their GitHub releases, checked against a pinned SHA-256; the Node-based tools with `npm install -g --ignore-scripts`; `jq` and `gh` with Homebrew. A tool you already have is left as it is. `office tools --workstation` adds the optional [workstation tools](README.md#workstation-profile-optional). [The README](README.md#what-office-tools-installs) has the details.
+2. **Firstmate** is cloned from [its repo](https://github.com/kunchenguid/firstmate) into `firstmate.code`, at the newest revision this release is tested with, when nothing is there yet. A Firstmate checkout that is there is left as it is; anything else there is left alone, and the run tells you.
+3. **`office install`** generates herdr's config from the preset and your `[herdr]` keys, links the meter plugin into herdr, puts `office`, `fm` and `officeoff-all` in `~/.local/bin`, and stops your zsh loading the tmux office's `office` function if you had it. It backs up anything it replaces, starts nothing, and never touches your own `~/.config/herdr/config.toml`. [The README](README.md#what-office-install-writes) lists every file.
+4. **`office setup agents`** writes the agent working setup: the agent rules, the review and release process, Claude Code's settings and hooks, Firstmate's model picks and switches, the no-mistakes and gnhf settings. Your own lines and keys stay. [setup/README.md](setup/README.md) lists every file. Set `setup.enabled = false` in your config to leave it out.
+5. **herdr's integration** for your coding agent (`herdr integration install claude`) lets herdr learn each agent's session id. The meter needs it to find the right transcript. herdr needs the agent's own folder, so start Claude Code (or Codex) once and sign in first; until then the run leaves this step for you.
+6. **`office doctor`** shows what is installed and what is missing. It reports Firstmate and treehouse as not tested, because no revision of either is on this release's tested list. Those two lines are expected.
 
-**`herdr integration install`** lets herdr learn each agent's session id. The
-meter needs it to find the right transcript.
+Each step is also its own command, so you can run one again by itself. `office setup --check` shows what every step would do and changes nothing. Run `office setup` again any time: a step with nothing to do says so.
 
-**Firstmate** is the one thing you clone yourself, from
-[its repo](https://github.com/kunchenguid/firstmate). Follow its README, then
-tell the office where it is:
-
-```toml
-# ~/.config/agent-office/config.toml
-[firstmate]
-code = "/path/to/firstmate"
-```
-
-Run `office doctor` to see what is installed and what is missing. It reports
-Firstmate and treehouse as not tested, because no revision of either is on this
-release's tested list, and exits 1. Those two lines are expected.
+If `~/.local/bin` is not on your `PATH`, the run ends with the line to add to your shell's startup file. Add it and open a new terminal.
 
 ## 4. Open the office
 

@@ -179,7 +179,8 @@ jobs:
           sh -n bin/office-cwd
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
             bin/office bin/install-probe bin/update-probe bin/notify-probe bin/fm bin/fm-probe lib/agent_office/*.py \
-            bin/officeoff-all bin/lifecycle-probe bin/leak-scan bin/leak-scan-probe bin/setup-probe \
+            bin/officeoff-all bin/lifecycle-probe bin/leak-scan bin/leak-scan-probe bin/setup-probe bin/setup-home-probe \
+            bin/setup-all-probe \
             setup/claude/hooks/agents-md.py
           sh -n .githooks/pre-push
           sh -n herdr/notify
@@ -243,6 +244,23 @@ jobs:
       - name: setup-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
         run: /usr/bin/python3 bin/setup-probe
+
+      # `office setup agents`, --check and --remove, each in a throwaway HOME with files of "yours".
+      - name: setup-home-probe
+        run: bin/setup-home-probe
+
+      - name: setup-home-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        run: /usr/bin/python3 bin/setup-home-probe
+
+      # `office setup`, the one-line install: every step in throwaway HOMEs, the questions on a pty.
+      # Stand-in tools, a local Firstmate, a real herdr. No network, no server.
+      - name: setup-all-probe
+        run: bin/setup-all-probe
+
+      - name: setup-all-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        run: /usr/bin/python3 bin/setup-all-probe
 
       # `office notify` and the herdr hook, against a fake ntfy on localhost. No server, no network.
       - name: notify-probe
@@ -351,8 +369,9 @@ jobs:
   # `office tools` for real, on a machine that has none of the pinned tools: the release assets
   # from GitHub with their SHA-256, the npm packages with --ignore-scripts, Homebrew for the rest.
   # The probes above feed it fake owners; this is the one run that proves the pins, the asset names
-  # and the hashes in config/components.toml still exist out there. office tools itself fails
-  # when a tool it installed is not on PATH or does not report the pinned version.
+  # and the hashes in config/components.toml still exist out there, and that `office setup`, the
+  # one-line install, works on a machine that has none of them. office tools itself fails when a
+  # tool it installed is not on PATH or does not report the pinned version.
   downloads:
     strategy:
       fail-fast: false
@@ -387,16 +406,35 @@ jobs:
           bin/office tools --check
           ! command -v herdr
 
-      - name: office tools
-        run: bin/office tools --yes
+      # the one line a user runs after the clone. No coding agent is installed here, so herdr's
+      # integration is left for the user and the run still ends well.
+      - name: office setup
+        run: |
+          set -o pipefail
+          bin/office setup --yes | tee "$RUNNER_TEMP/setup.txt"
 
-      - name: every tool is installed, at its pin
+      - name: every tool is installed, at its pin, and Firstmate is cloned
         run: |
           bin/office tools --check | tee "$RUNNER_TEMP/check.txt"
           grep -q '^Nothing to install' "$RUNNER_TEMP/check.txt"
           herdr --version && treehouse --version && no-mistakes --version
-          bin/office install --yes
+          git -C "$HOME/firstmate" rev-parse HEAD
+          test -f "$HOME/AGENTS.md" && test -f "$HOME/.local/state/agent-office/herdr/config.toml"
           bin/office doctor | tee "$RUNNER_TEMP/doctor.txt" || true
           if grep -q 'not the pinned version' "$RUNNER_TEMP/doctor.txt"; then
             echo "office tools left a tool at another version than its pin"; exit 1
           fi
+
+      - name: the skill packs, from their upstreams, match their pinned commits and SHA-256
+        run: |
+          set -o pipefail
+          printf '[setup.skills]\nno_ai_slop = true\nmarketing = true\nbrag_slim = true\n' >> "$HOME/.config/agent-office/config.toml"
+          bin/office setup agents --yes | tee "$RUNNER_TEMP/skills.txt"
+          for s in no-ai-slop marketing brag-slim; do test -f "$HOME/.claude/skills/$s/SKILL.md"; done
+          bin/office setup agents --check | tee "$RUNNER_TEMP/skills-check.txt"
+          grep -q '^Nothing to change' "$RUNNER_TEMP/skills-check.txt"
+          # every upstream skill the marketing skill names is in the pinned commit
+          pack="$HOME/.local/share/agent-office/vendors/marketingskills/skills"
+          for s in $(sed -n 's/^- [^:]*: //p' setup/skills/marketing/SKILL.md | tr -d ','); do
+            test -f "$pack/$s/SKILL.md" || { echo "setup/skills/marketing/SKILL.md names $s, not in the pack"; exit 1; }
+          done

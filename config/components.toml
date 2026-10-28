@@ -305,3 +305,35 @@ command = "codex"
 [firstmate]
 tested = []                   # none yet: needs a herdr + Firstmate + treehouse lab run
 update = "bin/fm-update.sh"
+
+# --- optional skill packs: `office setup agents`, each when its setup.skills key is true -----
+#
+# Other people's skills, checked out from their upstream at `commit`, only the folders in
+# `paths`, into ~/.local/share/agent-office/vendors/<name>. sha256 is the hash of those files
+# (lib/agent_office/vendors.py, tree_hash): a checkout that does not match is not put in place.
+# A commit moves only after the upstream change was read: the files are instructions an agent
+# follows. Agent Office never runs anything in a pack.
+
+[[skill]]
+name = "no-ai-slop"
+repo = "https://github.com/petergyang/no-ai-slop"
+commit = "000650b156983f5159695b441477f4e63b25dc85"
+paths = ["skills/no-ai-slop"]
+sha256 = "378a30ca0d47b2e85b175d416bd8e7ce3c72e272dac7d797596f6cfa5b8a7487"
+license = "MIT"
+
+[[skill]]
+name = "marketingskills"
+repo = "https://github.com/coreyhaines31/marketingskills"
+commit = "1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff"
+paths = ["skills"]            # not tools/: its CLIs and partner picks are not installed
+sha256 = "b291f4ad212d7510a5d7e65a79bb4dbd657aa596d7331ad774bf6fc06047c492"
+license = "MIT"
+
+[[skill]]
+name = "brag"
+repo = "https://github.com/latent-spaces/brag"
+commit = "8531ccb9f471ef5099abf930079e47b55c55bb21"
+paths = ["skills/brag-slim"]  # brag-slim only, not the full brag and its 100 MB of sounds
+sha256 = "09cbfc6b65ea39de14325048dc952055223008818f7e3b9b6f166e8cea7d41e9"
+license = "MIT"

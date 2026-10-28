@@ -47,14 +47,11 @@ You need macOS or Linux, git, Node 22.19 or newer, and a coding agent you
 installed and signed in to yourself (Claude Code or Codex).
 
 ```sh
-git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-~/agent-office/bin/office tools   # herdr, treehouse and the agent tools you lack. Lists them and asks first
-~/agent-office/install.sh         # your config, herdr's config, the meter, the office and fm commands. Shows every change first
-herdr integration install claude  # herdr learns each agent's session, so the meter can read its size
+git clone https://github.com/ZyxWorks/agent-office ~/agent-office && ~/agent-office/bin/office setup
 ```
 
-Clone [Firstmate](https://github.com/kunchenguid/firstmate), and set
-`firstmate.code` in `~/.config/agent-office/config.toml` to where you put it.
+It asks four questions, installs the tools you lack, clones [Firstmate](https://github.com/kunchenguid/firstmate), writes the office and the agent working setup, and checks the result. Every step shows what it changes first and asks before it installs anything or changes a file of yours. It never asks for a token, an account, a name or an email address. Run it again any time: a step with nothing to do says so.
+
 Then:
 
 ```sh
@@ -116,7 +113,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf`, `backpass` | [their upstreams](https://github.com/kunchenguid) |
 | other agent tools | `chrome-devtools-mcp` (Chrome's DevTools for agents, which `chrome-devtools-axi` drives), `acpx` (the Agent Client Protocol from the command line), `gh` (`gh-axi` drives GitHub through it) | their upstreams |
-| agent integrations | herdr's Claude Code and Codex integrations. Installing the agent tools' skills is planned | upstream tools. You run `herdr integration install claude` (or `codex`) once; `office doctor` checks it |
+| agent integrations | herdr's Claude Code and Codex integrations, and the optional skill packs `office setup agents` checks out at pinned commits ([setup/README.md](setup/README.md#optional-skill-packs)) | upstream tools and, for the skill packs, their authors. You run `herdr integration install claude` (or `codex`) once; `office doctor` checks it |
 
 `jq` is also required: the meter reads transcripts with it. The `office`
 command needs `python3`, 3.8 or newer; the one macOS ships is enough. The
@@ -183,6 +180,7 @@ What each part does:
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
 | `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
+| `[setup]` | the agent working setup: test workers and subagents, models, the cold-cache minutes, branches, gate commands, review and captain preferences, Firstmate's switches, the Claude Code theme. Checked like the rest. `office setup` fills [setup/](setup)'s templates in from it |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm`, `office on`, `office off` and `office status` use `office.session` and `[firstmate]` except `source`. `treehouse.root` is only reported |
 
 The generated herdr config is written to
@@ -213,21 +211,23 @@ The rules the config follows:
 | command | what it does |
 |---|---|
 | `office install` | check the config, write the generated herdr config and the `office` command, link the meter plugin into herdr, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. |
+| `office setup` | the whole setup in one run, the one line after the clone: four questions while you have no config yet (your coding agent, where Firstmate goes, whether to write the agent working setup, test workers and subagents), then `office tools`, Firstmate cloned at a tested revision, `office install`, `office setup agents`, herdr's integration for your coding agent, and `office doctor`. Each step shows its changes first and asks before it installs anything or changes a file of yours. `--check` only plans; `--yes` asks nothing. |
+| `office setup agents` | write the agent working setup into your home from your `[setup]` keys: the agent rules (`~/AGENTS.md`, linked as `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), the review and release process, Claude Code's settings and hooks, Firstmate's model picks and switches, the no-mistakes and gnhf settings. Agent Office owns only what it puts in: a marked block, its own keys, its own files; yours stay. Shows every change first; asks before changing what you changed, and backs it up. `--check` only plans; `--remove` takes out what it put in. See [setup/README.md](setup/README.md). |
 | `office tools` | install the tools the office uses that are missing, at pinned versions, each through its owner. A tool you have is left as it is. Shows the list and asks first. `--check` only plans; `--workstation` adds the optional workstation tools. |
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect |
 | `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; attach. Running it again focuses what is there. Starts no workers. |
 | `office break` | detach only: the terminals `office on` and `fm` attached. Firstmate, the workers and the terminals keep running. herdr has no detach command, so a herdr you attached yourself detaches with its key, which `office break` prints. |
 | `office off` | stop this office: show what will stop, ask, let Firstmate save its work, and only when the save is confirmed stop the owned session and its meter. A session `office on` did not start is left running. It refuses while an agent in the session is working or waiting; asking Firstmate to drain its workers is planned. `--force`, confirmed separately on the terminal, stops when the save fails. Repos and worktree pools are kept. |
 | `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. Anything left running makes it exit non-zero. |
-| `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing. |
-| `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. |
+| `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, the agent working setup, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing. |
+| `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active; the agent working setup that `office setup agents` wrote, in place or behind. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. |
 | `office status` | read-only: what is running, what the office owns, meter health, pending restarts, and the result of the last `office off`. Unknown is never reported as healthy: it exits 1 on any problem. Pending updates are planned, with `office update`. |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` starts it. |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. Inside the office, `ctrl+space` then `?` shows herdr's own list. |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. |
 
-`office install`, `office config`, `office keys`, `office notify`, `office tools`, `office doctor`, `office update`, `office help`,
+`office install`, `office setup`, `office config`, `office keys`, `office notify`, `office tools`, `office doctor`, `office update`, `office help`,
 `office version`, `office on`, `office break`, `office off`, `office status`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
@@ -297,6 +297,7 @@ shows the plan, asks, and then works through it one component at a time:
 | a tool Nix or the system's packages own, or that sits somewhere else | | skipped: it tells you to update it there |
 | Firstmate | the newest tested revision | Firstmate's own updater when the checkout has one and its `origin` is at a tested revision; otherwise `git fetch` and `git merge --ff-only` to that revision |
 | the generated herdr config, meter settings and links | your config | `office install --yes`, with its backups |
+| the agent working setup, once `office setup agents` has written it | your config and this release's templates | `office setup agents --yes`, with its backups. A whole file you changed is never replaced: the new version goes beside it once, and then it is yours to compare. A block or key of Agent Office's that you changed is put back after the plan's one question, backed up first. A key you took out stays out. Off with `setup.enabled = false` |
 
 A self-updating tool's own `update` command is not run: herdr's, treehouse's
 and no-mistakes' each take no version and go to the latest release, which is
@@ -537,10 +538,12 @@ own herdr, config or office.
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
 | nothing private ships | `bin/leak-scan-probe` | throwaway git repositories |
 | the agent setup: `setup/`'s templates and the `[setup]` keys | `bin/setup-probe` | a stand-in user, rendered in memory, then `bin/leak-scan` |
+| `office setup agents`, `--check`, `--remove` | `bin/setup-home-probe` | throwaway homes with files of "yours" |
+| `office setup`, the one-line install | `bin/setup-all-probe` | throwaway homes, stand-in tools, a local Firstmate, a real herdr, the questions on a terminal |
 
 CI also runs `office tools` for real, on a Linux and a macOS machine that have
-none of the pinned tools: the GitHub release downloads with their SHA-256, the
-npm installs, then `office install` and `office doctor`. That run proves the
+none of the pinned tools: `office setup --yes`, so the GitHub release downloads with their SHA-256, the
+npm installs, the Firstmate clone, `office install`, `office setup agents` and `office doctor`. That run proves the
 pins and hashes in `config/components.toml` still exist.
 
 ## The tmux office (legacy)

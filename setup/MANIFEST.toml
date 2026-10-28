@@ -1,4 +1,4 @@
-# What `office setup` puts into your home, and how. setup/README.md explains each kind.
+# What `office setup agents` puts into your home, and how. setup/README.md explains each kind.
 #
 # Only the files listed here ship: a template is a file under setup/ that this list names, and
 # setup-probe fails on a file under setup/ that it does not name. A target is a path in your
@@ -15,6 +15,8 @@
 #   starter A whole file, written once when it is not there and never again.
 #   link    A symbolic link, made only when nothing is there.
 #   flags   One empty file per name in the config list `from`, in the folder `target`.
+#   vendor  A skill pack: the [[skill]] named `skill` in config/components.toml, checked out at
+#           its pinned commit and checked against its SHA-256. Updated only while it is unchanged.
 
 schema = 1
 
@@ -109,3 +111,57 @@ target = "~/.gnhf/config.yml"
 kind = "yaml"
 harness = "claude"
 why = "gnhf has no {{firstmate.harness}} permission override here, so its default would skip permissions: set agentArgsOverride.{{firstmate.harness}} yourself in ~/.gnhf/config.yml"
+
+[[file]]
+target = "{{office.vendors}}/no-ai-slop"
+skill = "no-ai-slop"
+kind = "vendor"
+when = "setup.skills.no_ai_slop"
+
+[[file]]
+source = "skills/no-ai-slop/SKILL.md"
+target = "~/.agents/skills/no-ai-slop/SKILL.md"
+kind = "owned"
+when = "setup.skills.no_ai_slop"
+
+[[file]]
+target = "~/.claude/skills/no-ai-slop"
+to = "~/.agents/skills/no-ai-slop"
+kind = "link"
+when = "setup.skills.no_ai_slop"
+
+[[file]]
+target = "{{office.vendors}}/marketingskills"
+skill = "marketingskills"
+kind = "vendor"
+when = "setup.skills.marketing"
+
+[[file]]
+source = "skills/marketing/SKILL.md"
+target = "~/.agents/skills/marketing/SKILL.md"
+kind = "owned"
+when = "setup.skills.marketing"
+
+[[file]]
+target = "~/.claude/skills/marketing"
+to = "~/.agents/skills/marketing"
+kind = "link"
+when = "setup.skills.marketing"
+
+[[file]]
+target = "{{office.vendors}}/brag"
+skill = "brag"
+kind = "vendor"
+when = "setup.skills.brag_slim"
+
+[[file]]
+source = "skills/brag-slim/SKILL.md"
+target = "~/.agents/skills/brag-slim/SKILL.md"
+kind = "owned"
+when = "setup.skills.brag_slim"
+
+[[file]]
+target = "~/.claude/skills/brag-slim"
+to = "~/.agents/skills/brag-slim"
+kind = "link"
+when = "setup.skills.brag_slim"

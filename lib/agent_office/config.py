@@ -63,6 +63,12 @@ def state_dir(env=None) -> Path:
     return _xdg(env, "XDG_STATE_HOME", ".local/state") / "agent-office"
 
 
+def vendors_dir(env=None) -> Path:
+    """Where the optional skill packs are checked out, each at the commit components.toml pins."""
+    env = os.environ if env is None else env
+    return _xdg(env, "XDG_DATA_HOME", ".local/share") / "agent-office" / "vendors"
+
+
 def herdr_dirs(env=None) -> tuple[Path, Path]:
     """herdr's own config and state folders: its plugins.json, and each plugin's state folder."""
     env = os.environ if env is None else env
@@ -172,6 +178,7 @@ KEYS = {
         "quiet": _boolean,
     },
     "setup": {
+        "enabled": _boolean,
         "machine": {"test_workers": _int_in(1, 256), "max_subagents": _int_in(0, 64)},
         "models": {"default": _MODEL, "mechanical": _MODEL, "gate": _MODEL},
         "tokens": {"cold_cache_minutes": _int_in(1, 1440), "auto_compact_tokens": _int_in(10_000, 10_000_000)},
@@ -183,6 +190,7 @@ KEYS = {
                     "review_surface": _text},
         "firstmate": {"startup_memory_budget": _int_in(0, 10_000_000), "flags": _names},
         "claude": {"theme": _boolean},
+        "skills": {"no_ai_slop": _boolean, "marketing": _boolean, "brag_slim": _boolean},
     },
 }
 
@@ -438,7 +446,7 @@ def meter_settings(cfg: dict) -> str:
     return json.dumps({"schema": 1, **{k: m[k] for k in keys}}, indent=2) + "\n"
 
 
-def herdr_check(text: str) -> tuple[bool, str]:
+def herdr_check(text: str, env=None) -> tuple[bool, str]:
     """Ask herdr itself. It reads the file and talks to no server.
 
     The file sits in a scratch folder with the preset's sounds next to it, because herdr
@@ -451,7 +459,7 @@ def herdr_check(text: str) -> tuple[bool, str]:
         sounds.mkdir()
         for f in PRESET_SOUNDS.iterdir():
             (sounds / f.name).write_bytes(f.read_bytes())
-        env = dict(os.environ, HERDR_CONFIG_PATH=str(cfg))
+        env = dict(os.environ if env is None else env, HERDR_CONFIG_PATH=str(cfg))
         try:
             got = subprocess.run(["herdr", "config", "check"], env=env, capture_output=True, text=True)
         except FileNotFoundError:
