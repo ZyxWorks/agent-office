@@ -54,7 +54,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import config as C
-from . import doctor, install, tools
+from . import doctor, install, setup_home, tools
 from .tools import Failed
 
 MANIFEST = doctor.MANIFEST
@@ -274,7 +274,8 @@ class Update:
                 *(self.tool(c) for c in listed if c.get("profile") == "workstation" and self.tools.which(c["command"])),
                 *(self.tool(h) for h in harness),
                 self.firstmate(self.cfg["firstmate"], comps.get("firstmate", {})),
-                self.config()]
+                self.config(),
+                self.agents()]
         for it in rest:
             it.staged = self.next is not None
         return [office, *rest]
@@ -612,6 +613,48 @@ class Update:
         if install.run(["--yes"], self.env, out, err) != 0 or self._behind():
             raise Failed((err.getvalue() or out.getvalue()).strip() or "office install left files behind")
         return "written by office install"
+
+    def agents(self) -> Item:
+        """The agent working setup that office setup agents wrote: kept current, never started here."""
+        it = Item("agent setup", "", "this release", "office setup agents")
+        if not self.cfg["setup"]["enabled"]:
+            it.have, it.note = "off", "setup.enabled is false"
+            return it
+        st = setup_home.Setup(self.env, self.out)
+        if not st.manifest["owned"]:
+            it.have, it.note = "not set up", "`office setup agents` writes it; office update only keeps it current"
+            return it
+        try:
+            steps = st.plan(self.cfg)
+        except C.ConfigError as e:
+            it.have, it.blocker = "unknown", "a template has problems: " + "; ".join(e.problems)
+            return it
+        except (OSError, UnicodeDecodeError) as e:
+            it.have, it.blocker = "unknown", str(e)
+            return it
+        steps = setup_home.behind(steps)
+        it.have = f"{len(steps)} file(s) behind" if steps else "in place"
+        if self.next is not None:
+            it.target = f"release {self.next.rev[:12]}"
+            it.action = ("office setup agents --yes, as the release Agent Office moves to writes it. Run "
+                         "`office update --check` again after the move to see its diff")
+            it.run = self._agents
+            return it
+        if steps:
+            it.action = "office setup agents --yes: " + ", ".join(
+                self.show(s.path) + (" (backed up first)" if s.asks else "") for s in steps)
+            it.run = self._agents
+            for s in (s for s in steps if s.diff):
+                it.parts.append(f"{s.kind} {self.show(s.path)}: {s.what}")
+                it.parts += ["  " + line for line in s.diff]
+        return it
+
+    def _agents(self) -> str:
+        out, err = io.StringIO(), io.StringIO()
+        if setup_home.run(["--yes"], self.env, out, err) != 0 or \
+                setup_home.behind(setup_home.Setup(self.env, io.StringIO()).plan(C.load(C.config_path(self.env)))):
+            raise Failed((err.getvalue() or out.getvalue()).strip() or "office setup agents left files behind")
+        return "written by office setup agents"
 
     def print_plan(self, items: list):
         heads = ("", "", "installed", "target", "owner (updates it)")

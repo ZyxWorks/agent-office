@@ -485,6 +485,9 @@ class Setup(install.Installer):
                                 self._diff(cur, data, p.name), record)
         beside = p.with_name(p.name + NEW)
         why = "changed by hand" if self.prev(p) else "not written by Agent Office"
+        if beside.is_file() and not beside.is_symlink() and beside.read_bytes() == data:
+            return install.Step("manual", p, f"{what}: {why}, and the new version is beside it, "
+                                f"{self.show(beside)}: compare the two, keep what you want, delete the {NEW} file")
         # yours is never replaced: the new version goes beside it, and the record stays as it was
         return install.Step("beside", beside, f"{what}: {self.show(p)} is {why}, so the new version "
                             "goes beside it; compare the two and keep what you want",
@@ -706,6 +709,11 @@ WHAT = {
     "link": "one rules file for every agent",
     "flags": "a Firstmate switch",
 }
+
+
+def behind(steps: list) -> list:
+    """The steps of a plan that would change something: what office update and office doctor count."""
+    return [s for s in steps if s.kind not in ("keep", "manual")]
 
 
 def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:

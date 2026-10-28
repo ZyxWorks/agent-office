@@ -12,6 +12,7 @@ real terminal (a pty). No network, no herdr server.
 """
 
 import hashlib
+import io
 import os
 import pty
 import select
@@ -26,6 +27,7 @@ REPO = Path(__file__).resolve().parent.parent
 OFFICE = REPO / "bin" / "office"
 sys.path.insert(0, str(REPO / "lib"))
 from agent_office import config as C  # noqa: E402
+from agent_office import update  # noqa: E402
 
 fails = 0
 
@@ -131,6 +133,19 @@ def head(path):
     return r.stdout.strip()
 
 
+def doctor(h):
+    return subprocess.run([sys.executable, str(OFFICE), "doctor"], env=h.env(), capture_output=True, text=True,
+                          stdin=subprocess.DEVNULL, start_new_session=True, timeout=120)
+
+
+def agents(h):
+    """office update's plan for the agent setup in this home. Only that item: the rest of the plan
+    looks at this checkout's remote."""
+    env = h.env()
+    cfg = C.load(C.config_path(env))
+    return update.Update(env, io.StringIO(), cfg, {}, "probe").agents()
+
+
 def main():
     try:
         cases()
@@ -175,6 +190,35 @@ def cases():
     r = h.run("--yes")
     check("a second run changes nothing", r.returncode == 0 and h.snapshot() == before
           and "Firstmate is there already" in r.stdout and "integration is current" in r.stdout, out(r))
+
+    print("office doctor and office update keep the agent setup current")
+    check("office doctor says it is in place", "agent setup:" not in r.stdout
+          and any(l.split()[:4] == ["agent", "setup", "in", "place"] for l in r.stdout.splitlines()), out(r))
+    item = agents(h)
+    check("office update has nothing to do for it", item.run is None and item.have == "in place", item.have)
+    cfg = h.p(".config/agent-office/config.toml")
+    cfg.write_text(cfg.read_text() + "[setup.machine]\ntest_workers = 5\n")
+    r = doctor(h)
+    check("a changed config: office doctor names the files behind, and what to run",
+          "file(s) behind" in r.stdout and "agent setup: older than your config or this release: run `office "
+          "setup agents`" in r.stdout, out(r))
+    item = agents(h)
+    check("office update plans office setup agents, with the diff", item.run is not None
+          and "office setup agents --yes: ~/AGENTS.md" in item.action
+          and any("test runners with 5 workers" in l for l in item.parts), item.action + "\n".join(item.parts))
+    said = item.run()
+    check("and runs it: the new value is in, and nothing is behind after",
+          "test runners with 5 workers" in h.p("AGENTS.md").read_text() and agents(h).run is None, said)
+    hook = h.p(".claude/hooks/agents-md.py")
+    hook.write_text(hook.read_text() + "# my change\n")
+    item = agents(h)
+    check("a file you changed: the new version goes beside it once", item.run is not None
+          and "agents-md.py.agent-office-new" in item.action, item.action)
+    item.run()
+    r = doctor(h)
+    check("then it is left for you, not behind: office doctor has no problem with it",
+          agents(h).run is None and "left for you" in r.stdout and "agent setup:" not in r.stdout
+          and hook.read_text().endswith("# my change\n"), out(r))
 
     print("the questions, on a terminal")
     h = Home()
