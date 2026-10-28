@@ -8,7 +8,7 @@ import sys
 
 from . import config as C
 from . import doctor, install, lifecycle, tools
-from . import dictate, notify
+from . import dictate, notify, project
 from . import setup_all
 from . import update
 
@@ -50,6 +50,8 @@ office: Agent Office, one command for the whole agent setup.
                                      saves first, and a failed save stops nothing. A busy
                                      worker refuses it, or --stop-workers has Firstmate stop it
                                      first. A session office on did not start is never stopped
+  office open [<project>] | --list   go to a project's space in the office session, or make
+                                     one: fzf over Firstmate's projects and open.roots
   office status                      read-only: what runs, what the office owns, the meter,
                                      pending restarts, the last office off
   office update [--check] [--yes]    bring every component to the versions this release is
@@ -126,6 +128,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return _config(rest, out, err)
     if verb in ("on", "break", "off", "status"):
         return lifecycle.run(verb, rest, out=out, err=err)
+    if verb == "open":
+        return project.run(rest, out=out, err=err)
     if verb == "notify":
         return notify.run(rest, out=out, err=err)
     if verb == "dictate":

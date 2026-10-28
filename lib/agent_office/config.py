@@ -149,6 +149,16 @@ def _plain(pattern, what):
     return check
 
 
+def _paths(v):
+    if not isinstance(v, list):
+        return "must be a list of folders, each an absolute path or starting with ~/"
+    for x in v:
+        err = _path(x)
+        if err:
+            return f"has a folder that {err}"
+    return None
+
+
 def _names(v):
     if not isinstance(v, list) or any(not isinstance(x, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", x)
                                       for x in v):
@@ -172,6 +182,7 @@ KEYS = {
         "harness": _one_of("claude", "codex"),
     },
     "treehouse": {"root": _path},
+    "open": {"roots": _paths},
     "meter": {
         "enabled": _boolean,
         "interval_seconds": _int_in(5, 3600),

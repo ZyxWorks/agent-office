@@ -133,6 +133,8 @@ with fake `brew`, `npm`, `herdr` and `curl` on `PATH` and local bare
 repositories as the remotes: it needs `git`, no network and no herdr, and it
 updates nothing on your machine.
 
+Touched `office open` (`lib/agent_office/project.py`, `[open]`)? Run `bin/open-probe`, and on macOS once more as `/usr/bin/python3 bin/open-probe`. It needs no herdr server and no fzf: stand-ins for both answer, in a throwaway `$HOME`.
+
 Touched `fm` (`bin/fm`, `lib/agent_office/fm.py`)? Run `bin/fm-probe`. It needs
 `herdr` on your `PATH` and starts a herdr server of its own, in a throwaway
 `$HOME` under `/tmp`, with a stand-in for Firstmate; it stops that server at
