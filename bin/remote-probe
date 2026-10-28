@@ -37,6 +37,7 @@ shim.mkdir()
 log = root / "herdr.log"
 (shim / "herdr").write_text(f"""#!/bin/sh
 echo "$*" >> '{log}'
+[ "$FAKE_HERDR" = garbled ] && {{ echo nonsense; exit 0; }}
 if [ "$FAKE_HERDR" = running ]; then echo '{{"server":{{"running":true}}}}'; else echo '{{"server":{{"running":false}}}}'; fi
 """)
 (shim / "tailscale").write_text('#!/bin/sh\n[ "$1 $2" = "status --json" ] && cat "$FAKE_TS"\n')
@@ -119,6 +120,10 @@ check("start it at this machine, not from the phone", "Start the office at this 
 check("and no ssh line to type", "ssh " not in r.stdout.split("Not ready.")[1].split("\n")[0], r.stdout)
 r = remote(herdr=None)
 check("no herdr: exit 1, said so", r.returncode == 1 and "herdr is not installed" in r.stdout, r.stdout + r.stderr)
+check("and no office on to run without it", "Start the office" not in r.stdout, r.stdout)
+r = remote(herdr="garbled")
+check("herdr answers in no JSON: unknown, exit 1", r.returncode == 1 and "office      unknown" in r.stdout
+      and "herdr did not say" in r.stdout, r.stdout + r.stderr)
 r = remote(port=CLOSED)
 check("nothing on the SSH port: exit 1", r.returncode == 1 and "nothing answers on port" in r.stdout,
       r.stdout + r.stderr)

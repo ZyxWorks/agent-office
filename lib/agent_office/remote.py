@@ -85,8 +85,13 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
         todo.append(str(e))
     if running is True:
         office = f"herdr session '{session}' is running"
+    elif running is None:
+        office = "unknown"
+        if not todo:
+            todo.append(f"herdr did not say whether session '{session}' runs (`herdr --session {session} "
+                        "status`): check that herdr works here.")
     else:
-        office = f"herdr session '{session}' is not running" if running is False else "unknown"
+        office = f"herdr session '{session}' is not running"
         # A server takes the environment of the shell that starts it and hands it to every agent.
         # Started from an SSH login, that is the SSH session's, and on macOS an agent there may
         # not reach the login keychain its sign-in is in.
