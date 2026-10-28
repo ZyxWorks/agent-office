@@ -102,6 +102,21 @@ def records(env) -> list:
     return [r for r in found if r]
 
 
+def broken(env, session: str | None = None) -> list:
+    """The record files that do not read as one office on wrote (all of them, or this session's).
+    Each may name a server this installation started, so a stop reports it as not done instead of
+    passing over it as if there were nothing to stop."""
+    d = C.state_dir(env) / "offices"
+    paths = [record_path(session, env)] if session else sorted(d.glob("*.json")) if d.is_dir() else []
+    return [p for p in paths if (p.exists() or p.is_symlink()) and not _record(p)]
+
+
+def _broken_detail(p: Path, show) -> str:
+    return (f"its record {show(p)} does not read as one office on wrote, so whether the server under that name "
+            "is one this installation started cannot be proven. Nothing was stopped and the record is kept: "
+            "look at it, then remove it")
+
+
 def _forget(session: str, env):
     for p in (record_path(session, env), fm.clients_path(session, env)):
         try:
@@ -718,16 +733,19 @@ def off(args, env, out, err) -> int:
         return 1
     try:
         recs = records(env) if everything else [r for r in [_record(record_path(session, env))] if r]
-        if not recs:
+        bad = broken(env, None if everything else session)
+        if not recs and not bad:
             return _nothing(session, everything, env, out, err)
         ts = [Target(r, _office(r, cfg, env, "office off"), env) for r in recs]
         ts.sort(key=lambda t: t.inside)  # the session this command sits in goes last
         print(f"{who}: this stops" + (" every office this installation started" if everything else "") + ":", file=out)
         for t in ts:
             _plan(t, show, out, stop_workers)
+        for p in bad:
+            print(f"  office '{p.stem}': its record {show(p)} cannot be read. Nothing is stopped.", file=out)
         print("Kept: repos, worktrees, worktree pools and Firstmate's own records. Nothing is deleted.", file=out)
         if everything:
-            _others(env, {t.session for t in ts if t.state != "stopped"}, out)
+            _others(env, {t.session for t in ts if t.state != "stopped"} | {p.stem for p in bad}, out)
         if any(t.state == "owned" for t in ts) and not yes:
             out.flush()
             if not _confirm("Stop " + ("them" if everything and len(ts) > 1 else "it") + "? [y/N] "):
@@ -736,6 +754,10 @@ def off(args, env, out, err) -> int:
                 return 1
         run = Run(env, everything)
         code = 0
+        for p in bad:
+            run.set(p.stem, "incomplete", _broken_detail(p, show))
+            print(f"{who}: office '{p.stem}': INCOMPLETE: {_broken_detail(p, show)}.", file=err)
+            code = 1
         cancelled = False
         for t in ts:
             if cancelled:  # Ctrl-C ends the whole command, not one office of it
@@ -822,6 +844,8 @@ def status(args, env, out, err) -> int:
                                              "say whether it still serves the session"])
     if running is True:
         _running(o, rep, srv, env)
+    for p in broken(env):
+        rep.fact(f"office '{p.stem}', record", "unreadable", problems=[_broken_detail(p, rep.show) + "."])
     mine = [r for r in records(env) if r["session"] != session]
     for r in mine:
         st = _state(r, fm.Herdr(r["session"], env))[0]

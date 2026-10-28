@@ -8,7 +8,7 @@ import sys
 
 from . import config as C
 from . import doctor, install, lifecycle, tools
-from . import dictate, notify, project
+from . import dictate, notify, project, remote
 from . import setup_all
 from . import update
 
@@ -35,6 +35,8 @@ office: Agent Office, one command for the whole agent setup.
   office dictate [--pane PANE] | cancel
                                      push-to-talk, if [dictate] is on: run once to record,
                                      again to type the words into the pane. Local whisper.cpp
+  office remote                      read-only: can your phone reach the running office over
+                                     SSH and Tailscale, and what to type there. Turns nothing on
   office tools [--check] [--yes]     install the missing tools the office uses, at pinned
                [--workstation]       versions, each through its owner; --workstation adds
                                      generic command-line tools
@@ -134,6 +136,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return notify.run(rest, out=out, err=err)
     if verb == "dictate":
         return dictate.run(rest, out=out, err=err)
+    if verb == "remote":
+        return remote.run(rest, out=out, err=err)
     if verb == "keys":
         # a text file, so changing a key means editing preset/keys.txt; preset-probe checks it
         print((C.REPO / "preset" / "keys.txt").read_text(), end="", file=out)
