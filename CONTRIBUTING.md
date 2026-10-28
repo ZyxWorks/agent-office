@@ -120,6 +120,8 @@ Touched dictation (`herdr/dictate`, `lib/agent_office/dictate.py`, `[dictate]`)?
 
 Touched the editor pane (`herdr/editor`, `lib/agent_office/editor.py`, `editor/nvim/`, `[editor]`, `[[nvim_plugin]]`)? Run `bin/editor-probe`, and on macOS once more as `/usr/bin/python3 bin/editor-probe`. It needs no herdr server and no network: stand-ins for `herdr` and the editors, and a local repository for the plugins. With nvim installed it also starts the shipped config, headless.
 
+Touched `office remote` (`lib/agent_office/remote.py`)? Run `bin/remote-probe`, and on macOS once more as `/usr/bin/python3 bin/remote-probe`. It needs no herdr server, no SSH server and no network: stand-ins for `herdr` and `tailscale`, and a local port of its own for SSH.
+
 Touched `office install`, `office tools`, `office doctor` or the config (`bin/office`, `lib/`,
 `config/`)? Run `bin/install-probe`. Every case runs in a throwaway `$HOME`; it needs `herdr` on
 your `PATH` but no herdr server. On macOS run it once more as

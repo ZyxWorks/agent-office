@@ -233,8 +233,9 @@ The rules the config follows:
 | `office dictate` / `office dictate cancel` | push-to-talk, if `[dictate]` is on: the first run records from the microphone, the next one stops, transcribes on this machine and types the words into the focused pane, without Enter. `prefix+m` runs it. `cancel` throws the recording away. See [Dictation](#dictation). |
 | `office editor` / `office editor --pane PANE` | if `[editor]` is on: the editor in this folder's worktree, or a new pane next to `PANE` that runs it in the worktree of `PANE`'s agent. `prefix+f` runs the second one. See [Editor](#editor). |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. |
+| `office remote` | read-only: can your phone reach the running office, and what to type there. Checks the office's herdr session, an SSH server on this machine and Tailscale, then prints the `ssh` line and `office on`, or what is missing. Turns nothing on and opens no port. See [From your phone](#from-your-phone). |
 
-`office install`, `office setup`, `office config`, `office keys`, `office dictate`, `office editor`, `office notify`, `office tools`, `office doctor`, `office update`, `office help`,
+`office install`, `office setup`, `office config`, `office keys`, `office dictate`, `office editor`, `office notify`, `office remote`, `office tools`, `office doctor`, `office update`, `office help`,
 `office version`, `office on`, `office break`, `office off`, `office status`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
@@ -569,6 +570,32 @@ Set it up once:
 
 `office doctor` then reports the editor pane as on, and names anything that is missing.
 
+## From your phone
+
+Look at the office, answer an agent or start a task from your phone, the same way a second terminal does it: an SSH app logs in to this machine over a private network, and `office on` there attaches to the office that already runs. There is no office server and no new port: it is SSH, which you turn on yourself, and herdr, which takes more than one terminal at once. Your terminal at the desk stays attached. Closing the app on the phone only detaches it, and everything keeps running. It is off until you set it up, and Agent Office turns none of it on for you.
+
+Set it up once:
+
+1. **A private network.** Install [Tailscale](https://tailscale.com/download) on this machine and on your phone, signed in to the same account. Any other private network or VPN works the same way, but `office remote` checks only Tailscale. Never forward the SSH port to the internet.
+2. **SSH on this machine.** On macOS: System Settings > General > Sharing > Remote Login, and under its (i) allow only your own user. On Linux: your distribution's OpenSSH server (`apt install openssh-server`). That listens on port 22 on every network the machine joins, not only Tailscale's, so sign in with a key: make one in your phone's SSH app and add its public key to `~/.ssh/authorized_keys` here. Agent Office writes no key and no SSH config.
+3. **An SSH app on the phone**, such as Blink or Termius on iOS, or Termius or JuiceSSH on Android.
+4. **Check it** at this machine:
+
+   ```sh
+   office remote
+   ```
+
+   It says whether the office runs, whether something answers on port 22 and what Tailscale calls this machine. When all three are there, it prints the two lines to type on the phone:
+
+   ```sh
+   ssh <you>@<this-machine>.<tailnet>.ts.net
+   office on
+   ```
+
+   Otherwise it says what is missing and exits 1.
+
+Start the office at this machine, and from the phone only attach. An office takes the environment of the shell that starts it and hands it to every agent: started from an SSH login, that is the SSH session's, and on macOS an agent there may not reach the login keychain it signed in with. On the phone, `ctrl+space` `d` detaches (or close the app), and `office break` at the desk detaches the phone too.
+
 ## What stays private
 
 The public package holds nothing personal. These live only in your own
@@ -629,6 +656,7 @@ own herdr, config or office.
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
 | dictation | `bin/dictate-probe` | stand-ins for rec, whisper-cli and herdr |
 | the editor pane: `office editor`, its plugins, its nvim config | `bin/editor-probe` | stand-ins for herdr and the editors, a local plugin repository, nvim itself when installed |
+| `office remote` | `bin/remote-probe` | stand-ins for herdr and Tailscale, an SSH port of its own |
 | nothing private ships | `bin/leak-scan-probe` | throwaway git repositories |
 | the agent setup: `setup/`'s templates and the `[setup]` keys | `bin/setup-probe` | a stand-in user, rendered in memory, then `bin/leak-scan` |
 | `office setup agents`, `--check`, `--remove` | `bin/setup-home-probe` | throwaway homes with files of "yours" |

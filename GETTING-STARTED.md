@@ -258,6 +258,8 @@ whatever knows a PR is ready calls `office notify pr-ready <url>` itself;
 quiet mode holds those. The URL stays in your file: no default ships, and a
 failed send never prints it.
 
+To answer that agent from the phone too, attach to the office over SSH: `office remote` checks what that needs, and [From your phone](README.md#from-your-phone) has the setup.
+
 ## The preset and the meter in a herdr of your own
 
 You do not need `office on` to use them. In a herdr you run yourself:
