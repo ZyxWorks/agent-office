@@ -28,6 +28,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "lib"))
 from agent_office import tools  # noqa: E402
+from agent_office.cli import VERSION as CLI_VERSION  # noqa: E402
 
 PLAT = tools.platform_key()
 GIT = shutil.which("git")
@@ -74,6 +75,7 @@ class Home:
         self.office = self.home / "agent-office"
         self.fm = self.home / "firstmate"
         os.symlink(GIT, self.bin / "git")
+        os.symlink(shutil.which("bash") or "/bin/bash", self.bin / "bash")   # Firstmate's parser runs in it
 
     def env(self, **extra):
         env = {k: v for k, v in os.environ.items()
@@ -244,6 +246,13 @@ name = "ripgrep"
 command = "rg"
 brew = "ripgrep"
 profile = "workstation"
+[[harness]]
+name = "claude"
+command = "claude"
+update = "claude update"
+[[harness]]
+name = "codex"
+command = "codex"
 [firstmate]
 tested = [{", ".join(f'"{t}"' for t in tested)}]
 {f'update = "{fm_update}"' if fm_update else ""}
@@ -261,6 +270,7 @@ def kit(h, odd=False, **have):
     h.program("brew/Cellar/jq/1.8.2/bin/jq", "jq-1.8.2")
     h.program("node/lib/node_modules/gh-axi/dist/bin/gh-axi.js", v["gh_axi"])
     h.program("node/lib/node_modules/quota-axi/dist/bin/quota-axi.js", "0.1.55")
+    h.program(".claude/local/claude", "2.1.0")                          # the harness: claude, the default
     if odd:
         h.program("node/lib/node_modules/chrome-devtools-axi/dist/bin/chrome-devtools-axi.js", "0.1.30")
         h.program("node/lib/node_modules/lavish-axi/dist/bin/lavish-axi.js", "9.9.9")     # newer than the pin
@@ -356,11 +366,15 @@ for name, want in (("agent-office", rf"update: \w{{12}} +{tip[:12]} +git, origin
                    ("herdr", r"update: 0\.9\.0 +0\.9\.1 +itself \(herdr update\)"),
                    ("treehouse", r"update: 3\.0\.0 +3\.1\.0 +Homebrew \(treehouse\)"),
                    ("no-mistakes", r"update: 1\.83\.0 +1\.84\.0 +itself \(no-mistakes update\)"),
-                   ("gh-axi", r"update: 0\.1\.30 +0\.1\.35 +npm, global \(gh-axi\)"),
+                   # the release it moves to pins 0.1.36, and that release is what applies the rest
+                   ("gh-axi", r"update: 0\.1\.30 +0\.1\.36 +npm, global \(gh-axi\)"),
                    ("quota-axi", r"ok: 0\.1\.55 +0\.1\.55 +npm, global \(quota-axi\)"),
                    ("firstmate", rf"update: {fm_old[:12]} +{fm_new[:12]} +git, origin \(firstmate\.source\)"),
-                   ("config", r"update: 7 file\(s\) behind +this release +office install")):
+                   ("config", rf"update: 7 file\(s\) behind +release {tip[:12]} +office install")):
     check(f"{name}: installed, target, owner", re.fullmatch(want, plan.get(name, "")), said)
+check("one target set: the targets are the release the checkout moves to",
+      f"Targets: the release at {tip[:12]} (office " in said, said)
+check("no temporary repository is left behind", not list(Path(tempfile.gettempdir()).glob("office-update.*")))
 for name, want in (
         ("agent-office", f"runs: git fetch origin refs/heads/main, then git merge --ff-only {tip[:12]}, in ~/agent-office"),
         ("herdr", "runs: its release asset herdr-test at 0.9.1, SHA-256 checked, over ~/.local/bin/herdr "
@@ -369,17 +383,23 @@ for name, want in (
         ("treehouse", "runs: brew upgrade --formula treehouse, when Homebrew has 3.1.0 (asked first)"),
         ("no-mistakes", "runs: its release asset nm-test.tar.gz at 1.84.0, SHA-256 checked, over ~/.no-mistakes/bin/no-mistakes"),
         ("no-mistakes", "restart: `no-mistakes daemon restart`, for what already runs"),
-        ("gh-axi", "runs: npm install -g --ignore-scripts gh-axi@0.1.35"),
+        ("agent-office", "restart: nothing: the next office command runs the new release"),
+        ("agent-office", "cli: office 1.0.0-dev, the same version"),
+        ("agent-office", "preset: unchanged"),
+        ("herdr", "(the session office is not running, so nothing old runs)"),
+        ("gh-axi", "runs: npm install -g --ignore-scripts gh-axi@0.1.36"),
         ("gh-axi", "restart: nothing, the next run uses it"),
         ("firstmate", f"runs: git fetch origin, then git merge --ff-only {fm_new[:12]}, in ~/firstmate"),
         ("firstmate", "restart: a running Firstmate: `fm restart`"),
-        ("config", "runs: office install --yes: ~/.local/state/agent-office/herdr/config.toml"),
+        ("firstmate", "secondmates: none registered, so only this checkout moves"),
+        ("config", "runs: office install --yes, as the release Agent Office moves to writes it"),
         ("backpass", "blocker: backpass is not on PATH: `office tools` installs it"),
         ("gnhf", "blocker: nothing says how ~/fakebin/gnhf is updated (owner unknown)"),
         ("lavish-axi", "blocker: 9.9.9 is newer than the target 0.1.79: Agent Office never downgrades")):
     check(f"{name}: {want[:70]}", want in under(said, name), said)
-check("a tool with no pin is left to its owner; a workstation tool you lack is not missed",
-      "no version pinned, so their owner decides: jq" in said and "ripgrep" not in said, said)
+check("a tool with no pin is left to its owner, your harness too; a workstation tool you lack is not missed",
+      "no version pinned, so their owner decides: jq, claude" in said and "ripgrep" not in said
+      and "codex" not in said, said)
 check("your home is never printed", str(h.home) not in said + r.stderr, said)
 
 print("office update: asks first")
@@ -408,7 +428,7 @@ for name, want in (("agent-office", r"updated: \w{12} -> " + tip[:12] + r" \(ear
                    ("firstmate", rf"updated: {fm_old[:12]} -> {fm_new[:12]}"),
                    ("config", r"updated: written by office install")):
     check(f"{name}: {want[:60]}", re.fullmatch(want, got.get(name, "")), said)
-check("and the counts", "6 updated, 2 unchanged, 3 skipped, 1 failed, 1 updated on disk but not yet active." in said, said)
+check("and the counts", "6 updated, 3 unchanged, 3 skipped, 1 failed, 1 updated on disk but not yet active." in said, said)
 calls = h.calls()
 check("the rest ran from the new release: npm got its pin, not the old one",
       "npm install -g --ignore-scripts gh-axi@0.1.36" in calls and not any("gh-axi@0.1.35" in c for c in calls), str(calls))
@@ -447,12 +467,65 @@ check("then nothing is left: all unchanged, exit 0, nothing but the record writt
       and set(v.split(":")[0] for v in rows(r.stdout.split("Results:")[-1]).values()) == {"unchanged"}
       and {k: v for k, v in h.snapshot().items() if k != str(h.record)} == before, r.stdout + r.stderr)
 
+h.done()
+
+print("office update --check: the CLI, preset and meter move as one release")
+h = Home()
+kit(h, gh_axi="0.1.30")
+plugin = h.office / "herdr" / "herdr-plugin.toml"
+meter = re.search(r'^version = "(.*)"$', plugin.read_text(), re.M).group(1)
+
+
+def release(work):
+    for f, pat, new in (("lib/agent_office/cli.py", r'^VERSION = ".*"$', 'VERSION = "9.9.9"'),
+                        ("herdr/herdr-plugin.toml", r'^version = ".*"$', 'version = "9.9.1"')):
+        (work / f).write_text(re.sub(pat, new, (work / f).read_text(), count=1, flags=re.M))
+    (work / "preset" / "herdr" / "config.toml").write_text((work / "preset" / "herdr" / "config.toml").read_text() + "# next\n")
+
+
+tip = h.upstream(h.root / "office.git", release)
+(h.home / "herdr-status.json").write_text(json.dumps({"running": True, "version": "0.9.1", "socket": "/x/s.sock"}) + "\n")
+r = h.run("--check")
+part = under(r.stdout, "agent-office")
+check("the targets are the new release's", f"Targets: the release at {tip[:12]} (office 9.9.9)" in r.stdout, r.stdout)
+for want in (f"cli: office {CLI_VERSION} -> 9.9.9",
+             "preset: 1 file(s) change: preset/herdr/config.toml; office install writes the herdr config from it",
+             f"meter: {meter} -> 9.9.1, 1 file(s) change: herdr/herdr-plugin.toml",
+             "restart: the herdr config and the meter of a running office session (the session office runs now, on herdr 0.9.1)"):
+    check(f"agent-office: {want[:60]}", want in part, r.stdout)
+check("a running session is named where a restart of it activates the update",
+      "(the session office runs now, on herdr 0.9.1)" in under(r.stdout, "config"), r.stdout)
+# the move fails: git cannot take the index lock, so the checkout stays on this release
+(h.office / ".git" / "index.lock").write_text("")
+n = len(h.calls())
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("when Agent Office does not move, nothing planned from the new release is applied", r.returncode == 1
+      and got.get("agent-office", "").startswith("failed: ")
+      and got.get("gh-axi") == "skipped: planned from the release Agent Office was to move to, which it did not: run office "
+                               "update again"
+      and not [c for c in h.calls()[n:] if c.startswith(("npm", "curl", "brew"))], r.stdout + str(h.calls()[n:]))
+h.done()
+
 print("office update: a checkout that cannot be fast-forwarded blocks, and only itself")
+h = Home()
+kit(h)
 tip = h.upstream(h.root / "office.git", bump("0.1.36"))
 (h.office / "bin" / "office").write_text((h.office / "bin" / "office").read_text() + "# mine\n")
 r = h.run("--check")
-check("dirty: uncommitted changes block it", r.returncode == 0
-      and "blocker: 1 tracked file(s) in ~/agent-office have uncommitted changes (dirty)" in under(r.stdout, "agent-office"), r.stdout)
+check("dirty: uncommitted changes block it, and it says the update does not touch them", r.returncode == 0
+      and "blocker: 1 tracked file(s) in ~/agent-office have uncommitted changes (dirty); the update changes none "
+          "of them: bin/office." in under(r.stdout, "agent-office"), r.stdout)
+m = h.office / "config" / "components.toml"
+kept = m.read_text()
+m.write_text(kept + "# mine too\n")
+r = h.run("--check")
+check("a dirty file the update changes too is named as a conflict",
+      "2 tracked file(s) in ~/agent-office have uncommitted changes (dirty); the update changes 1 of them too, so "
+      "they conflict: config/components.toml." in under(r.stdout, "agent-office"), r.stdout)
+check("blocked, it plans with this release's targets", "Targets: this release (office " in r.stdout
+      and re.fullmatch(r"ok: 0\.1\.35 +0\.1\.35 .*", rows(r.stdout).get("gh-axi", "")), r.stdout)
+m.write_text(kept)
 h.git(h.office, "commit", "-qam", "mine")
 head = h.git(h.office, "rev-parse", "HEAD")
 r = h.run("--check")
@@ -486,8 +559,11 @@ check("no tested revision: no target, so it is blocked", "blocker: no Firstmate 
 m.write_text(m.read_text().replace("tested = []", f'tested = ["{new}"]'))
 (h.fm / "AGENTS.md").write_text("mine\n")
 r = h.run("--check")
-check("a dirty Firstmate checkout blocks it", "blocker: 1 tracked file(s) in ~/firstmate have uncommitted changes (dirty)"
-      in under(r.stdout, "firstmate"), r.stdout)
+check("a dirty Firstmate checkout blocks it, and a file the tested revision changes too is a conflict",
+      "blocker: 1 tracked file(s) in ~/firstmate have uncommitted changes (dirty); the update changes 1 of them too, "
+      "so they conflict: AGENTS.md." in under(r.stdout, "firstmate"), r.stdout)
+check("that revision was read without fetching into the checkout",
+      subprocess.run([GIT, "-C", str(h.fm), "cat-file", "-e", new], capture_output=True).returncode != 0)
 h.git(h.fm, "checkout", "-q", "--", "AGENTS.md")
 cfg = h.home / ".config" / "agent-office" / "config.toml"
 text = cfg.read_text()
@@ -516,7 +592,38 @@ new = h.upstream(h.root / "fm.git", touch)
 m = h.office / "config" / "components.toml"
 m.write_text(re.sub(r'\[firstmate\]\ntested = \[.*\]', f'[firstmate]\ntested = ["{"0" * 40}"]\nupdate = "bin/fm-update.sh"',
                     m.read_text()))
+# the registry its updater sweeps: one secondmate here, one on another host, one line it cannot read
+reg = h.home / "fm-home" / "data" / "secondmates.md"
+reg.parent.mkdir()
+reg.write_text("# Secondmates\n"
+               "- web - Runs the web work. (home: /srv/homes/web; scope: web; projects: site; added 2026-10-01)\n"
+               "- far - Runs the far work. (host: buildbox; root: /srv/fm; home: /srv/fm-far; scope: far; projects: a; "
+               "added 2026-10-02)\n"
+               "- broken entry\n")
 r = h.run("--check")
+check("secondmates registered, but this Firstmate has no parser for them: unknown, not none",
+      "secondmates: unknown: ~/fm-home/data/secondmates.md lists them, but this Firstmate has no "
+      "bin/fm-secondmate-registry-lib.sh to read it with" in under(r.stdout, "firstmate"), r.stdout)
+# a stand-in for Firstmate's own parser, with its function and the fields it sets
+(h.fm / "bin" / "fm-secondmate-registry-lib.sh").write_text(r'''
+secondmate_registry_parse_line() {
+  local here='^- ([a-z]+) - .*\(home: ([^;]*);' far='^- ([a-z]+) - .*\(host: ([^;]*); root: [^;]*; home: ([^;]*);'
+  SECONDMATE_REGISTRY_REMOTE=0 SECONDMATE_REGISTRY_HOST=
+  if [[ "$1" =~ $here ]]; then
+    SECONDMATE_REGISTRY_ID=${BASH_REMATCH[1]} SECONDMATE_REGISTRY_HOME=${BASH_REMATCH[2]}
+  elif [[ "$1" =~ $far ]]; then
+    SECONDMATE_REGISTRY_ID=${BASH_REMATCH[1]} SECONDMATE_REGISTRY_HOST=${BASH_REMATCH[2]}
+    SECONDMATE_REGISTRY_HOME=${BASH_REMATCH[3]} SECONDMATE_REGISTRY_REMOTE=1
+  else
+    return 1
+  fi
+}
+''')
+r = h.run("--check")
+for want in ("secondmates: Firstmate's own updater moves these 2 with it", "web: this machine, /srv/homes/web",
+             "far: on the host buildbox, home /srv/fm-far",
+             "and 1 line(s) of ~/fm-home/data/secondmates.md that Firstmate's parser cannot read, so its updater skips them"):
+    check(f"the remote Firstmate scope, read with Firstmate's parser: {want[:50]}", want in under(r.stdout, "firstmate"), r.stdout)
 check("its own updater goes to the newest commit: not tested, so it is not run",
       f"blocker: its own updater goes to the newest commit of its source, {new[:12]}, which is not a revision this "
       "release is tested with" in under(r.stdout, "firstmate"), r.stdout)
@@ -524,6 +631,8 @@ m.write_text(m.read_text().replace("0" * 40, new))
 r = h.run("--check")
 check("tested: the plan is Firstmate's own updater, with its home", "runs: FM_HOME=~/fm-home ~/firstmate/bin/fm-update.sh"
       in under(r.stdout, "firstmate") and re.search(r"Firstmate's own updater \(bin/fm-update\.sh\)", r.stdout), r.stdout)
+check("and its secondmates restart too, as Firstmate's updater names them",
+      "and each live secondmate it lists in restart-secondmates or nudge-secondmates" in under(r.stdout, "firstmate"), r.stdout)
 (h.home / "herdr-status.json").write_text(json.dumps({"running": True, "version": "0.9.1", "socket": "/x/s.sock"}) + "\n")
 r = h.run("--yes")
 got = rows(r.stdout.split("Results:")[-1])
