@@ -332,7 +332,8 @@ After each update it reads the version again, and only the target counts:
 - **updated on disk but not yet active**: the new version is installed, but
   what is running is still the old one. This is said for the running herdr
   server, a generated config or meter the running session has not loaded, a
-  Firstmate that was updated while it runs, a live secondmate Firstmate's
+  Firstmate that was updated while it runs in the office session (when herdr
+  cannot say whether it runs, it counts as running), a live secondmate Firstmate's
   updater moved, and the no-mistakes daemon.
   `office update` prints the restart to run and never runs it: it stops,
   restarts or reloads no server, no Firstmate, no secondmate and no daemon.

@@ -57,8 +57,11 @@ def herdr_text(version, log):
             f'[ "$1" = --version ] && {{ echo "herdr {version}"; exit 0; }}\n'
             '[ "$1 $2" = "config check" ] && exit 0\n'
             '[ "$1 $3 $4" = "--session status server" ] && {  # no cat: PATH is only the fakes\n'
-            '  read -r s <"$HOME/herdr-status.json" 2>/dev/null ||\n'
+            '  read -r s 2>/dev/null <"$HOME/herdr-status.json" ||\n'
             '  s=\'{"status":"not_running","running":false,"socket":"/x/herdr.sock"}\'; echo "$s"; exit 0; }\n'
+            # `agent get firstmate`: the agent in ~/herdr-agent.json, or none
+            '[ "$3 $4" = "agent get" ] && { read -r a 2>/dev/null <"$HOME/herdr-agent.json" && { echo "$a"; exit 0; }\n'
+            '  echo \'{"error":{"code":"agent_not_found","message":"no agent"}}\' >&2; exit 1; }\n'
             # `plugin link <folder>`: what herdr records in its plugins.json, from the manifest
             f'[ "$1 $2" = "plugin link" ] && exec {sys.executable} -c \'{LINK}\' "$3"\n'
             'exit 1\n')
@@ -644,6 +647,7 @@ check("tested: the plan is Firstmate's own updater, with its home", "runs: FM_HO
 check("and its secondmates restart too, as Firstmate's updater names them",
       "and each live secondmate it lists in restart-secondmates or nudge-secondmates" in under(r.stdout, "firstmate"), r.stdout)
 (h.home / "herdr-status.json").write_text(json.dumps({"running": True, "version": "0.9.1", "socket": "/x/s.sock"}) + "\n")
+(h.home / "herdr-agent.json").write_text(json.dumps({"result": {"agent": {"agent": "claude", "cwd": str(h.fm)}}}) + "\n")
 (h.home / "fm-said").write_text(f"firstmate: updated {old[:7]}..{new[:7]}\n"
                                 "secondmate web: updated 1111111..2222222\n"
                                 "ERR:remote secondmate far: skipped on buildbox: ssh: connect to host buildbox: timed out\n"
@@ -683,6 +687,13 @@ r = h.run("--yes")
 check("then nothing is left for it: its updater does not run again",
       not [c for c in h.calls()[n:] if c.startswith("fm-update")]
       and re.search(r"  unchanged +firstmate +" + new[:12] + r"\n", r.stdout), r.stdout + str(h.calls()[n:]))
+(h.home / "herdr-agent.json").unlink()
+(h.home / "fm-said").write_text("restart-secondmates: none\n")
+newer = h.upstream(h.root / "fm.git", lambda w: (w / "AGENTS.md").write_text("three\n"))
+m.write_text(m.read_text().replace(new, newer))
+r = h.run("--yes")
+check("the office session runs, but no Firstmate in it: updated, not pending",
+      re.search(rf"  updated +firstmate +{new[:12]} -> {newer[:12]}", r.stdout.split("Results:")[-1]), r.stdout + r.stderr)
 h.done()
 
 print("office update: updated on disk is not active")

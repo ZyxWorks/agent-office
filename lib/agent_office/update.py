@@ -57,7 +57,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import config as C
-from . import doctor, install, setup_home, tools
+from . import doctor, fm, install, setup_home, tools
 from .tools import Failed
 
 MANIFEST = doctor.MANIFEST
@@ -858,10 +858,18 @@ class Update:
             name = {"herdr config, active": "config", "meter, active": OFFICE}.get(fact)
             if name:
                 why[name] = said
-        if "firstmate" in changed:
+        if "firstmate" in changed and self._fm_runs():
             why["firstmate"] = ("a running Firstmate keeps the instructions it started with: `fm restart` "
                                 "(its hooks and flags: quit it, then `fm`)")
         return why
+
+    def _fm_runs(self) -> bool:
+        """Whether a Firstmate runs in the office session. Any doubt, such as another agent with
+        its name or no answer, counts as yes: better a restart it did not need than a missed one."""
+        try:
+            return fm.Office(self.cfg, self.env).agent() is not None
+        except (fm.Fail, KeyError):
+            return True
 
     def print_results(self, items: list, results: dict):
         self.say("Results:")
