@@ -30,12 +30,15 @@ One `office` command to install, start, stop and update the lot.
  agents                          ││                       ││                      │
  ○ api                           ││                       ││                      │
    firstmate · 88k · 3m · idle   ││                       ││                      │
+   89% · main                    ││                       ││                      │
  ● api                           ││                       ││                      │
-   claude · 412k▲ · blocked      │└───────────────────────┘└──────────────────────┘
+   claude · 412k▲ · blocked      ││                       ││                      │
+   89% · #109 · fix/login        │└───────────────────────┘└──────────────────────┘
 ```
 
 On the left you see every agent: its state from herdr, and from the Agent
-Office meter how full its context is and how long it has been quiet. Amber
+Office meter how full its context is, how long it has been quiet, how much of
+your plan's quota is left, and the branch and open pull request it works on. Amber
 means "this needs you". Shift+arrow walks you there. No mouse.
 
 ## Quick start
@@ -108,7 +111,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 |---|---|---|
 | [herdr](https://herdr.dev) | terminal sessions, panes, tabs, and each agent's native state (working, idle, done, blocked) | herdr upstream |
 | Agent Office herdr preset | keys for an office with no mouse, sidebar, theme and a silent "done" sound, plus an optional WezTerm example with Mac text keys | this repo ([`preset/`](preset)) |
-| Agent Office meter | a herdr plugin that shows how full each agent's context window is, and its transcript age, in the sidebar. It also carries the Shift+arrow keys | this repo ([`herdr/`](herdr)) |
+| Agent Office meter | a herdr plugin that shows how full each agent's context window is, its transcript age, the quota left on its provider, and its git branch and open PR, in the sidebar. It also carries the Shift+arrow keys | this repo ([`herdr/`](herdr)) |
 | [Firstmate](https://github.com/kunchenguid/firstmate) | supervises coding agents: dispatch, status, review, cleanup | Firstmate upstream |
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf`, `backpass` | [their upstreams](https://github.com/kunchenguid) |
@@ -514,7 +517,7 @@ own herdr, config or office.
 
 | part | probe | against |
 |---|---|---|
-| the meter plugin: context size and transcript age for Claude Code, Codex, and Claude Code on a local Ollama model. An agent it cannot identify stays blank, never guessed | `herdr/meter-probe` | recorded transcripts, no herdr server |
+| the meter plugin: context size and transcript age for Claude Code, Codex, and Claude Code on a local Ollama model; quota runway, git branch and open PR. An agent it cannot identify, or a reading it does not have, stays blank, never guessed | `herdr/meter-probe` | recorded transcripts, a fake quota-axi and gh, no herdr server |
 | Shift+arrow | `herdr/nav-probe` | a stand-in herdr |
 | the preset: keys, sidebar, theme, sound, the WezTerm example | `preset/preset-probe` | herdr and WezTerm themselves |
 | the config, `office install`, `office doctor`, `office tools` | `bin/install-probe` | throwaway homes, a real herdr, stand-in installers |
