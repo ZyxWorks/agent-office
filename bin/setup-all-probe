@@ -13,6 +13,7 @@ real terminal (a pty). No network, no herdr server.
 
 import hashlib
 import io
+import json
 import os
 import pty
 import select
@@ -219,6 +220,28 @@ def cases():
     check("then it is left for you, not behind: office doctor has no problem with it",
           agents(h).run is None and "left for you" in r.stdout and "agent setup:" not in r.stdout
           and hook.read_text().endswith("# my change\n"), out(r))
+    h.p(".claude/hooks/agents-md.py.agent-office-new").unlink()
+    check("you deleted the new version after comparing: it is not offered again",
+          agents(h).run is None and "agent setup:" not in doctor(h).stdout
+          and not h.p(".claude/hooks/agents-md.py.agent-office-new").exists())
+    settings = h.p(".claude/settings.json")
+    data = json.loads(settings.read_text())
+    taken = sorted(data)[0]
+    del data[taken]
+    settings.write_text(json.dumps(data, indent=2) + "\n")
+    r = doctor(h)
+    check(f"a key you took out ({taken}) stays out: not behind for office doctor",
+          "agent setup:" not in r.stdout and any(l.split()[:4] == ["agent", "setup", "in", "place,"]
+                                                 for l in r.stdout.splitlines()), out(r))
+    item = agents(h)
+    check("office update only brings the record up to date, and writes no file", item.run is not None
+          and "its record of what it wrote only" in item.action and item.have == "in place", item.action)
+    before = h.snapshot()
+    item.run()
+    after = h.snapshot()
+    check("then nothing is left to do", agents(h).run is None and taken not in json.loads(settings.read_text())
+          and [k for k in after if after[k] != before.get(k)] == [str(h.p(".local/state/agent-office/setup-manifest.json"))],
+          str([k for k in after if after[k] != before.get(k)]))
 
     print("the questions, on a terminal")
     h = Home()

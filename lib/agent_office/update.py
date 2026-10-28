@@ -605,8 +605,7 @@ class Update:
         return it
 
     def _behind(self) -> list:
-        steps = install.Installer(self.env, self.out).plan(*install.wanted(self.env))
-        return [s for s in steps if s.kind not in ("keep", "manual")]
+        return install.behind(install.Installer(self.env, self.out).plan(*install.wanted(self.env)))
 
     def _install(self) -> str:
         out, err = io.StringIO(), io.StringIO()
@@ -617,42 +616,51 @@ class Update:
     def agents(self) -> Item:
         """The agent working setup that office setup agents wrote: kept current, never started here."""
         it = Item("agent setup", "", "this release", "office setup agents")
-        if not self.cfg["setup"]["enabled"]:
-            it.have, it.note = "off", "setup.enabled is false"
-            return it
-        st = setup_home.Setup(self.env, self.out)
-        if not st.manifest["owned"]:
-            it.have, it.note = "not set up", "`office setup agents` writes it; office update only keeps it current"
-            return it
         try:
-            steps = st.plan(self.cfg)
+            # when Agent Office moves, the release it moves to plans this with its own templates
+            state, st, steps = setup_home.status(self.cfg, self.env, plan=self.next is None)
         except C.ConfigError as e:
             it.have, it.blocker = "unknown", "a template has problems: " + "; ".join(e.problems)
             return it
         except (OSError, UnicodeDecodeError) as e:
             it.have, it.blocker = "unknown", str(e)
             return it
-        steps = setup_home.behind(steps)
-        it.have = f"{len(steps)} file(s) behind" if steps else "in place"
+        if state == "off":
+            it.have, it.note = "off", "setup.enabled is false"
+            return it
+        if state == "not set up":
+            it.have, it.note = "not set up", "`office setup agents` writes it; office update only keeps it current"
+            return it
         if self.next is not None:
-            it.target = f"release {self.next.rev[:12]}"
+            it.have, it.target = "set up", f"release {self.next.rev[:12]}"
             it.action = ("office setup agents --yes, as the release Agent Office moves to writes it. Run "
                          "`office update --check` again after the move to see its diff")
             it.run = self._agents
             return it
-        if steps:
+        files = setup_home.behind(steps)
+        it.have = f"{len(files)} file(s) behind" if files else "in place"
+        if files:
             it.action = "office setup agents --yes: " + ", ".join(
-                self.show(s.path) + (" (backed up first)" if s.asks else "") for s in steps)
+                self.show(s.path) + (" (backed up first)" if s.asks else "") for s in files)
             it.run = self._agents
-            for s in (s for s in steps if s.diff):
+            for s in (s for s in files if s.diff):
                 it.parts.append(f"{s.kind} {self.show(s.path)}: {s.what}")
                 it.parts += ["  " + line for line in s.diff]
+        elif setup_home.stale(st, steps):
+            # no file changes, but its record of what it wrote is behind: the next release needs it right
+            it.action = "office setup agents --yes: its record of what it wrote only, no file"
+            it.run = self._agents
         return it
 
     def _agents(self) -> str:
         out, err = io.StringIO(), io.StringIO()
-        if setup_home.run(["--yes"], self.env, out, err) != 0 or \
-                setup_home.behind(setup_home.Setup(self.env, io.StringIO()).plan(C.load(C.config_path(self.env)))):
+        code = setup_home.run(["--yes"], self.env, out, err)
+        try:
+            state, st, steps = setup_home.status(C.load(C.config_path(self.env)), self.env)
+            left = state == "planned" and (setup_home.behind(steps) or setup_home.stale(st, steps))
+        except (C.ConfigError, OSError, UnicodeDecodeError) as e:
+            raise Failed(f"office setup agents ran, then its plan could not be read again: {e}")
+        if code != 0 or left:
             raise Failed((err.getvalue() or out.getvalue()).strip() or "office setup agents left files behind")
         return "written by office setup agents"
 

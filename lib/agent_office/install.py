@@ -356,6 +356,11 @@ class Installer:
         return changed
 
 
+def behind(steps: list) -> list:
+    """The steps of a plan that would change a file."""
+    return [s for s in steps if s.kind not in ("keep", "manual")]
+
+
 def ask(prompt: str) -> Optional[str]:
     """The line typed in answer on the terminal, or None when there is no terminal to ask on."""
     try:

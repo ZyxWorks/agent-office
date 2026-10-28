@@ -29,7 +29,7 @@ A JSON key, a JSON list entry or a top-level YAML key that Agent Office put in a
 - **block**: Agent Office owns only the text between `<!-- agent-office:begin v1 -->` and `<!-- agent-office:end -->`. Every line outside the markers is yours, so your own private rules go there.
 - **json**: Agent Office owns only the keys its template has. A list it owns (permission entries, hooks) merges by value: your own entries and hooks stay.
 - **yaml**: Agent Office owns only the top-level keys its template has. Every other key is yours.
-- **owned**: a whole file. It is replaced only while it is still exactly what Agent Office wrote last; a file you changed gets the new version next to it as `<file>.agent-office-new`, written once; until a newer version comes, the next run leaves both for you to compare.
+- **owned**: a whole file. It is replaced only while it is still exactly what Agent Office wrote last; a file you changed gets the new version next to it as `<file>.agent-office-new`, once for each new version: the next runs leave your file to you, also after you delete the `.agent-office-new` one.
 - **starter**: written once when it is not there, and never again. It is yours from then on.
 - **link**: a symbolic link, made only when nothing is there.
 - **flags**: one empty file per name; Firstmate reads them as switches.

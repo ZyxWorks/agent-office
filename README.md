@@ -297,7 +297,7 @@ shows the plan, asks, and then works through it one component at a time:
 | a tool Nix or the system's packages own, or that sits somewhere else | | skipped: it tells you to update it there |
 | Firstmate | the newest tested revision | Firstmate's own updater when the checkout has one and its `origin` is at a tested revision; otherwise `git fetch` and `git merge --ff-only` to that revision |
 | the generated herdr config, meter settings and links | your config | `office install --yes`, with its backups |
-| the agent working setup, once `office setup agents` has written it | your config and this release's templates | `office setup agents --yes`, with its backups. A file you changed is never replaced: the new version goes beside it once, and then it is yours to compare. Off with `setup.enabled = false` |
+| the agent working setup, once `office setup agents` has written it | your config and this release's templates | `office setup agents --yes`, with its backups. A whole file you changed is never replaced: the new version goes beside it once, and then it is yours to compare. A block or key of Agent Office's that you changed is put back after the plan's one question, backed up first. A key you took out stays out. Off with `setup.enabled = false` |
 
 A self-updating tool's own `update` command is not run: herdr's, treehouse's
 and no-mistakes' each take no version and go to the latest release, which is

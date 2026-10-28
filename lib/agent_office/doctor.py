@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import datetime
 import hashlib
-import io
 import json
 import os
 import re
@@ -258,20 +257,17 @@ class Report:
     def agents(self, cfg: dict):
         """The agent working setup that office setup agents wrote, against your config and this release."""
         name = "agent setup"
-        if not cfg["setup"]["enabled"]:
-            self.fact(name, "off (setup.enabled is false)")
-            return
-        st = setup_home.Setup(self.env, io.StringIO())
-        if not st.manifest["owned"]:
-            self.fact(name, "not set up (optional: `office setup agents`)")
-            return
         try:
-            steps = st.plan(cfg)
+            state, _, steps = setup_home.status(cfg, self.env)
         except C.ConfigError as e:
             self.fact(name, "unknown", problems=e.problems)
             return
         except (OSError, UnicodeDecodeError) as e:
             self.fact(name, "unknown", problems=[str(e)])
+            return
+        if state != "planned":
+            self.fact(name, "off (setup.enabled is false)" if state == "off" else
+                      "not set up (optional: `office setup agents`)")
             return
         behind, manual = setup_home.behind(steps), [s for s in steps if s.kind == "manual"]
         left = f", {len(manual)} left for you (`office setup agents --check` says which)" if manual else ""

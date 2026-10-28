@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import os
 import re
@@ -485,13 +486,21 @@ class Setup(install.Installer):
                                 self._diff(cur, data, p.name), record)
         beside = p.with_name(p.name + NEW)
         why = "changed by hand" if self.prev(p) else "not written by Agent Office"
-        if beside.is_file() and not beside.is_symlink() and beside.read_bytes() == data:
-            return install.Step("manual", p, f"{what}: {why}, and the new version is beside it, "
+        offered = self.manifest.setdefault("offered", {})
+        if offered.get(str(p)) == _sha(data) or (beside.is_file() and not beside.is_symlink()
+                                                 and beside.read_bytes() == data):
+            # offered once already: it stays yours to compare, also after you deleted the new one
+            return install.Step("manual", p, f"{what}: {why}, and this version of it was put beside it as "
                                 f"{self.show(beside)}: compare the two, keep what you want, delete the {NEW} file")
+
+        def put_beside():
+            self._write(beside, data, mode)
+            offered[str(p)] = _sha(data)
+
         # yours is never replaced: the new version goes beside it, and the record stays as it was
         return install.Step("beside", beside, f"{what}: {self.show(p)} is {why}, so the new version "
                             "goes beside it; compare the two and keep what you want",
-                            lambda: self._write(beside, data, mode), self._diff(cur, data, p.name))
+                            put_beside, self._diff(cur, data, p.name))
 
     def want_starter(self, p: Path, text: str, what: str):
         if p.exists() or p.is_symlink():
@@ -711,9 +720,29 @@ WHAT = {
 }
 
 
+def status(cfg: dict, env, plan=True) -> tuple:
+    """The agent working setup, as office update and office doctor see it: (state, Setup, steps).
+    state is "off" (setup.enabled is false), "not set up" (office setup agents never wrote it) or
+    "planned", with the plan's steps (none without plan). Raises C.ConfigError, OSError or
+    UnicodeDecodeError."""
+    if not cfg["setup"]["enabled"]:
+        return "off", None, []
+    st = Setup(env, io.StringIO())
+    if not st.manifest["owned"]:
+        return "not set up", st, []
+    return "planned", st, st.plan(cfg) if plan else []
+
+
 def behind(steps: list) -> list:
-    """The steps of a plan that would change something: what office update and office doctor count."""
-    return [s for s in steps if s.kind not in ("keep", "manual")]
+    """The steps of a plan that write a file. A key you took out stays out: that is not behind."""
+    return [s for s in install.behind(steps) if s.kind != "left-out"]
+
+
+def stale(st: Setup, steps: list) -> bool:
+    """Whether applying the plan would change only the record of what was written, not a file."""
+    owned = st.manifest["owned"]
+    return any(s.record is not None and (str(s.path) in owned if s.record == {"forget": True}
+                                         else owned.get(str(s.path)) != s.record) for s in steps)
 
 
 def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
