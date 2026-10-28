@@ -63,6 +63,12 @@ def state_dir(env=None) -> Path:
     return _xdg(env, "XDG_STATE_HOME", ".local/state") / "agent-office"
 
 
+def vendors_dir(env=None) -> Path:
+    """Where the optional skill packs are checked out, each at the commit components.toml pins."""
+    env = os.environ if env is None else env
+    return _xdg(env, "XDG_DATA_HOME", ".local/share") / "agent-office" / "vendors"
+
+
 def herdr_dirs(env=None) -> tuple[Path, Path]:
     """herdr's own config and state folders: its plugins.json, and each plugin's state folder."""
     env = os.environ if env is None else env
@@ -184,6 +190,7 @@ KEYS = {
                     "review_surface": _text},
         "firstmate": {"startup_memory_budget": _int_in(0, 10_000_000), "flags": _names},
         "claude": {"theme": _boolean},
+        "skills": {"no_ai_slop": _boolean, "marketing": _boolean, "brag_slim": _boolean},
     },
 }
 

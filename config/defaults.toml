@@ -83,3 +83,11 @@ flags = ["turnend-churn-absorb", "wedge-defer-parked-gate"]   # empty opt-in fil
 
 [setup.claude]
 theme = false                         # true: the office theme for Claude Code, its herdr palette
+
+# Optional skill packs from their upstreams, each at the commit config/components.toml pins and
+# checked against its SHA-256: true checks one out into ~/.local/share/agent-office/vendors and
+# writes a short skill that points at it into ~/.agents/skills (linked into ~/.claude/skills).
+[setup.skills]
+no_ai_slop = false                    # /no-ai-slop: a draft edited into plain human writing
+marketing = false                     # marketing playbooks: copy, SEO, CRO, launch, pricing and more
+brag_slim = false                     # a short launch video of a project or a website

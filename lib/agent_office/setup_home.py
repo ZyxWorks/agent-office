@@ -31,6 +31,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Optional
@@ -38,6 +39,7 @@ from typing import Optional
 from . import config as C
 from . import install
 from . import setup as S
+from . import vendors as V
 
 BEGIN = "<!-- agent-office:begin v1 -->"
 END = "<!-- agent-office:end -->"
@@ -502,6 +504,30 @@ class Setup(install.Installer):
                             "goes beside it; compare the two and keep what you want",
                             put_beside, self._diff(cur, data, p.name))
 
+    def want_vendor(self, p: Path, skill: dict, what: str):
+        record = {"kind": "vendor", "commit": skill["commit"], "paths": skill["paths"], "sha256": skill["sha256"]}
+        what = f"{what}: {skill['name']} ({skill['license']}) from {skill['repo']} at {skill['commit'][:12]}"
+        link = self._where_link(p)
+        if link:
+            return install.Step("manual", p, f"{what}: {link}. Links are never written through")
+        if not (p.exists() or p.is_symlink()):
+            return install.Step("create", p, what + ", checked against its SHA-256",
+                                lambda: V.fetch(skill, p, self.env), record=record)
+        rec = self.prev(p)
+        have = V.head(p, self.env) if p.is_dir() else None
+        if rec.get("kind") != "vendor" or have is None:
+            return install.Step("manual", p, f"{what}: something Agent Office did not check out is there; "
+                                "move it, then run this again")
+        got = V.tree_hash(p, skill["paths"] if have == skill["commit"] else rec.get("paths", []))
+        if have == skill["commit"] and got == skill["sha256"]:
+            return install.Step("keep", p, what, record=record)
+        if have != rec.get("commit") or got != rec.get("sha256"):
+            return install.Step("manual", p, f"{what}: changed by hand since Agent Office checked it out, so "
+                                f"it is left as it is. Delete {self.show(p)} and run this again for the pinned one")
+        return install.Step("update", p, what + ", checked against its SHA-256", lambda: V.fetch(skill, p, self.env),
+                            [f"{have[:12]} -> {skill['commit'][:12]}: read the change at "
+                             f"{skill['repo']}/compare/{have}...{skill['commit']}"], record)
+
     def want_starter(self, p: Path, text: str, what: str):
         if p.exists() or p.is_symlink():
             return install.Step("keep", p, f"{what} (yours: never written again)")
@@ -562,6 +588,8 @@ class Setup(install.Installer):
                 steps.append(self.want_starter(p, it["content"], what))
             elif kind == "link":
                 steps.append(self.want_symlink(p, it["to"], what))
+            elif kind == "vendor":
+                steps.append(self.want_vendor(p, it["skill"], what))
             elif kind == "flags":
                 steps += [self.want_flag(p / n, f"the {n} switch, an empty file") for n in it["names"]]
         # what an earlier run wrote that no template wants now (a theme turned off, say)
@@ -608,6 +636,11 @@ class Setup(install.Installer):
                 return install.Step("remove", p, "a switch Agent Office made", lambda: p.unlink(),
                                     record={"forget": True})
             return self._forget(p, "no longer empty: left alone")
+        if kind == "vendor":
+            if V.head(p, self.env) == rec.get("commit") and V.tree_hash(p, rec.get("paths", [])) == rec.get("sha256"):
+                return install.Step("remove", p, "a skill pack Agent Office checked out, unchanged",
+                                    lambda: shutil.rmtree(p), record={"forget": True})
+            return self._forget(p, "a skill pack changed by hand since Agent Office checked it out: left alone")
         if kind == "file":
             if _sha(p.read_bytes()) == rec.get("sha256"):
                 return install.Step("remove", p, "a file Agent Office wrote, unchanged", remove,
@@ -717,6 +750,7 @@ WHAT = {
     "starter": "a starter to edit",
     "link": "one rules file for every agent",
     "flags": "a Firstmate switch",
+    "vendor": "a skill pack",
 }
 
 
@@ -814,7 +848,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr) -> int:
             return 1
     try:
         st.apply(steps)
-    except OSError as e:
+    except (OSError, V.Failed) as e:
         print(f"{verb}: {e}. Stopped there: run it again when that is fixed.", file=err)
         return 1
     if any(s.kind not in ("keep", "manual") for s in steps):

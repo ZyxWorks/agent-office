@@ -47,6 +47,9 @@ schema = 1
 # full = "npm test"
 # [setup.captain]
 # timezone = "America/Chicago"
+# [setup.skills]                     # optional skill packs, each at a pinned upstream commit
+# no_ai_slop = true
+# marketing = true
 
 # Anything herdr's own config.toml takes goes under [herdr], unchanged. It is merged over the
 # Agent Office preset: a table merges key by key, any other value replaces the preset's.

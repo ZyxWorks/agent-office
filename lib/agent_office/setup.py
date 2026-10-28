@@ -3,8 +3,9 @@
 setup/MANIFEST.toml lists every template, where it goes and how it is written (setup/README.md).
 This module only reads and renders; it writes nothing. A placeholder is {{name}} or
 {{name|words for when it is unset}}, where name is a config key: setup.*, firstmate.code,
-firstmate.home or firstmate.harness. An unknown name, or an unset one with no words, is an
-error, so a typo in a template never reaches a user's file as literal braces.
+firstmate.home or firstmate.harness, or office.vendors, where the skill packs are checked out.
+An unknown name, or an unset one with no words, is an error, so a typo in a template never
+reaches a user's file as literal braces.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import re
 from pathlib import Path
 
 from . import config as C
+from . import vendors as V
 
 SETUP = C.REPO / "setup"
 MANIFEST = SETUP / "MANIFEST.toml"
@@ -25,6 +27,7 @@ KINDS = {
     "starter": ("source", "target"),
     "link": ("target", "to"),
     "flags": ("target", "from"),
+    "vendor": ("target", "skill"),
 }
 OPTIONAL = ("when", "mode", "harness", "why")
 
@@ -43,7 +46,7 @@ def _leaves(spec, prefix):
 
 # Every name a template may use. setup.repos.protected is computed: the branches nobody pushes to.
 NAMES = frozenset([*_leaves(C.KEYS["setup"], "setup"), "setup.repos.protected",
-                   "firstmate.code", "firstmate.home", "firstmate.harness"])
+                   "firstmate.code", "firstmate.home", "firstmate.harness", "office.vendors"])
 
 
 def _text(v) -> str:
@@ -71,6 +74,7 @@ def values(cfg: dict, env=None) -> dict:
     out["firstmate.code"] = str(code)
     out["firstmate.home"] = str(C.expand(fm["home"], env)) if fm.get("home") else str(code)
     out["firstmate.harness"] = fm["harness"]
+    out["office.vendors"] = str(C.vendors_dir(env))
     repos = cfg["setup"]["repos"]
     branches = list(dict.fromkeys([repos["integration_branch"], repos["release_branch"]]))
     out["setup.repos.protected"] = " or ".join(branches)
@@ -149,6 +153,8 @@ def manifest() -> list:
             problems.append(f"{where}: harness must be claude or codex")
         if ("harness" in e) != isinstance(e.get("why"), str):
             problems.append(f"{where}: harness and why go together: why says what to do on another harness")
+        if "skill" in e and e["skill"] not in V.skills():
+            problems.append(f"{where}: skill names no [[skill]] in config/components.toml: {e['skill']}")
         if "mode" in e and not re.fullmatch(r"[0-7]{3}", str(e["mode"])):
             problems.append(f"{where}: mode must be three octal digits, say \"755\"")
     if problems:
@@ -205,6 +211,8 @@ def plan(cfg: dict, env=None) -> list:
             if not isinstance(v, list):
                 raise C.ConfigError([f"{where}: from {e['from']} is not a list"])
             item["names"] = list(v)
+        if "skill" in e:
+            item["skill"] = V.skills()[e["skill"]]
         if "mode" in e:
             item["mode"] = int(str(e["mode"]), 8)
         out.append(item)

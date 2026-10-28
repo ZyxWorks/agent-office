@@ -113,7 +113,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf`, `backpass` | [their upstreams](https://github.com/kunchenguid) |
 | other agent tools | `chrome-devtools-mcp` (Chrome's DevTools for agents, which `chrome-devtools-axi` drives), `acpx` (the Agent Client Protocol from the command line), `gh` (`gh-axi` drives GitHub through it) | their upstreams |
-| agent integrations | herdr's Claude Code and Codex integrations. Installing the agent tools' skills is planned | upstream tools. You run `herdr integration install claude` (or `codex`) once; `office doctor` checks it |
+| agent integrations | herdr's Claude Code and Codex integrations, and the optional skill packs `office setup agents` checks out at pinned commits ([setup/README.md](setup/README.md#optional-skill-packs)) | upstream tools and, for the skill packs, their authors. You run `herdr integration install claude` (or `codex`) once; `office doctor` checks it |
 
 `jq` is also required: the meter reads transcripts with it. The `office`
 command needs `python3`, 3.8 or newer; the one macOS ships is enough. The

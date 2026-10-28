@@ -23,6 +23,7 @@ A JSON key, a JSON list entry or a top-level YAML key that Agent Office put in a
 | `firstmate/captain.md` | the Firstmate home's `data/captain.md` | starter |
 | `no-mistakes/config.yaml` | `~/.no-mistakes/config.yaml` | yaml |
 | `gnhf/config.yml` | `~/.gnhf/config.yml` | yaml, Claude only |
+| `skills/<name>/SKILL.md` and the skill pack it points at | `~/.agents/skills/<name>/`, linked as `~/.claude/skills/<name>`; the pack in `~/.local/share/agent-office/vendors/` | owned, link, vendor; only with its `setup.skills` key true |
 
 ## The kinds: what is yours and what is Agent Office's
 
@@ -33,12 +34,25 @@ A JSON key, a JSON list entry or a top-level YAML key that Agent Office put in a
 - **starter**: written once when it is not there, and never again. It is yours from then on.
 - **link**: a symbolic link, made only when nothing is there.
 - **flags**: one empty file per name; Firstmate reads them as switches.
+- **vendor**: a skill pack from its upstream repository, at the commit `config/components.toml` pins, only the folders it names. Its files must hash to the pinned SHA-256 before it is put in place. It is moved to a new pin only while it is still as it was checked out; a pack you changed is left as it is.
 
 A target that is a link, or sits in a folder that is a link (a `~/.claude` linked into a dotfiles repo, say), is never written through: `office setup agents` shows what to put there and leaves it to you. The Firstmate files wait until the Firstmate home is there.
 
+## Optional skill packs
+
+Three skill packs from other authors are off by default. Turn one on in your config.toml, then run `office setup agents`:
+
+| key | skill | upstream (MIT) |
+|---|---|---|
+| `setup.skills.no_ai_slop` | `/no-ai-slop`: a draft edited into plain human writing. Manual only | petergyang/no-ai-slop, its `skills/no-ai-slop` |
+| `setup.skills.marketing` | `marketing`: 50 marketing playbooks, the agent picks one or two | coreyhaines31/marketingskills, its `skills/` (not its `tools/`) |
+| `setup.skills.brag_slim` | `brag-slim`: a short launch video of a project or a website | latent-spaces/brag, its `skills/brag-slim` |
+
+Each pack is pinned to one commit and one SHA-256 in `config/components.toml`, and a pin moves only after the upstream change was read: the files are instructions your agent follows. `office update` moves a pack to a new pin and shows where to read the change; `office doctor` says when one is behind. Agent Office never runs anything in a pack. Turning a key off takes the pack out again, unless you changed it.
+
 ## Placeholders
 
-A template says `{{setup.machine.test_workers}}` where a value goes, or `{{setup.gates.quick|the repo's quick checks}}` for words to use while the key is unset. Names are config keys: `setup.*`, `firstmate.code`, `firstmate.home` (its checkout when unset) and `firstmate.harness`. `setup.repos.protected` is the integration and release branch, named once when they are the same. A path in a target is rendered from your home and your config, never written into a template.
+A template says `{{setup.machine.test_workers}}` where a value goes, or `{{setup.gates.quick|the repo's quick checks}}` for words to use while the key is unset. Names are config keys: `setup.*`, `firstmate.code`, `firstmate.home` (its checkout when unset) and `firstmate.harness`, and `office.vendors`, where the skill packs are checked out. `setup.repos.protected` is the integration and release branch, named once when they are the same. A path in a target is rendered from your home and your config, never written into a template.
 
 The shipped `[setup.models.*]` defaults are Claude model ids, so they apply only while `firstmate.harness` is `claude`. With `codex`, set `setup.models.default` and `setup.models.mechanical` (model and effort) in your own config.toml; until then the setup refuses to render. gnhf's config is not written with `codex` either: it has no codex permission override here, so gnhf's default would skip permissions. Set `agentArgsOverride.codex` yourself in `~/.gnhf/config.yml`.
 
