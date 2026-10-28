@@ -29,6 +29,27 @@ esac
 EOF
 chmod +x "$T/herdr"
 
+# fake quota-axi and gh, first on PATH so no pass ever asks a real server. quota-axi prints
+# $T/quota.src; gh applies its --jq to .fakepr in the checkout it runs in. Both log each call,
+# and answer only once $T/hold is gone: a server that is slow to answer.
+mkdir -p "$T/bin"
+cat >"$T/bin/quota-axi" <<EOF
+#!/bin/sh
+echo "\$*" >>"$T/quota.calls"
+while [ -f "$T/hold" ]; do sleep 0.1; done
+cat "$T/quota.src" 2>/dev/null
+EOF
+cat >"$T/bin/gh" <<EOF
+#!/bin/sh
+echo "\$PWD" >>"$T/gh.calls"
+while [ -f "$T/hold" ]; do sleep 0.1; done
+[ -f .fakepr ] || exit 1
+while [ \$# -gt 0 ]; do [ "\$1" = --jq ] && { jq -r "\$2" .fakepr; exit; }; shift; done
+exit 1
+EOF
+chmod +x "$T/bin/quota-axi" "$T/bin/gh"
+export PATH="$T/bin:$PATH"
+
 u() { # usage record: total split as input/cache-read
   printf '{"type":"assistant","message":{"model":"%s","usage":{"input_tokens":%s,"cache_creation_input_tokens":0,"cache_read_input_tokens":%s}}}\n' "${2:-m}" 1 "$(( $1 - 1 ))"
 }
@@ -226,6 +247,91 @@ settings false 30 200000 600000
 run "$(pane w:model idle claude model)"
 never w:model settings-disabled
 rm -f "$S"
+
+# quota, branch and PR. A pass never waits for quota-axi or gh: it starts a background read
+# into the cache and shows what the last one left there.
+Q=$T/state/meter.$(printf default | cksum | cut -d' ' -f1).cache
+reads() { # wait up to 5s for the background reads to finish
+  i=0; while ls "$Q"/*.lock >/dev/null 2>&1 && [ $i -lt 50 ]; do sleep 0.1; i=$(( i + 1 )); done; }
+cwdpane() { # pane status session cwd
+  printf '{"pane_id":"%s","agent_status":"%s","agent_session":{"agent":"claude","kind":"id","value":"%s"},"cwd":"%s","foreground_cwd":"%s"}' "$1" "$2" "$3" "$4" "$4"; }
+gen=$(date -u +%Y-%m-%dT%H:%M:%S.123Z)
+scope() { # name status percent runway [bounds-json] [runway-seconds]
+  printf '{"scope":"%s","status":"%s","effectivePercentRemaining":%s,"boundedBy":%s,"runway":{"status":"%s"%s}}' \
+    "$1" "$2" "$3" "${5:-[\"five_hour\",\"seven_day\"]}" "$4" "${6:+,\"usableRunwaySeconds\":$6}"; }
+provider() { # name stale accounts-json scopes...
+  p=$1 st=$2 ac=$3; shift 3
+  printf '{"provider":"%s","state":{"status":"fresh","stale":%s},"accountKeys":%s,"quotaSemantics":{"effectiveAvailability":[%s]}}' \
+    "$p" "$st" "$ac" "$(IFS=,; echo "$*")"; }
+quota() { printf '{"generatedAt":"%s","providers":[%s]}\n' "$gen" "$(IFS=,; echo "$*")"; }
+G=$T/repo; mkdir -p "$G/sub"
+git -C "$G" init -q -b feat/sidebar && git -C "$G" -c user.name=p -c user.email=p@example.invalid commit -q --allow-empty -m one
+echo '{"number":109,"state":"OPEN"}' >"$G/.fakepr"
+D=$T/detached; git clone -q "$G" "$D" && git -C "$D" checkout -q --detach
+N=$T/nopr; git clone -q "$G" "$N" && git -C "$N" checkout -q -b fix/none
+M=$T/merged; git clone -q "$G" "$M" && git -C "$M" checkout -q -b fix/merged
+echo '{"number":7,"state":"MERGED"}' >"$M/.fakepr"
+quota "$(provider claude false '["default"]' "$(scope all_models known 89.6 through_reset)")" \
+  "$(provider codex false '["default"]' "$(scope all_models known 41 projected_exhaustion '["five_hour","weekly"]' 7300)")" >"$T/quota.src"
+u 1000 claude-opus-5-5 >"$A/g1.jsonl"
+: >"$T/quota.calls"; : >"$T/gh.calls"; rm -f "$Q"/* # what the cases above cached
+panes="$(cwdpane w:g1 idle g1 "$G/sub") $(cwdpane w:g2 idle g1 "$D") $(cwdpane w:g3 idle g1 "$N")"
+panes="$panes $(cwdpane w:g4 idle g1 "$M") $(cwdpane w:g5 idle g1 "$T") $(codexid w:g6 idle "$G" 0190aaaa-1111-7222-8333-444455556666)"
+touch "$T/hold"
+# shellcheck disable=SC2086 # one pane object per word, none has a space
+run $panes
+expect w:g1 "--token quota= --token branch=feat/sidebar --token pr= " first-pass-no-wait
+rm -f "$T/hold"; reads
+# shellcheck disable=SC2086
+run $panes
+expect w:g1 "--token quota=89% --token branch=feat/sidebar --token pr=#109 " quota-branch-pr
+expect w:g2 "--token branch= --token pr= " detached-head
+expect w:g3 "--token branch=fix/none --token pr= " no-pr
+expect w:g4 "--token branch=fix/merged --token pr= " merged-pr
+expect w:g5 "--token quota=89% --token branch= --token pr= " no-repo
+expect w:g6 "--token quota=41%▼2h --token branch=feat/sidebar --token pr=#109 " codex-runway
+reads
+# shellcheck disable=SC2086
+run $panes; reads
+[ "$(wc -l <"$T/quota.calls")" -eq 1 ] || { echo "FAIL [quota-cached] quota-axi ran $(wc -l <"$T/quota.calls") times"; fail=1; }
+grep -q -- '--no-credential-refresh' "$T/quota.calls" || { echo "FAIL [quota-read-only] $(cat "$T/quota.calls")"; fail=1; }
+# one read per checkout and branch, failures included: g1 and g6 share one, no PR is not asked again
+[ "$(wc -l <"$T/gh.calls")" -eq 3 ] || { echo "FAIL [gh-cached] gh ran: $(cat "$T/gh.calls")"; fail=1; }
+# a reading older than three intervals is not shown, and a new read is started
+touch -t 200001010000 "$Q/quota.json"; touch "$T/hold"
+run "$(cwdpane w:g1 idle g1 "$G")"
+expect w:g1 "--token quota= " quota-too-old
+rm -f "$T/hold"; reads
+[ "$(wc -l <"$T/quota.calls")" -eq 2 ] || { echo "FAIL [quota-refetch] quota-axi ran $(wc -l <"$T/quota.calls") times"; fail=1; }
+qcase() { # want label quota-json : written straight into the cache, as a finished read leaves it
+  printf '%s\n' "$3" >"$Q/quota.json"
+  run "$(cwdpane w:g1 idle g1 "$T")"
+  expect w:g1 "--token quota=$1 " "$2"
+}
+all=$(scope all_models known 70 through_reset)
+qcase '0%▼▼' exhausted "$(quota "$(provider claude false '["default"]' "$(scope all_models known 0 exhausted_now)")")"
+qcase '' runway-unknown "$(quota "$(provider claude false '["default"]' "$(scope all_models known 70 unknown)")")"
+qcase '' stale "$(quota "$(provider claude true '["default"]' "$all")")"
+qcase '' two-accounts "$(quota "$(provider claude false '["a","b"]' "$all")")"
+qcase '' no-provider "$(quota "$(provider codex false '["default"]' "$all")")"
+qcase '' broken-cache 'not json {'
+qcase '' empty-cache ''
+qcase '' runway-already-passed "$(quota "$(provider claude false '["default"]' \
+  "$(scope all_models known 5 projected_exhaustion '["five_hour"]' 60)")" | sed 's/"generatedAt":"[^"]*"/"generatedAt":"2000-01-01T00:00:00Z"/')"
+qcase '70%▼45m' runway-minutes "$(quota "$(provider claude false '["default"]' "$(scope all_models known 70 projected_exhaustion '["five_hour"]' 2760)")")"
+# the session model's own scope wins when it carries every account-wide bound; one that does not is
+# only part of the picture, so the account-wide scope is shown
+u 1000 claude-fable-5-1 >"$A/g1.jsonl"
+qcase '12%' model-scope "$(quota "$(provider claude false '["default"]' "$all" \
+  "$(scope model:fable known 12 through_reset '["five_hour","seven_day","model:fable"]')")")"
+qcase '70%' model-scope-partial "$(quota "$(provider claude false '["default"]' "$all" \
+  "$(scope model:fable known 12 through_reset '["model:fable"]')")")"
+qcase '70%' other-model-scope "$(quota "$(provider claude false '["default"]' "$all" \
+  "$(scope model:haiku known 12 through_reset '["five_hour","seven_day","model:haiku"]')")")"
+mv "$T/bin/quota-axi" "$T/quota-axi.off"; rm -f "$Q/quota.json"; : >"$T/quota.calls"
+run "$(cwdpane w:g1 idle g1 "$G")"
+expect w:g1 "--token quota= " no-quota-axi
+mv "$T/quota-axi.off" "$T/bin/quota-axi"
 
 # a pane that closes mid-pass (its report fails) is not a dead server, even when it is listed last
 if ! run "$(pane w:p1 idle claude s1)" "$(pane w:gone idle claude s2)"; then echo "FAIL [pane-gone] pass reported a miss"; fail=1; fi

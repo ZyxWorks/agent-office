@@ -30,7 +30,7 @@ What it gives you:
   window or with many tabs; a zoomed tab still shows its own `Z`.
 - **Sidebar**: herdr's own state icon and state word stay. Between them the
   [meter](../herdr) adds context size and transcript age, how long since the
-  agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. Without the meter those two stay blank.
+  agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. A third row has the quota left on the agent's provider, its open PR and its branch: `89% · #109 · fix/login`. Without the meter those stay blank.
 - **Sound**: only "needs you" plays. A worker finishing is routine, so that
   sound is silent.
 - **Theme**: monochrome. Amber means "this needs you", red means "act on this".
@@ -55,7 +55,7 @@ Already have a config? Back it up, then copy in the sections you want.
 `done_path` is relative to the config file, so `sounds/silent.mp3` must sit
 next to it. Run `herdr config check` after.
 
-For `$ctx` and `$turn`, link the meter: see
+For `$ctx`, `$turn`, `$quota`, `$pr` and `$branch`, link the meter: see
 [Getting started](../GETTING-STARTED.md#the-preset-and-the-meter-in-a-herdr-of-your-own).
 The preset already has the sidebar rows that show them.
 
