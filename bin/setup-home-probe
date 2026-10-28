@@ -155,6 +155,9 @@ def main():
         r = h.run()
         check("a ~/.claude that is a link is never written through", r.returncode == 0
               and not (dot / "hooks").exists() and "is a link to" in r.stdout, out(r))
+        check("with ~/.claude a link, every hook file is listed as manual", all(
+            ["manual", f"~/.claude/hooks/{n}"] in [x.split() for x in r.stdout.splitlines()]
+            for n in ("agents-md.py", "text-check.mjs", "text-check.json")), out(r))
         h = Home(tmp, firstmate=False)
         r = h.run()
         check("no Firstmate home yet: nothing is written where it will go",

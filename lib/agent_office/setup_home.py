@@ -501,7 +501,7 @@ class Setup(install.Installer):
         for it in items:
             if it["kind"] == "json":
                 json_frags.setdefault(it["target"], []).append(json.loads(it["content"]))
-        seen_json = set()
+        seen_json, fm_noted = set(), False
         for it in items:
             p, kind = it["target"], it["kind"]
             what = WHAT.get(kind, kind)
@@ -513,6 +513,9 @@ class Setup(install.Installer):
                 steps.append(install.Step("manual", p, f"{what}: {link}. Links are never written through"))
                 continue
             if (p == fm_home or fm_home in p.parents) and not fm_home.is_dir():
+                if fm_noted:                    # one line for all of Firstmate, not one per file
+                    continue
+                fm_noted = True
                 steps.append(install.Step("manual", p, f"Firstmate's home {self.show(fm_home)} is not there yet: "
                                           "these are written once it is. Run office setup again then"))
                 continue
@@ -535,14 +538,7 @@ class Setup(install.Installer):
         # what an earlier run wrote that no template wants now (a theme turned off, say)
         wanted = {str(s.path) for s in steps} | {str(it["target"]) for it in items}
         steps += [s for s in self.unwanted(exclude=wanted) if s is not None]
-        # deduplicate: a manual Firstmate note is one line, not one per file
-        out, notes = [], set()
-        for s in steps:
-            if s.kind == "manual" and s.what in notes:
-                continue
-            notes.add(s.what)
-            out.append(s)
-        return out
+        return steps
 
     # --- taking it out again ------------------------------------------------------------------
 
