@@ -20,6 +20,9 @@ schema = 1
 # [treehouse]
 # root = "~/worktrees"                # the worktree pool root; unset: treehouse's own
 
+# [open]
+# roots = ["~/code"]                  # office open offers each git checkout directly inside these
+
 # [meter]
 # enabled = true
 # interval_seconds = 30
@@ -32,7 +35,7 @@ schema = 1
 # url = "https://ntfy.sh/<a-long-random-topic>"   # anyone who knows a ntfy.sh topic can read it
 # quiet = false                       # true: only "needs you" gets through
 
-# [editor]                            # prefix+f: an editor pane in the focused agent's worktree
+# [editor]                            # prefix+i: an editor pane in the focused agent's worktree
 # enabled = true
 # command = "nvim"                    # unset: $VISUAL, then $EDITOR, then nvim
 # office_config = true                # false: nvim reads your own ~/.config/nvim

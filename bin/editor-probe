@@ -163,7 +163,7 @@ for text, says in [
     r = office(str(work))
     check(f"refused: {says}", r.returncode == 1 and says in r.stderr and started() is None, r.stdout + r.stderr)
 
-print("prefix+f: a pane next to the focused one, in its agent's worktree")
+print("prefix+i: a pane next to the focused one, in its agent's worktree")
 config(ON)
 r = office("--pane", "w1:p1", FAKE_CWD=str(plain), FAKE_FOREGROUND_CWD=str(work / "sub"))
 h = calls("herdr")
@@ -253,7 +253,7 @@ print("the herdr action")
 r = subprocess.run(["sh", str(HOOK)], env=dict(env, HERDR_PANE_ID="w3:p2", FAKE_FOREGROUND_CWD=str(work)),
                    capture_output=True, text=True, timeout=60)
 split = next((a for a in calls("herdr") if a[:2] == ["pane", "split"]), [])
-check("prefix+f opens the pane next to the focused one", r.returncode == 0 and split[2:3] == ["w3:p2"],
+check("prefix+i opens the pane next to the focused one", r.returncode == 0 and split[2:3] == ["w3:p2"],
       r.stdout + r.stderr + str(calls("herdr")))
 
 print("the plugins: pinned, checked, checked out only by office install")

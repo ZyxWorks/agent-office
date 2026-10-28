@@ -17,6 +17,11 @@ harness = "claude"
 [treehouse]
 # root: the worktree pool root. Unset means treehouse picks its own.
 
+# office open: the folders whose git checkouts it offers, next to Firstmate's projects. Only the
+# folders directly inside each root are looked at.
+[open]
+roots = []
+
 # The meter's own defaults, in herdr/meter: METER_EVERY, METER_WARN, METER_ALARM.
 [meter]
 enabled = true
@@ -32,7 +37,7 @@ provider = "ntfy"
 # url: where to push, for ntfy the server and topic. Unset means nothing can be sent.
 quiet = false                         # true: only "needs you" gets through
 
-# The editor pane: prefix+f opens an editor next to the focused pane, in that pane's worktree. Off
+# The editor pane: prefix+i opens an editor next to the focused pane, in that pane's worktree. Off
 # until you turn it on. `command` unset means $VISUAL, then $EDITOR, then nvim (README, "Editor").
 [editor]
 enabled = false

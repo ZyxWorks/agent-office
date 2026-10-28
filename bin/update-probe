@@ -53,11 +53,15 @@ def herdr_text(version, log):
     """A herdr that answers what office asks and writes down every call, so a test can prove
     that `herdr update` and `herdr server stop` were never among them."""
     return (f'#!/bin/sh\necho "herdr $*" >> {log}\n'
+            '[ "$1" = --version ] && [ -x "$HOME/fakebin/lockwatch" ] && "$HOME/fakebin/lockwatch"\n'
             f'[ "$1" = --version ] && {{ echo "herdr {version}"; exit 0; }}\n'
             '[ "$1 $2" = "config check" ] && exit 0\n'
             '[ "$1 $3 $4" = "--session status server" ] && {  # no cat: PATH is only the fakes\n'
-            '  read -r s <"$HOME/herdr-status.json" 2>/dev/null ||\n'
+            '  read -r s 2>/dev/null <"$HOME/herdr-status.json" ||\n'
             '  s=\'{"status":"not_running","running":false,"socket":"/x/herdr.sock"}\'; echo "$s"; exit 0; }\n'
+            # `agent get firstmate`: the agent in ~/herdr-agent.json, or none
+            '[ "$3 $4" = "agent get" ] && { read -r a 2>/dev/null <"$HOME/herdr-agent.json" && { echo "$a"; exit 0; }\n'
+            '  echo \'{"error":{"code":"agent_not_found","message":"no agent"}}\' >&2; exit 1; }\n'
             # `plugin link <folder>`: what herdr records in its plugins.json, from the manifest
             f'[ "$1 $2" = "plugin link" ] && exec {sys.executable} -c \'{LINK}\' "$3"\n'
             'exit 1\n')
@@ -328,6 +332,11 @@ def under(said, name):
     return "\n".join(out)
 
 
+def kept_at(cmd):
+    """What a result adds when the program a release asset replaced is kept, as a pattern."""
+    return re.escape(f" (the program it replaced is kept at ~/.local/state/agent-office/previous/{cmd})")
+
+
 def bump(pin):
     def edit(work):
         m = work / "config" / "components.toml"
@@ -415,9 +424,9 @@ check("a failed component makes it exit 1", r.returncode == 1, said + r.stderr)
 check("this checkout was fast-forwarded to the commit the plan showed",
       h.git(h.office, "rev-parse", "HEAD") == tip and "Agent Office itself moved" in said, said)
 for name, want in (("agent-office", r"updated: \w{12} -> " + tip[:12] + r" \(earlier in this update\)"),
-                   ("herdr", r"updated: 0\.9\.0 -> 0\.9\.1"),
+                   ("herdr", r"updated: 0\.9\.0 -> 0\.9\.1" + kept_at("herdr")),
                    ("treehouse", r"updated: 3\.0\.0 -> 3\.1\.0"),
-                   ("no-mistakes", r"pending: 1\.83\.0 -> 1\.84\.0 on disk, not yet active: what already runs keeps "
+                   ("no-mistakes", r"pending: 1\.83\.0 -> 1\.84\.0" + kept_at("no-mistakes") + r" on disk, not yet active: what already runs keeps "
                                    r"1\.83\.0 until you run `no-mistakes daemon restart`"),
                    ("gh-axi", r"updated: 0\.1\.30 -> 0\.1\.36"),
                    ("quota-axi", r"unchanged: 0\.1\.55"),
@@ -581,8 +590,12 @@ h = Home()
 kit(h)
 updater = h.fm / "bin" / "fm-update.sh"
 updater.parent.mkdir()
+# what it reports past its own fast-forward is in ~/fm-said, one line each, ERR: for stderr
 updater.write_text(f'#!/bin/sh\necho "fm-update FM_HOME=$FM_HOME" >> {h.log}\n'
-                   'git fetch -q origin && git merge -q --ff-only origin/main\necho "reread-firstmate: yes"\n')
+                   'git fetch -q origin && git merge -q --ff-only origin/main\n'
+                   '[ -f "$HOME/fm-said" ] && while IFS= read -r l; do\n'
+                   '  case $l in ERR:*) echo "${l#ERR:}" >&2 ;; *) echo "$l" ;; esac; done < "$HOME/fm-said"\n'
+                   'echo "reread-firstmate: yes"\n')
 updater.chmod(0o755)
 h.git(h.fm, "add", "-A")
 h.git(h.fm, "commit", "-qm", "an updater")
@@ -634,13 +647,53 @@ check("tested: the plan is Firstmate's own updater, with its home", "runs: FM_HO
 check("and its secondmates restart too, as Firstmate's updater names them",
       "and each live secondmate it lists in restart-secondmates or nudge-secondmates" in under(r.stdout, "firstmate"), r.stdout)
 (h.home / "herdr-status.json").write_text(json.dumps({"running": True, "version": "0.9.1", "socket": "/x/s.sock"}) + "\n")
+(h.home / "herdr-agent.json").write_text(json.dumps({"result": {"agent": {"agent": "claude", "cwd": str(h.fm)}}}) + "\n")
+(h.home / "fm-said").write_text(f"firstmate: updated {old[:7]}..{new[:7]}\n"
+                                "secondmate web: updated 1111111..2222222\n"
+                                "ERR:remote secondmate far: skipped on buildbox: ssh: connect to host buildbox: timed out\n"
+                                "ERR:secondmate registry: skipped malformed entry: - broken entry\n"
+                                "restart-secondmates: fm-web\nnudge-secondmates: none\n")
 r = h.run("--yes")
 got = rows(r.stdout.split("Results:")[-1])
+res = r.stdout.split("Results:")[-1]
+check("each secondmate its updater moved has its own result: a live one is on disk, not active, with its restart",
+      re.search(r"  pending +secondmate web +1111111\.\.2222222 on disk, not yet active: it still runs the old instructions\. "
+                r"`FM_HOME=~/fm-home ~/firstmate/bin/fm-secondmate-restart\.sh fm-web` restarts it, as Firstmate's "
+                r"/updatefirstmate does", res), r.stdout)
+check("one it skipped is skipped, with its reason from stderr, and so are the registry lines it cannot read",
+      re.search(r"  skipped +secondmate far +on buildbox: ssh: connect to host buildbox: timed out", res)
+      and re.search(r"  skipped +secondmate registry +1 line\(s\) Firstmate's parser cannot read", res), r.stdout)
+check("it restarted no secondmate itself", not any("fm-secondmate-restart" in c or "fm-send" in c for c in h.calls()),
+      str(h.calls()))
 check("it ran with FM_HOME, and the checkout is at the tested revision",
       f"fm-update FM_HOME={h.home / 'fm-home'}" in h.calls() and h.git(h.fm, "rev-parse", "HEAD") == new, str(h.calls()))
 check("while the office session runs it is on disk, not active: the command is fm restart",
       r.returncode == 1 and re.match(r"pending: \w{12} -> \w{12} on disk, not yet active: a running Firstmate keeps the "
                                      r"instructions it started with: `fm restart`", got.get("firstmate", "")), r.stdout)
+(h.home / "fm-said").write_text("remote secondmate far: already current on buildbox (2222222)\nrestart-secondmates: none\n")
+n = len(h.calls())
+r = h.run("--check")
+check("the next plan runs its updater again, for the secondmate it skipped, not for the registry lines",
+      "runs: FM_HOME=~/fm-home ~/firstmate/bin/fm-update.sh, again: last time it skipped secondmate far" in
+      under(r.stdout, "firstmate"), r.stdout)
+r = h.run("--yes")
+res = r.stdout.split("Results:")[-1]
+check("and the run picks it up: Firstmate unchanged, the secondmate at its target",
+      [c for c in h.calls()[n:] if c.startswith("fm-update")] == [f"fm-update FM_HOME={h.home / 'fm-home'}"]
+      and re.search(rf"  unchanged +firstmate +{new[:12]}; its updater ran again for its secondmates", res)
+      and re.search(r"  unchanged +secondmate far +on buildbox \(2222222\)", res), r.stdout + str(h.calls()[n:]))
+n = len(h.calls())
+r = h.run("--yes")
+check("then nothing is left for it: its updater does not run again",
+      not [c for c in h.calls()[n:] if c.startswith("fm-update")]
+      and re.search(r"  unchanged +firstmate +" + new[:12] + r"\n", r.stdout), r.stdout + str(h.calls()[n:]))
+(h.home / "herdr-agent.json").unlink()
+(h.home / "fm-said").write_text("restart-secondmates: none\n")
+newer = h.upstream(h.root / "fm.git", lambda w: (w / "AGENTS.md").write_text("three\n"))
+m.write_text(m.read_text().replace(new, newer))
+r = h.run("--yes")
+check("the office session runs, but no Firstmate in it: updated, not pending",
+      re.search(rf"  updated +firstmate +{new[:12]} -> {newer[:12]}", r.stdout.split("Results:")[-1]), r.stdout + r.stderr)
 h.done()
 
 print("office update: updated on disk is not active")
@@ -651,7 +704,7 @@ sock = "/x/office.sock"
 r = h.run("--yes")
 got = rows(r.stdout.split("Results:")[-1])
 check("herdr is updated on disk while the session runs the old one: pending, exit 1", r.returncode == 1 and re.match(
-    r"pending: 0\.9\.0 -> 0\.9\.1 on disk, not yet active: the session office still runs herdr 0\.9\.0: restart the herdr "
+    r"pending: 0\.9\.0 -> 0\.9\.1" + kept_at("herdr") + r" on disk, not yet active: the session office still runs herdr 0\.9\.0: restart the herdr "
     r"session office when its agents can stop: `office off`, then `office on`",
     got.get("herdr", "")), r.stdout + r.stderr)
 check("the config it just wrote is not what the session started with: pending too",
@@ -727,11 +780,87 @@ r = h.run("--yes")
 got = rows(r.stdout.split("Results:")[-1])
 check("the next run picks it up: what was done stays done, the rest is finished, exit 0", r.returncode == 0
       and "was cut off while it updated gh-axi" in r.stdout
-      and got.get("herdr") == "updated: 0.9.0 -> 0.9.1 (earlier in this update)"
+      and re.fullmatch(r"updated: 0\.9\.0 -> 0\.9\.1" + kept_at("herdr") + r" \(earlier in this update\)", got.get("herdr", ""))
       and got.get("gh-axi") == "updated: 0.1.30 -> 0.1.35", r.stdout + r.stderr)
 check("and the record is closed", json.loads(h.record.read_text())["state"] == "done")
 r = h.run("--check")
 check("so nothing is reported any more", "cut off" not in r.stdout, r.stdout)
+h.done()
+
+print("office update: a release asset that does not run as the pin is undone")
+h = Home()
+kit(h, herdr="0.9.0")
+before = (h.home / ".local" / "bin" / "herdr").read_bytes()
+m = h.office / "config" / "components.toml"
+good = re.search(r'asset = "herdr-test", sha256 = "(\w+)"', m.read_text()).group(1)
+m.write_text(m.read_text().replace(good, asset(h, "herdr-test", herdr_text("0.9.2", h.log))))
+h.git(h.office, "commit", "-qam", "an asset that is not the pin")
+h.git(h.office, "push", "-q", "origin", "main")
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("it fails, says so, and puts the program it replaced back", r.returncode == 1
+      and got.get("herdr") == "failed: installed, but `herdr --version` says 0.9.2, not 0.9.1. The program it replaced, "
+                              "0.9.0, was put back"
+      and (h.home / ".local" / "bin" / "herdr").read_bytes() == before, r.stdout + r.stderr)
+(h.root / "assets" / "herdr-test").unlink()
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("a download that fails replaced nothing, so nothing is said to be put back",
+      got.get("herdr", "").startswith("failed: download failed") and "put back" not in got.get("herdr", "")
+      and (h.home / ".local" / "bin" / "herdr").read_bytes() == before, r.stdout + r.stderr)
+h.done()
+
+print("office update: a program left without a version by a run that stopped is installed again")
+h = Home()
+kit(h, gh_axi="0.1.30")
+prog = h.home / "node" / "lib" / "node_modules" / "gh-axi" / "dist" / "bin" / "gh-axi.js"
+prog.write_text("#!/bin/sh\nexit 1\n")                     # npm was cut off halfway through it
+r = h.run("--check")
+check("on its own, a program with no version is blocked", "blocker: `gh-axi --version` gave no version"
+      in under(r.stdout, "gh-axi"), r.stdout)
+h.state.mkdir(parents=True)
+h.record.write_text(json.dumps({"schema": 1, "state": "running", "current": "gh-axi", "started": "2026-10-01T00:00:00Z",
+                                "results": {}}) + "\n")
+r = h.run("--check")
+check("when the last run stopped on it, the plan installs it again", re.fullmatch(
+    r"update: unknown +0\.1\.35 .*", rows(r.stdout).get("gh-axi", "")) and "its owner installs the target again"
+      in under(r.stdout, "gh-axi"), r.stdout)
+r = h.run("--yes")
+got = rows(r.stdout.split("Results:")[-1])
+check("and the run does, so the update is complete", got.get("gh-axi") == "updated: unknown -> 0.1.35"
+      and json.loads(h.record.read_text())["state"] == "done", r.stdout + r.stderr)
+h.done()
+
+print("office update: the lock is held across the move to the new release")
+h = Home()
+kit(h, gh_axi="0.1.30")
+tip = h.upstream(h.root / "office.git", bump("0.1.36"))
+# herdr --version is asked while each release plans: this says whether the lock was held then
+watch = h.bin / "lockwatch"
+watch.write_text(f"""#!{sys.executable}
+import fcntl, os, subprocess
+home = os.environ["HOME"]
+try:
+    f = open(home + "/.local/state/agent-office/update.lock")
+    try:
+        fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        r = "free"
+    except OSError:
+        r = "held"
+except OSError:
+    r = "none"
+head = subprocess.run(["git", "-C", home + "/agent-office", "rev-parse", "HEAD"], capture_output=True, text=True)
+open({str(h.log)!r}, "a").write("lockwatch " + r + " " + head.stdout.strip() + "\\n")
+""")
+watch.chmod(0o755)
+r = h.run("--yes")
+seen = [c.split()[1] for c in h.calls() if c.startswith("lockwatch ") and c.endswith(tip)]
+check("the new release planned while the lock was still held, and then finished", r.returncode == 0 and seen
+      and set(seen) == {"held"} and rows(r.stdout.split("Results:")[-1]).get("gh-axi") == "updated: 0.1.30 -> 0.1.36",
+      r.stdout + r.stderr + str(h.calls()))
+r = h.run("--yes")
+check("and it let go of it at the end: the next run takes it", r.returncode == 0 and "another office update" not in r.stderr,
+      r.stdout + r.stderr)
 h.done()
 
 print("PASS" if not fails else f"FAIL: {fails}")

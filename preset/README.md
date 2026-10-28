@@ -127,12 +127,13 @@ Shortcuts, Input Sources.
 | swap with the pane below | `prefix+shift+down` | `swap_pane_down` |
 | go to any agent, by name | `prefix+g` | `goto` |
 | go to the agent that asked for you | `prefix+o` | `open_notification_target` |
+| open a project: pick one, go to its space or make one (`office open`) | `prefix+f` | `open a project` |
 | settings | `prefix+s` | `settings` |
 | copy mode | `prefix+enter` | `copy_mode` |
 | leave herdr, everything keeps running | `prefix+d` | `detach` |
 | show or hide the sidebar | `prefix+b` | `toggle_sidebar` |
 | dictate: press, talk, press again to type it (opt-in) | `prefix+m` | `agent-office.meter.dictate` |
-| editor pane in the focused agent's worktree (opt-in) | `prefix+f` | `agent-office.meter.editor` |
+| editor pane in the focused agent's worktree (opt-in) | `prefix+i` | `agent-office.meter.editor` |
 | all keys | `prefix+?` | `help` |
 | reload the config: no key, it is in settings |  | `reload_config` |
 

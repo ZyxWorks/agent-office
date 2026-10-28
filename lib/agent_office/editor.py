@@ -1,6 +1,6 @@
 """office editor: an editor pane next to the focused agent, in that agent's worktree.
 
-Off by default. prefix+f runs `office editor --pane <focused pane>`: herdr says which folder the
+Off by default. prefix+i runs `office editor --pane <focused pane>`: herdr says which folder the
 pane's foreground process (the agent) is in, the worktree is the git top level of that folder,
 and a new pane split off the focused one runs `office editor <worktree>` there. That second run
 starts the editor in the pane's own shell, so your shell's $VISUAL and $EDITOR are the ones it
@@ -31,7 +31,7 @@ USAGE = """\
 usage: office editor [FOLDER]        the editor here, in FOLDER's worktree (default: this folder)
        office editor --pane PANE     a new pane next to PANE, in PANE's worktree, running it
 
-Bound to prefix+f in the preset. Off until [editor] enabled = true in your config.
+Bound to prefix+i in the preset. Off until [editor] enabled = true in your config.
 The editor is [editor] command, else $VISUAL, else $EDITOR, else nvim."""
 INIT = C.REPO / "editor" / "nvim" / "init.lua"
 NVIM_APPNAME = "agent-office-nvim"

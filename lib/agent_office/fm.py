@@ -258,17 +258,17 @@ def launch(o: Office, args: list, out) -> dict:
     return srv
 
 
-def _show(o: Office, srv: dict, out) -> list | None:
+def _show(o: Office, srv: dict, out, what: str = "Firstmate") -> list | None:
     """The attach to run when this terminal is not already looking at the office's session."""
     if o.env.get("HERDR_ENV") == "1":
         if o.env.get("HERDR_SOCKET_PATH") and _same(o.env["HERDR_SOCKET_PATH"], Path(srv.get("socket", ""))):
             return None
-        print(f"{o.who}: this pane is in another herdr session. To see Firstmate: run `office on` in a "
+        print(f"{o.who}: this pane is in another herdr session. To see {what}: run `office on` in a "
               "terminal outside herdr.", file=out)
         return None
     if sys.stdin.isatty() and sys.stdout.isatty():
         return ["herdr", "session", "attach", o.session]
-    print(f"{o.who}: to see Firstmate: run `office on` in a terminal.", file=out)
+    print(f"{o.who}: to see {what}: run `office on` in a terminal.", file=out)
     return None
 
 

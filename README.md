@@ -166,6 +166,9 @@ harness = "claude"
 [treehouse]
 # root = "<local-pool-root>"          # optional; treehouse's own default otherwise
 
+[open]
+roots = []                            # say ["~/code"]: office open offers the checkouts in it
+
 [meter]
 enabled = true
 interval_seconds = 30
@@ -182,8 +185,9 @@ What each part does:
 |---|---|
 | `schema` | required, must be `1` |
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
+| `[open]` | `roots`: folders whose git checkouts `office open` offers next to Firstmate's projects, say `["~/code"]`. Only the folders directly inside each root are looked at. Empty by default |
 | `[dictate]` | push-to-talk dictation, off by default and local only: `enabled`, `model` (the whisper.cpp model file you downloaded), `language` (`"auto"` or a code such as `"en"`) and `max_seconds` (120). Used by `office dictate` and `prefix+m`. See [Dictation](#dictation) |
-| `[editor]` | the editor pane, off by default: `enabled`, `command` (the editor; else `$VISUAL`, `$EDITOR`, then `nvim`), `office_config` (nvim gets the office's config, `true`) and `split` (`"right"` or `"down"`). Used by `office editor` and `prefix+f`. See [Editor](#editor) |
+| `[editor]` | the editor pane, off by default: `enabled`, `command` (the editor; else `$VISUAL`, `$EDITOR`, then `nvim`), `office_config` (nvim gets the office's config, `true`) and `split` (`"right"` or `"down"`). Used by `office editor` and `prefix+i`. See [Editor](#editor) |
 | `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
 | `[setup]` | the agent working setup: test workers and subagents, models, the cold-cache minutes, branches, gate commands, review and captain preferences, Firstmate's switches, the Claude Code theme. Checked like the rest. `office setup` fills [setup/](setup)'s templates in from it |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm`, `office on`, `office off` and `office status` use `office.session` and `[firstmate]` except `source`. `treehouse.root` is only reported |
@@ -227,16 +231,17 @@ The rules the config follows:
 | `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, the agent working setup, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing. |
 | `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active; the agent working setup that `office setup agents` wrote, in place or behind. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. |
 | `office status` | read-only: what is running, what the office owns, meter health, pending restarts, and the result of the last `office off`. Unknown is never reported as healthy: it exits 1 on any problem. Pending updates are planned, with `office update`. |
+| `office open [<project>]` | go to a project's space in the office's herdr session, or make one with its first pane in the project; attach when the terminal is outside herdr. With no project named, fzf picks one from the projects Firstmate has registered and cloned (its `data/projects.md`, read only) and the git checkouts directly inside each `open.roots` folder. An exact name opens without a picker, a part of one opens the picker typed in, a folder (`office open .`) opens that folder. A space is the project's when its label is the project's name and one of its panes is in the project's folder; nothing is closed or renamed. `--list` prints the projects. Inside the office, `prefix+f` runs it in a popup. Needs the herdr session running; `office on` starts it. |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` starts it. |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. Inside the office, `ctrl+space` then `?` shows herdr's own list. |
 | `office dictate` / `office dictate cancel` | push-to-talk, if `[dictate]` is on: the first run records from the microphone, the next one stops, transcribes on this machine and types the words into the focused pane, without Enter. `prefix+m` runs it. `cancel` throws the recording away. See [Dictation](#dictation). |
-| `office editor` / `office editor --pane PANE` | if `[editor]` is on: the editor in this folder's worktree, or a new pane next to `PANE` that runs it in the worktree of `PANE`'s agent. `prefix+f` runs the second one. See [Editor](#editor). |
+| `office editor` / `office editor --pane PANE` | if `[editor]` is on: the editor in this folder's worktree, or a new pane next to `PANE` that runs it in the worktree of `PANE`'s agent. `prefix+i` runs the second one. See [Editor](#editor). |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. |
 | `office remote` | read-only: can your phone reach the running office, and what to type there. Checks the office's herdr session, an SSH server on this machine and Tailscale, then prints the `ssh` line and `office on`, or what is missing. Turns nothing on and opens no port. See [From your phone](#from-your-phone). |
 
 `office install`, `office setup`, `office config`, `office keys`, `office dictate`, `office editor`, `office notify`, `office remote`, `office tools`, `office doctor`, `office update`, `office help`,
-`office version`, `office on`, `office break`, `office off`, `office status`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
+`office version`, `office on`, `office break`, `office off`, `office status`, `office open`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
 `doctor`, what runs and its RAM, is still there as `office list`.
@@ -301,9 +306,9 @@ shows the plan, asks, and then works through it one component at a time:
 | this checkout (the CLI, preset and meter) | the tip of the branch it follows | `git fetch`, then `git merge --ff-only`. Never a merge commit, a rebase or a reset. When it moved, the new release's `office update` takes over, so the rest follows the new release's list. |
 | a tool npm owns | its pin | `npm install -g --ignore-scripts <package>@<pin>` |
 | a tool Homebrew owns | its pin or tested version | `brew info` first; `brew upgrade` only if Homebrew has exactly that version, otherwise skipped |
-| herdr, treehouse, no-mistakes, where `office tools` puts them | its pin or tested version | the owner's release asset at that version, SHA-256 checked, put over the program |
+| herdr, treehouse, no-mistakes, where `office tools` puts them | its pin or tested version | the owner's release asset at that version, SHA-256 checked, put over the program. The program it replaces is kept in `~/.local/state/agent-office/previous/`, and put back when the new one does not report the target version |
 | a tool Nix or the system's packages own, or that sits somewhere else | | skipped: it tells you to update it there |
-| Firstmate | the newest tested revision | Firstmate's own updater when the checkout has one and its `origin` is at a tested revision; otherwise `git fetch` and `git merge --ff-only` to that revision |
+| Firstmate | the newest tested revision | Firstmate's own updater when the checkout has one and its `origin` is at a tested revision; otherwise `git fetch` and `git merge --ff-only` to that revision. Each secondmate its updater reports gets a result of its own |
 | the generated herdr config, meter settings and links | your config | `office install --yes`, with its backups |
 | the agent working setup, once `office setup agents` has written it | your config and this release's templates | `office setup agents --yes`, with its backups. A whole file you changed is never replaced: the new version goes beside it once, and then it is yours to compare. A block or key of Agent Office's that you changed is put back after the plan's one question, backed up first. A key you took out stays out. Off with `setup.enabled = false` |
 
@@ -330,20 +335,32 @@ After each update it reads the version again, and only the target counts:
 
 - **updated**: it is at the target now. **unchanged**: it already was.
 - **skipped**: a blocker, nothing was changed. **failed**: the owner's command
-  failed or left another version.
+  failed or left another version. A release asset that does not report the
+  target version is undone: the program it replaced is put back, and the
+  result says so.
 - **updated on disk but not yet active**: the new version is installed, but
   what is running is still the old one. This is said for the running herdr
   server, a generated config or meter the running session has not loaded, a
-  Firstmate that was updated while it runs, and the no-mistakes daemon.
+  Firstmate that was updated while it runs in the office session (when herdr
+  cannot say whether it runs, it counts as running), a live secondmate Firstmate's
+  updater moved, and the no-mistakes daemon.
   `office update` prints the restart to run and never runs it: it stops,
-  restarts or reloads no server, no Firstmate and no daemon.
+  restarts or reloads no server, no Firstmate, no secondmate and no daemon.
+  For the office session's herdr, config and meter, every later `office
+  update` checks again, and reports them pending until the session runs them.
 
 It exits 0 only when every component is updated or unchanged, and 1 otherwise.
 One component's failure does not hide the others' results, and running it
-again does only what is left. There is no rollback: a component that was
-updated stays updated.
+again does only what is left: a component the last run failed or was cut off
+on is tried again, also when its program no longer reports a version, and so
+is a secondmate Firstmate's updater skipped, by running that updater again.
+There is no rollback across components: one that was updated stays updated.
+For a release asset the program it replaced stays in
+`~/.local/state/agent-office/previous/` until its next update, for a rollback
+you decide on.
 
-Only one runs at a time (a lock in `~/.local/state/agent-office/`). Its
+Only one runs at a time (a lock in `~/.local/state/agent-office/`, held
+across the move to a new release too). Its
 progress is recorded there in `update.json`, so a run that was killed or lost
 its terminal is reported by `office update --check` and picked up by the next
 `office update`. `--check` asks each remote for its tip with `git ls-remote`.
@@ -536,7 +553,7 @@ Set it up once. Agent Office installs none of it for you, and ships no model:
 
 An editor pane next to an agent, to read what it wrote or change a line yourself. It is off until you turn it on.
 
-Press `ctrl+space` `f`. A new pane opens on the right of the focused one. It is in the agent's worktree: the git top level of the folder the agent runs in, not your shell's folder. Quit the editor and the pane closes. The agent's pane is not touched.
+Press `ctrl+space` `i`. A new pane opens on the right of the focused one. It is in the agent's worktree: the git top level of the folder the agent runs in, not your shell's folder. Quit the editor and the pane closes. The agent's pane is not touched.
 
 The editor is `[editor] command`, else `$VISUAL`, else `$EDITOR`, else `nvim`. It is split into words and started directly, never through a shell. Your shell's `$VISUAL` and `$EDITOR` count: if `$EDITOR` is `micro`, you get micro, and `command = "nvim"` gets you the office's nvim.
 
@@ -632,7 +649,7 @@ The prefix is `ctrl+space`: press it, let go, then the key.
 | `ctrl+space` `s` | settings |
 | `ctrl+space` `d` | leave herdr. Everything keeps running |
 | `ctrl+space` `m` | dictate: press, talk, press again. Off until you turn on [dictation](#dictation) |
-| `ctrl+space` `f` | an editor pane in the focused agent's worktree. Off until you turn on the [editor](#editor) |
+| `ctrl+space` `i` | an editor pane in the focused agent's worktree. Off until you turn on the [editor](#editor) |
 
 The same letter does the same thing one level down: plain for a space, with
 Shift for a tab. `office keys` prints them all on one screen, and
@@ -651,6 +668,7 @@ own herdr, config or office.
 | the preset: keys, sidebar, theme, sound, the WezTerm example | `preset/preset-probe` | herdr and WezTerm themselves |
 | the config, `office install`, `office doctor`, `office tools` | `bin/install-probe` | throwaway homes, a real herdr, stand-in installers |
 | `office update` | `bin/update-probe` | throwaway homes, stand-in owners |
+| `office open` | `bin/open-probe` | stand-ins for herdr and fzf, a stand-in Firstmate home |
 | `fm` and `fm restart` | `bin/fm-probe` | a throwaway herdr session, a stand-in agent |
 | `office on`, `break`, `off`, `off --all`, `status` | `bin/lifecycle-probe` | throwaway herdr sessions, a stand-in agent |
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |

@@ -20,7 +20,7 @@
 #     s                  settings                    a      adjust pane size (resize mode)
 #     Enter              copy mode                   d      leave herdr (keeps running)
 #     m                  dictate: press, talk, press (opt-in, [dictate] in your config)
-#     f                  editor pane in the focused agent's worktree (opt-in, [editor])
+#     i                  editor pane in the focused agent's worktree (opt-in, [editor])
 #     ?                  all keys
 # Small letter for the space, capital for the tab: a space holds tabs, so it is the bigger step.
 # Ctrl+Space and not herdr's Ctrl+B: Ctrl+B is "back one character" in the shell and in the
@@ -75,6 +75,29 @@ if ! "${HERDR_BIN_PATH:-herdr}" tab close "$HERDR_ACTIVE_TAB_ID"; then
 fi
 '''
 
+# office open's picker in a popup: fzf over the projects, then the project's space. A cancelled
+# pick (Esc, exit 130) closes it at once; anything else that failed stays up to be read.
+# `command`, because a shell that still loads the tmux office's `office` function would run that.
+[[keys.command]]
+key = "prefix+f"
+type = "popup"
+description = "open a project"
+width = 100
+height = 24
+command = '''
+if ! command -v office >/dev/null 2>&1; then
+  printf '\n office is not on the PATH herdr started with. Press Enter. '
+  IFS= read -r answer
+  exit 0
+fi
+command office open
+rc=$?
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 130 ]; then
+  printf '\n Press Enter to dismiss. '
+  IFS= read -r answer
+fi
+'''
+
 [[keys.command]]
 key = "shift+left"
 type = "plugin_action"
@@ -110,7 +133,7 @@ description = "dictate: press, talk, press again to type it"
 # An editor next to the focused pane, in its agent's worktree: off until [editor] is on in your
 # Agent Office config (herdr/editor, `office editor`).
 [[keys.command]]
-key = "prefix+f"
+key = "prefix+i"
 type = "plugin_action"
 command = "agent-office.meter.editor"
 description = "editor pane in this worktree"

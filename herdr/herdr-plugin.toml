@@ -46,7 +46,7 @@ title = "Dictate: record, then type the words into this pane"
 contexts = ["workspace"]
 command = ["sh", "dictate"]
 
-# prefix+f in the preset; off unless [editor] is on in your Agent Office config.toml; see editor
+# prefix+i in the preset; off unless [editor] is on in your Agent Office config.toml; see editor
 [[actions]]
 id = "editor"
 title = "Editor: open one next to this pane, in its worktree"

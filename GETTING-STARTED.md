@@ -103,6 +103,7 @@ the key. A small letter is for a space, the same letter with Shift is for a tab.
 | walk away, leave it all running | `office break` |
 | come back | `office on` |
 | jump to Firstmate | `fm` |
+| jump to a project, or give it a space (set `open.roots` for checkouts Firstmate does not know) | `office open`, or `ctrl+space` `f` inside |
 | give Firstmate a fresh conversation, work saved first | `fm restart` |
 | see what is running | `office status` |
 | see what is installed, who updates it and whether it is tested | `office doctor` |
