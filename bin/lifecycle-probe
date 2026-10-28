@@ -67,6 +67,19 @@ while True:
 '''
 
 
+# Firstmate's control plane, as office off calls it: `fm-control.sh <task> exit`, with FM_HOME
+CONTROL = r'''#!/bin/sh
+here=$(dirname "$0")/..
+echo "control $* FM_HOME=$FM_HOME" >> "$here/.fake-log"
+if [ "$(cat "$here/.fake-control" 2>/dev/null)" = fail ]; then
+  echo "error: the stand-in refuses" >&2
+  exit 1
+fi
+pane=$(sed -n 's/^herdr_pane_id=//p' "$FM_HOME/state/$1.meta" | tail -n 1)
+herdr --session "$HERDR_SESSION" pane report-agent --source fake --agent claude --state idle "$pane" >/dev/null
+'''
+
+
 def check(name, ok, detail=""):
     global fails
     print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
@@ -80,6 +93,11 @@ for d in (home, fakebin, stub, fmhome, *code.values()):
     d.mkdir()
 (fakebin / "claude").write_text(FAKE)
 (fakebin / "claude").chmod(0o755)
+for c in code.values():
+    (c / "bin").mkdir()
+    (c / "bin" / "fm-control.sh").write_text(CONTROL)
+    (c / "bin" / "fm-control.sh").chmod(0o755)
+(fmhome / "state").mkdir()
 (stub / "herdr").write_text("#!/bin/sh\nexit 1\n")  # a herdr that answers nothing
 (stub / "herdr").chmod(0o755)
 herdr_bin = shutil.which("herdr")
@@ -365,6 +383,60 @@ try:
     r = office("status")
     check("office status: not running, last office off stopped, exit 0", r.returncode == 0
           and "not running" in r.stdout and "stopped" in r.stdout and "No problems." in r.stdout, r.stdout + r.stderr)
+
+    print("office off and Firstmate's workers")
+    office("on")
+    rec = record(A)
+
+    def agent_in(name):
+        pane = herdr(A, "tab", "create", "--cwd", str(root), "--no-focus")["root_pane"]["pane_id"]
+        time.sleep(1)
+        herdr(A, "agent", "start", name, "--kind", "claude", "--pane", pane)
+        herdr(A, "pane", "report-agent", "--source", "fake", "--agent", "claude", "--state", "working", pane)
+        return pane
+
+    worker, other = agent_in("worker"), agent_in("mine")
+    meta = fmhome / "state" / "lab-task.meta"
+    meta.write_text(f"backend=herdr\nwindow={A}:{worker}\nherdr_session={A}\nherdr_pane_id=old\n"
+                    f"herdr_pane_id={worker}\nworktree={root}\n")
+    # a record left from an earlier server whose pane id the agent that is not Firstmate's now has
+    stale = fmhome / "state" / "old-task.meta"
+    stale.write_text(f"backend=herdr\nherdr_session={A}\nherdr_pane_id={other}\nworktree={code[B]}\n")
+    log = code[A] / ".fake-log"
+
+    def controls():
+        return [l for l in log.read_text().splitlines() if l.startswith("control ")]
+
+    n = len(sent(A))
+    r = office("off", "--yes")
+    check("a busy worker of Firstmate's is listed by its task (the last pane its record names), and a stale record "
+          "does not make the agent that is not Firstmate's a worker",
+          r.returncode == 1 and f"task lab-task  pane {worker}" in r.stdout and f"pane {other}" in r.stdout
+          and "not Firstmate's" in r.stdout and "old-task" not in r.stdout and "--stop-workers" in r.stderr
+          and "task lab-task" in r.stderr,
+          r.stdout + r.stderr)
+    r = office("off", "--yes", "--stop-workers")
+    check("--stop-workers still refuses while an agent that is not Firstmate's works, and stops no worker",
+          r.returncode == 1 and f"pane {other}" in r.stderr and controls() == [] and len(sent(A)) == n
+          and running(A), r.stdout + r.stderr)
+    herdr(A, "pane", "report-agent", "--source", "fake", "--agent", "claude", "--state", "idle", other)
+    (code[A] / ".fake-control").write_text("fail")
+    r = office("off", "--yes", "--stop-workers")
+    check("Firstmate refuses to stop its worker: the session keeps running and nothing is saved", r.returncode == 1
+          and "the stand-in refuses" in r.stderr and "the session was not stopped" in r.stderr
+          and len(controls()) == 1 and len(sent(A)) == n and running(A) and record(A) == rec, r.stdout + r.stderr)
+    (code[A] / ".fake-control").write_text("ok")
+    r = office("off", "--yes", "--stop-workers")
+    lines = log.read_text().splitlines()
+    stopped_at = max(i for i, l in enumerate(lines) if l.startswith("control "))
+    stow_at = max(i for i, l in enumerate(lines) if l.startswith("got /stow "))
+    check("--stop-workers: Firstmate stops the worker through its control plane, then saves, then the stop",
+          r.returncode == 0 and "Firstmate stopped worker lab-task" in r.stdout and stopped_at < stow_at
+          and lines[stopped_at] == f"control lab-task exit FM_HOME={fmhome}" and not running(A)
+          and record(A) is None, r.stdout + r.stderr + str(lines[-4:]))
+    check("the worker's task record is kept for Firstmate", meta.exists())
+    meta.unlink()
+    stale.unlink()
 
     print("office off typed in a pane of the session it stops")
     office("on")
