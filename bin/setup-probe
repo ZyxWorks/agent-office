@@ -136,6 +136,29 @@ def main():
     check("supervision-host is the harness and the model",
           texts["/home/user/fm-home/config/supervision-host"] == "claude model-a\n")
 
+    print("the harness and its models")
+    try:
+        S.plan(C.effective({"schema": 1, "firstmate": {"harness": "codex"}}, "codex"), ENV)
+        check("codex without models refuses", False, "rendered")
+    except C.ConfigError as e:
+        check("codex without models refuses", all(k in str(e) for k in (
+            "setup.models.default.model", "setup.models.default.effort",
+            "setup.models.mechanical.model", "setup.models.mechanical.effort")), str(e))
+    cx = {"schema": 1, "firstmate": {"harness": "codex"},
+          "setup": {"models": {"default": {"model": "cx-a", "effort": "high"},
+                               "mechanical": {"model": "cx-b", "effort": "low"}}}}
+    t = by_target(S.plan(C.effective(cx, "codex"), ENV))
+    texts = {k: i["content"] for k, i in t.items() if "content" in i}
+    d = json.loads(texts["/home/user/firstmate/config/crew-dispatch.json"])
+    check("codex with models renders them",
+          d["default"] == [{"harness": "codex", "model": "cx-a", "effort": "high"}]
+          and d["rules"][2]["use"] == [{"harness": "codex", "model": "cx-b", "effort": "low"}]
+          and texts["/home/user/firstmate/config/supervision-host"] == "codex cx-a\n"
+          and "model: cx-a\n    effort: high" in texts["/home/user/.no-mistakes/config.yaml"], texts)
+    t = by_target(S.plan(C.effective({"schema": 1, "firstmate": {"harness": "claude"}}, "claude"), ENV))
+    check("claude keeps the shipped models",
+          t["/home/user/firstmate/config/supervision-host"]["content"] == "claude claude-opus-5-5\n")
+
     print("bad values are errors")
     for name, user, want in (
         ("an unknown key", {"setup": {"machine": {"workers": 2}}}, "unknown key setup.machine.workers"),
