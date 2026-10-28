@@ -17,6 +17,11 @@ harness = "claude"
 [treehouse]
 # root: the worktree pool root. Unset means treehouse picks its own.
 
+# office open: the folders whose git checkouts it offers, next to Firstmate's projects. Only the
+# folders directly inside each root are looked at.
+[open]
+roots = []
+
 # The meter's own defaults, in herdr/meter: METER_EVERY, METER_WARN, METER_ALARM.
 [meter]
 enabled = true

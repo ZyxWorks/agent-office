@@ -20,6 +20,9 @@ schema = 1
 # [treehouse]
 # root = "~/worktrees"                # the worktree pool root; unset: treehouse's own
 
+# [open]
+# roots = ["~/code"]                  # office open offers each git checkout directly inside these
+
 # [meter]
 # enabled = true
 # interval_seconds = 30

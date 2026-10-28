@@ -180,7 +180,7 @@ jobs:
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
             bin/office bin/install-probe bin/update-probe bin/notify-probe bin/dictate-probe bin/remote-probe bin/fm bin/fm-probe lib/agent_office/*.py \
             bin/officeoff-all bin/lifecycle-probe bin/leak-scan bin/leak-scan-probe bin/setup-probe bin/setup-home-probe \
-            bin/setup-all-probe \
+            bin/setup-all-probe bin/open-probe \
             setup/claude/hooks/agents-md.py
           sh -n .githooks/pre-push
           sh -n herdr/notify
@@ -279,6 +279,16 @@ jobs:
       - name: dictate-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
         run: /usr/bin/python3 bin/dictate-probe
+
+      # `office open`, with stand-ins for herdr and fzf: no server.
+      - name: open-probe
+        timeout-minutes: 5
+        run: bin/open-probe
+
+      - name: open-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        timeout-minutes: 5
+        run: /usr/bin/python3 bin/open-probe
 
       # `office remote` with stand-ins for herdr and tailscale and an SSH port of its own.
       # No server, no network.

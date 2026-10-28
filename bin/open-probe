@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""open-probe: `office open`, with stand-ins for herdr and fzf.
+
+Every case runs in a throwaway $HOME with a stand-in Firstmate home (its data/projects.md and
+projects/ clones) and an open.roots folder. No herdr server: the stand-in herdr answers from a
+JSON file of spaces and panes and writes down what it was asked to do. The stand-in fzf picks
+the row it is told to. Each case is a promise the README makes.
+
+  bin/open-probe
+  /usr/bin/python3 bin/open-probe     # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import json
+import os
+import pty
+import select
+import signal
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OFFICE = REPO / "bin" / "office"
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+root = Path(tempfile.mkdtemp(prefix="office-open-probe."))
+home = root / "home"
+cfg = home / ".config" / "agent-office" / "config.toml"
+cfg.parent.mkdir(parents=True)
+fmhome = home / "fm"
+(fmhome / "data").mkdir(parents=True)
+(fmhome / "data" / "projects.md").write_text(
+    "# Projects\n\n"
+    "- alpha [direct-PR +yolo] - the first one (added 2026-01-01)\n"
+    "- beta - a legacy line with no mode (added 2026-01-01)\n"
+    "- gamma [no-mistakes] - registered, not cloned yet (added 2026-01-01)\n"
+    "- ../escape [direct-PR] - never a path out of projects/\n"
+    "not a registry line\n")
+for name in ("alpha", "beta"):
+    (fmhome / "projects" / name / ".git").mkdir(parents=True)
+code = home / "code"
+for name in ("delta", "alphabet", ".hidden"):
+    (code / name / ".git").mkdir(parents=True)
+(code / "notes").mkdir()                                  # not a git checkout: not offered
+(code / "alpha-link").symlink_to(fmhome / "projects" / "alpha")   # the same folder twice: once
+(fmhome / "code").mkdir()
+
+fake = root / "bin"
+fake.mkdir()
+log = root / "calls.log"
+world = root / "world.json"
+SOCKET = str(root / "office.sock")
+
+# herdr: `herdr --session S <verb...>`. The world file holds the spaces and panes; a create adds
+# a space with one pane in its --cwd, as herdr does.
+(fake / "herdr").write_text(f"""#!{sys.executable}
+import json, sys
+a = sys.argv[1:]
+with open({str(log)!r}, "a") as f:
+    f.write("herdr " + json.dumps(a) + "\\n")
+w = json.load(open({str(world)!r}))
+if a[:1] == ["--session"]:
+    a = a[2:]
+def say(r):
+    print(json.dumps({{"result": r}}))
+if a[:2] == ["status", "--json"]:
+    print(json.dumps({{"server": {{"running": w["running"], "socket": {SOCKET!r}}}}}))
+elif a[:2] == ["workspace", "list"]:
+    say({{"workspaces": w["spaces"]}})
+elif a[:2] == ["pane", "list"]:
+    say({{"panes": w["panes"]}})
+elif a[:2] == ["workspace", "focus"]:
+    say({{}})
+elif a[:2] == ["workspace", "create"]:
+    n = len(w["spaces"]) + 1
+    wid = "w%d" % n
+    sp = {{"workspace_id": wid, "number": n, "label": a[a.index("--label") + 1]}}
+    w["spaces"].append(sp)
+    w["panes"].append({{"pane_id": wid + ":p1", "workspace_id": wid, "cwd": a[a.index("--cwd") + 1]}})
+    json.dump(w, open({str(world)!r}, "w"))
+    say({{"workspace": sp}})
+elif a[:2] == ["session", "attach"]:
+    print("attached")
+else:
+    sys.stderr.write("fake herdr: unexpected %s\\n" % a)
+    sys.exit(1)
+""")
+# fzf: FAKE_FZF=<text> picks the first row with that text in it, =cancel is Esc (exit 130)
+(fake / "fzf").write_text(f"""#!{sys.executable}
+import json, os, sys
+rows = sys.stdin.read().splitlines()
+with open({str(log)!r}, "a") as f:
+    f.write("fzf " + json.dumps(sys.argv[1:]) + "\\n")
+want = os.environ.get("FAKE_FZF", "")
+if want == "cancel":
+    sys.exit(130)
+if want == "broken":
+    sys.exit(2)
+hit = [r for r in rows if want in r.split("\\t", 1)[1]]
+if not hit:
+    sys.exit(1)
+print(hit[0])
+""")
+for f in fake.iterdir():
+    f.chmod(0o755)
+(fake / "python3").symlink_to(sys.executable)
+nofzf = root / "nofzf"
+nofzf.mkdir()
+for f in ("herdr", "python3"):
+    (nofzf / f).symlink_to(fake / f)
+SYSTEM = "/usr/bin:/bin:/usr/sbin:/sbin"
+env = {k: v for k, v in os.environ.items() if not k.startswith(("XDG_", "HERDR_", "FAKE_"))}
+env.update(HOME=str(home), PYTHONDONTWRITEBYTECODE="1", PATH=f"{fake}:{SYSTEM}")
+
+cfg.write_text(f'schema = 1\n[office]\nsession = "probe"\n[firstmate]\ncode = "~/fm/code"\nhome = "~/fm"\n'
+               f'[open]\nroots = ["~/code", "~/nowhere"]\n')
+
+
+def fresh(running=True, spaces=(), panes=()):
+    world.write_text(json.dumps({"running": running, "spaces": list(spaces), "panes": list(panes)}))
+    if log.exists():
+        log.unlink()
+
+
+def calls(kind="herdr"):
+    lines = log.read_text().splitlines() if log.exists() else []
+    return [json.loads(l[len(kind) + 1:]) for l in lines if l.startswith(kind + " ")]
+
+
+def did():
+    """What changed in herdr: focus and create calls, without --session."""
+    return [a[2:] for a in calls() if a[2:4] in (["workspace", "focus"], ["workspace", "create"])]
+
+
+def office(*args, **extra):
+    return subprocess.run([sys.executable, str(OFFICE), "open", *args], env=dict(env, **extra),
+                          capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=30)
+
+
+def on_tty(*args, **extra):
+    """office open on a terminal of its own, as a person types it: (exit code, what it printed)."""
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.environ.clear()
+        os.environ.update(dict(env, **extra))
+        os.execv(sys.executable, [sys.executable, str(OFFICE), "open", *args])
+    # a hard limit: a real fzf that slipped onto PATH waits for keys for ever, so a case that
+    # does not end by itself is killed and fails, and the probe goes on
+    text, end = b"", time.monotonic() + 30
+    while True:
+        r, _, _ = select.select([fd], [], [], max(0, end - time.monotonic()))
+        if not r:
+            os.kill(pid, signal.SIGKILL)
+            text += b"\n[killed: still running after 30 seconds]"
+            break
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        text += chunk
+    _, status = os.waitpid(pid, 0)
+    return os.waitstatus_to_exitcode(status) if hasattr(os, "waitstatus_to_exitcode") else status >> 8, \
+        text.decode(errors="replace")
+
+
+ALPHA = str(fmhome / "projects" / "alpha")
+DELTA = str(code / "delta")
+
+print("--list: Firstmate's cloned projects, then each git checkout in open.roots, once per folder")
+fresh()
+r = office("--list")
+rows = [l.split() for l in r.stdout.splitlines()]
+check("exits 0", r.returncode == 0, r.stderr)
+check("registered first, in registry order, then the roots' checkouts sorted",
+      [x[0] for x in rows] == ["alpha", "beta", "alphabet", "delta", "gamma"], r.stdout)
+check("each says where it comes from", [x[1] for x in rows[:4]] == ["firstmate", "firstmate", "root", "root"],
+      r.stdout)
+check("a registered project with no clone is named as one", "gamma  (registered with Firstmate, not cloned yet)"
+      in r.stdout, r.stdout)
+check("paths are shown from ~", rows[0][2] == "~/fm/projects/alpha", r.stdout)
+check("no hidden folder, no folder that is not a checkout, no link to a folder already listed, "
+      "no name that leaves projects/", not any(x[0] in (".hidden", "notes", "alpha-link", "../escape")
+                                               for x in rows), r.stdout)
+check("--list touches no herdr", calls() == [])
+
+print("office open <name>: an exact name opens without a picker")
+fresh()
+r = office("alpha")
+check("makes a space labelled with the name, its first pane in the project",
+      did() == [["workspace", "create", "--cwd", ALPHA, "--label", "alpha", "--focus"]], f"{did()} {r.stderr}")
+check("every herdr call names the configured session first", all(a[:2] == ["--session", "probe"] for a in calls()))
+check("says what it did", "alpha: made a space for it (w1)" in r.stdout, r.stdout)
+check("with no terminal to attach, says how to see it", "to see the project: run `office on`" in r.stdout, r.stdout)
+r = office("alpha")
+check("run again, it goes to that space and makes no second one",
+      did() == [["workspace", "create", "--cwd", ALPHA, "--label", "alpha", "--focus"],
+                ["workspace", "focus", "w1"]], str(did()))
+
+print("which space is the project's")
+fresh(spaces=[{"workspace_id": "w1", "number": 1, "label": "alpha"},
+              {"workspace_id": "w2", "number": 2, "label": "alpha"},
+              {"workspace_id": "w3", "number": 3, "label": "delta"}],
+      panes=[{"workspace_id": "w1", "cwd": "/somewhere/else"},
+             {"workspace_id": "w2", "cwd": "/somewhere/else", "foreground_cwd": ALPHA + "/src"},
+             {"workspace_id": "w3", "cwd": DELTA}])
+office("alpha")
+check("the label and a pane in the folder, a subfolder counts; a same-named space elsewhere does not",
+      did() == [["workspace", "focus", "w2"]], str(did()))
+fresh(spaces=[{"workspace_id": "w1", "number": 1, "label": "my alpha"}], panes=[{"workspace_id": "w1", "cwd": ALPHA}])
+office("alpha")
+check("a space you renamed is not taken over: a new one is made", did()[0][:2] == ["workspace", "create"], str(did()))
+
+print("refusals")
+fresh(running=False)
+r = office("alpha")
+check("no office session: says to run office on, and asks herdr for nothing else",
+      r.returncode == 1 and "Start it with: office on" in r.stderr and did() == [], r.stderr)
+fresh()
+r = office("gamma")
+check("registered but not cloned: says so", r.returncode == 1 and "has no clone of it" in r.stderr and did() == [],
+      r.stderr)
+r = office("habe")
+check("no terminal: a unique part of a name opens it", r.returncode == 0 and did()[0][3] == str(code / "alphabet"),
+      f"{did()} {r.stderr}")
+fresh()
+r = office("alp")
+check("no terminal: a part that matches two lists both and opens nothing",
+      r.returncode == 1 and "'alp' matches 2 projects" in r.stderr and "alphabet" in r.stderr and did() == [],
+      r.stderr)
+m, sl = pty.openpty()
+r = subprocess.run([sys.executable, str(OFFICE), "open"], env=dict(env, FAKE_FZF="delta"), stdin=sl,
+                   capture_output=True, text=True, timeout=30)
+os.close(m)
+os.close(sl)
+check("keys from a terminal but output to a pipe: no picker, the projects are listed",
+      r.returncode == 1 and calls("fzf") == [] and "delta" in r.stderr and did() == [], r.stderr)
+r = office()
+check("no terminal and no name: lists the projects, opens nothing", r.returncode == 1 and "delta" in r.stderr
+      and did() == [], r.stderr)
+r = office("~nobody")
+check("~name is a project name, not a folder", r.returncode == 1 and "no project matches '~nobody'" in r.stderr,
+      r.stderr)
+r = office("a", "b")
+check("two names: a usage error", r.returncode == 2)
+r = office("--bogus")
+check("an unknown flag: a usage error", r.returncode == 2)
+
+print("a folder")
+fresh()
+r = subprocess.run([sys.executable, str(OFFICE), "open", "."], env=dict(env, PWD=DELTA), capture_output=True, text=True,
+                   stdin=subprocess.DEVNULL, cwd=DELTA, timeout=60)
+check("`office open .` opens the folder it is typed in, labelled with its name",
+      did() == [["workspace", "create", "--cwd", DELTA, "--label", "delta", "--focus"]], f"{did()} {r.stderr}")
+fresh()
+r = office("~/code/nope")
+check("a folder that is not there: says so", r.returncode == 1 and "no folder at" in r.stderr and did() == [],
+      r.stderr)
+
+print("the picker, on a terminal")
+fresh()
+rc, text = on_tty(FAKE_FZF="delta")
+check("no name: fzf picks, and the pick opens", rc == 0 and did() == [["workspace", "create", "--cwd", DELTA,
+      "--label", "delta", "--focus"]], f"{rc} {did()} {text}")
+fz = calls("fzf")
+check("fzf starts with no query and opens a single match by itself",
+      fz and fz[0][-2:] == ["--query", ""] and "--select-1" in fz[0], str(fz))
+check("outside herdr, on a terminal, it attaches to the office session",
+      calls()[-1] == ["session", "attach", "probe"] and "attached" in text, f"{calls()[-1:]} {text}")
+fresh()
+rc, text = on_tty("alp", FAKE_FZF="alphabet")
+check("a name that matches two: fzf starts typed in with it", rc == 0 and calls("fzf")[0][-1] == "alp"
+      and did()[0][3] == str(code / "alphabet"), f"{rc} {calls('fzf')} {did()}")
+fresh()
+rc, text = on_tty("alpha", FAKE_FZF="beta")
+check("an exact name does not open the picker", calls("fzf") == [] and did()[0][3] == ALPHA, str(calls("fzf")))
+fresh()
+rc, text = on_tty(FAKE_FZF="cancel")
+check("Esc in the picker: exit 130, nothing made", rc == 130 and did() == [], f"{rc} {did()} {text}")
+fresh()
+rc, text = on_tty(FAKE_FZF="nothing like it")
+check("the picker finds nothing: says so", rc == 1 and "no project matches" in text and did() == [], text)
+fresh()
+rc, text = on_tty(FAKE_FZF="broken")
+check("fzf itself fails: says so, not that nothing matches", rc == 1 and "fzf failed (exit 2)" in text
+      and did() == [], text)
+fresh(running=False)
+rc, text = on_tty(FAKE_FZF="delta")
+check("no office session: says so before the picker opens", rc == 1 and calls("fzf") == []
+      and "Start it with: office on" in text, text)
+fresh()
+rc, text = on_tty("code", FAKE_FZF="delta")
+check("the picker matches names only, never the folder", calls("fzf")[0][2] == "--nth=1", str(calls("fzf")))
+fresh()
+rc, text = on_tty(FAKE_FZF="delta", HERDR_ENV="1", HERDR_SOCKET_PATH=SOCKET)
+check("inside the office session: it goes there and attaches nothing",
+      rc == 0 and did()[0][:2] == ["workspace", "create"] and ["session", "attach", "probe"] not in calls(),
+      f"{rc} {calls()}")
+fresh()
+# nofzf only: CI's Linux has a real fzf in /usr/bin, and nothing else here needs the system's PATH
+rc, text = on_tty(PATH=str(nofzf))
+check("no fzf: says to name the project or install fzf", rc == 1 and "fzf is not installed" in text and did() == [],
+      text)
+
+print("the config")
+cfg.write_text('schema = 1\n[open]\nroots = ["code"]\n')
+r = office("--list")
+check("a root that is not an absolute path is an error", r.returncode == 1 and "open.roots has a folder that"
+      in r.stderr, r.stderr)
+cfg.write_text('schema = 1\n[open]\nroots = "~/code"\n')
+r = office("--list")
+check("roots must be a list", r.returncode == 1 and "open.roots must be a list" in r.stderr, r.stderr)
+cfg.write_text(f'schema = 1\n[firstmate]\ncode = "~/fm"\n')
+r = office("--list")
+check("no firstmate.home: the registry is read from the checkout; no roots by default",
+      [l.split()[0] for l in r.stdout.splitlines()] == ["alpha", "beta", "gamma"], r.stdout + r.stderr)
+
+shutil.rmtree(root, ignore_errors=True)
+print("all passed" if not fails else f"{fails} failed")
+sys.exit(1 if fails else 0)
