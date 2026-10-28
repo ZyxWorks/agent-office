@@ -141,6 +141,10 @@ done_path = "sounds/silent.mp3"
 # desk idle that long is worth a look. It says nothing about a provider's cache or billing, which
 # the meter cannot see. herdr rules have no regex, so the minutes are matched as text, and the
 # bare "3m" / "4m" / "5m" rules stop a few minutes from matching the 30s-50s rules below them.
+#
+# Row 3 reads "89% · #109 · fix/login", also from the meter: the quota left on the agent's
+# provider (green, amber once ▼ says it runs out before the limit resets, red with ▼▼ when it is
+# out), the open PR, and the branch. The branch goes last because it is the longest.
 [ui.sidebar.agents]
 rows = [
   ["state_icon", "workspace"],
@@ -160,6 +164,9 @@ rows = [
      { equals = "4m" },
      { starts_with = "4", fg = "#C9903F" }] },
    { token = "state_text", fg = "#9a9ca6", dim = true }],
+  [{ token = "$quota", fg = "#6FA37A", rules = [{ contains = "▼▼", fg = "#C25450", bold = true }, { contains = "▼", fg = "#C9903F" }] },
+   { token = "$pr", fg = "#f6f5f1" },
+   { token = "$branch", fg = "#9a9ca6", dim = true }],
 ]
 
 # Zyx look, same palette as theme/office-theme.tmux.conf.

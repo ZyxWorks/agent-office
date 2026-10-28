@@ -47,6 +47,24 @@
 # boundary newer than any usage means the old number is a lie: show nothing
 # until the next reply brings a real one.
 #
+# $quota is quota-axi's effective runway for the pane's provider: "89%" left and
+# on pace to last until the limit resets, "41%▼2h" when it is projected to run
+# out in about two hours, "0%▼▼" when it is out now. The scope is the pane
+# model's own (a Claude "model:fable" scope for a Fable session) when quota-axi
+# bounds it by every account-wide window too, else the account-wide one. A
+# stale, unknown or ambiguous (two accounts) reading shows nothing.
+# $branch is the branch checked out where the pane's process runs, and $pr the
+# open pull request for it ("#109"), as gh sees it from that checkout. Detached
+# HEAD, no repo, no gh, no GitHub remote or no open PR: nothing.
+#
+# quota-axi and gh ask a server, so a pass never runs them: it reads what the
+# last background read left in the cache folder, and starts a new read only when
+# that is older than five minutes and none is running. A failed read is cached
+# empty for the same five minutes, so an unreachable server is asked once per
+# interval, not once per pass. A reading older than three intervals is not shown.
+# The branch is read from the checkout on every pass: `git rev-parse` reads HEAD
+# and runs nothing a repo configures (`git status` would run its fsmonitor).
+#
 # Every token is reported with a time to live of four passes, so whatever the
 # meter stops reporting (a closed pane, a meter that was disabled or stopped)
 # expires from the sidebar instead of staying there stale.
@@ -64,6 +82,8 @@ VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$ROOT/herdr-plugin.toml")
 case ${XDG_STATE_HOME:-} in /*) SETTINGS=$XDG_STATE_HOME ;; *) SETTINGS=$HOME/.local/state ;; esac
 SETTINGS=$SETTINGS/agent-office/meter.json
 STATUS=${HERDR_PLUGIN_STATE_DIR:-${TMPDIR:-/tmp}}/meter.$(printf %s "${HERDR_SOCKET_PATH:-default}" | cksum | cut -d' ' -f1).json
+CACHE=${STATUS%.json}.cache
+FETCH_EVERY=300 # seconds between quota-axi reads, and between gh reads per branch
 
 settings() { # -> ON EVERY WARN ALARM SOURCE, from the settings file, else the environment, else defaults
   ON=true EVERY=${METER_EVERY:-30} WARN=${METER_WARN:-200000} ALARM=${METER_ALARM:-600000} SOURCE=defaults
@@ -162,11 +182,84 @@ codex_ctx_of() { # rollout -> "412k▲" or nothing
   ctx_label "$n" "$2"
 }
 
+mtime() { # file -> seconds since the epoch, or nothing
+  t=$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null) # GNU first: GNU `stat -f` means filesystem, prints junk
+  case $t in ''|*[!0-9]*) ;; *) echo "$t" ;; esac
+}
+
+younger() { # file seconds -> true when the file was written less than that long ago
+  t=$(mtime "$1")
+  [ -n "$t" ] && [ $(( now - t )) -lt "$2" ]
+}
+
+fetch() { # cache-file command... : unless the file is fresh or a read is running, run the
+  # command in the background and replace the file with its output, empty when it fails
+  younger "$1" "$FETCH_EVERY" && return 0
+  younger "$1.lock" 600 && return 0 # a read that hangs longer is let go, not waited on forever
+  mkdir -p "$CACHE" 2>/dev/null && : >"$1.lock" || return 0
+  out=$1; shift
+  # its own stdout, so `meter once` returns without waiting for the server
+  ( "$@" >"$out.tmp" 2>/dev/null </dev/null; mv "$out.tmp" "$out"; rm -f "$out.lock" ) >/dev/null 2>&1 &
+}
+
+quota_read() {
+  quota-axi --provider claude,codex --json --no-credential-refresh --max-age 5m
+}
+
+quota_of() { # agent model -> "89%", "41%▼2h", "0%▼▼" or nothing
+  younger "$CACHE/quota.json" $(( FETCH_EVERY * 3 )) || return 0
+  jq -r --arg p "$1" --arg m "$2" '
+    def secs: sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601;
+    (.generatedAt | secs) as $at
+    | [.providers[]? | select(.provider == $p)] | select(length == 1) | .[0]
+    | select(.state.stale == false and (.accountKeys // [] | length) <= 1)
+    | [.quotaSemantics.effectiveAvailability[]?] as $scopes
+    | ([$scopes[] | select(.scope == "all_models")] | .[0]) as $all
+    | ($m | ascii_downcase) as $model
+    | ([$scopes[] | select(.scope | startswith("model:")) | (.scope[6:] | ascii_downcase) as $name
+        | select(($name | length) >= 3 and ($model | contains($name)))
+        | select($all != null and ([$all.boundedBy[]?] - [.boundedBy[]?] | length) == 0)] | .[0]) // $all
+    | select(. != null and .status == "known" and (.effectivePercentRemaining | type) == "number")
+    | (.effectivePercentRemaining | floor) as $pct | .runway as $r
+    | if $r.status == "through_reset" then "\($pct)%"
+      elif $r.status == "exhausted_now" then "0%▼▼"
+      elif $r.status == "projected_exhaustion" and ($r.usableRunwaySeconds | type) == "number" then
+        ($r.usableRunwaySeconds - (now - $at)) as $left | select($left > 0) | ($left / 60 | floor) as $m
+        | "\($pct)%▼" + (if $m >= 60 then "\($m / 60 | floor)h" else "\($m)m" end)
+      else empty end' "$CACHE/quota.json" 2>/dev/null
+}
+
+git_of() { # cwd -> "toplevel<tab>branch", or nothing when there is no branch checked out there
+  case $1 in /*) ;; *) return 0 ;; esac
+  out=$(git -C "$1" rev-parse --show-toplevel --symbolic-full-name HEAD 2>/dev/null) || return 0
+  ref=$(printf '%s\n' "$out" | sed -n 2p)
+  case $ref in refs/heads/?*) printf '%s\t%s\n' "$(printf '%s\n' "$out" | sed -n 1p)" "${ref#refs/heads/}" ;; esac
+}
+
+pr_read() { # toplevel: the branch's own PR as gh resolves it there (its push target, not any
+  # fork's branch of the same name), only while it is open
+  ( cd "$1" && GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
+      gh pr view --json number,state --jq 'select(.state == "OPEN") | .number' )
+}
+
+pr_of() { # toplevel branch -> "#109" or nothing
+  command -v gh >/dev/null 2>&1 || return 0
+  f=$CACHE/pr.$(printf '%s\t%s' "$1" "$2" | cksum | cut -d' ' -f1)
+  fetch "$f" pr_read "$1"
+  younger "$f" $(( FETCH_EVERY * 3 )) || return 0
+  n=$(cat "$f" 2>/dev/null)
+  case $n in ''|*[!0-9]*) ;; *) echo "#$n" ;; esac
+}
+
 pass() {
   settings
   [ "$ON" = true ] || return 0 # disabled: report nothing, and what was reported expires
   list=$("$H" pane list 2>/dev/null) && echo "$list" | jq -e '.result.panes' >/dev/null 2>&1 || return 1
   now=$(date +%s)
+  # one PR file per checkout and branch ever seen: a day after its last read it is only clutter
+  [ -d "$CACHE" ] && find "$CACHE" -type f -name 'pr.*' -mmin +1440 -exec rm -f {} + 2>/dev/null
+  quotas=no
+  command -v quota-axi >/dev/null 2>&1 && { quotas=yes; fetch "$CACHE/quota.json" quota_read; }
   # a pane where Claude ran before Codex still carries Claude's session: herdr's agent wins
   echo "$list" | jq -r '.result.panes as $all
     | [$all[] | select(.agent == "codex") | (.foreground_cwd // .cwd // "-") | select(. != "-")] as $codex_cwds
@@ -208,16 +301,24 @@ pass() {
     esac
     if [ -n "$f" ]; then
       case $status in idle|done|blocked)
-        t=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null) # GNU first: GNU `stat -f` means filesystem, prints junk
-        case $t in ''|*[!0-9]*) ;; *) # gone between ls and stat: no clock this pass
+        t=$(mtime "$f")
+        if [ -n "$t" ]; then # gone between ls and stat: no clock this pass
           d=$(( now - t )); [ "$d" -lt 0 ] && d=0
-          turn=$(age "$d") ;;
-        esac ;;
+          turn=$(age "$d")
+        fi ;;
       esac
+    fi
+    quota='' branch='' pr=''
+    [ "$quotas" = yes ] && quota=$(quota_of "$agent" "$model")
+    g=$(git_of "$cwd")
+    if [ -n "$g" ]; then
+      branch=${g#*"$(printf '\t')"}
+      pr=$(pr_of "${g%%"$(printf '\t')"*}" "$branch")
     fi
     # an empty value clears the token, so a fresh /clear or a working desk shows nothing stale
     "$H" pane report-metadata "$pane" --source agent-office:meter \
       --token "ctx=$ctx" --token "turn=$turn" --token "model=$(model_label "$model")" \
+      --token "quota=$quota" --token "branch=$branch" --token "pr=$pr" \
       --ttl-ms $(( EVERY * 4000 )) </dev/null >/dev/null 2>&1 || true
   done
   return 0 # the server answered; one pane closing mid-pass is not a miss

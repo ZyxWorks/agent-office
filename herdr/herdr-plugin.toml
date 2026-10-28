@@ -1,8 +1,8 @@
 id = "agent-office.meter"
 name = "Agent Office meter"
-version = "0.4.0"
+version = "0.5.0"
 min_herdr_version = "0.9.0"
-description = "Context size, model and transcript age for Claude Code and Codex panes, on the sidebar, an opt-in phone push when an agent needs you, one key to walk panes, tabs and spaces, and opt-in local dictation"
+description = "Context size, model, transcript age, quota runway, git branch and open PR for Claude Code and Codex panes, on the sidebar, an opt-in phone push when an agent needs you, one key to walk panes, tabs and spaces, and opt-in local dictation"
 platforms = ["linux", "macos"]
 
 [[startup]]
