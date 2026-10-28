@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""editor-probe: `office editor`, the herdr/editor action, the editor pane's nvim plugins and its
+nvim config, with stand-ins for herdr and the editors.
+
+Every case runs in a throwaway $HOME, with PATH set to the stand-ins and the system's own folders
+only. No herdr server and no network: the stand-in herdr answers what a real one would and writes
+down what it was asked to do, each stand-in editor writes down how it was started, and the plugin
+checkouts come from a local repository. When nvim is installed, the shipped config is started in
+it, headless, without its plugins. Each case is a promise the README makes.
+
+  bin/editor-probe
+  /usr/bin/python3 bin/editor-probe      # macOS: also proves Python 3.9 and the vendored reader
+"""
+
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OFFICE = REPO / "bin" / "office"
+HOOK = REPO / "herdr" / "editor"
+INIT = REPO / "editor" / "nvim" / "init.lua"
+sys.path.insert(0, str(REPO / "lib"))
+from agent_office import config as C  # noqa: E402
+from agent_office import doctor  # noqa: E402
+from agent_office import install  # noqa: E402
+from agent_office import vendors as V  # noqa: E402
+
+fails = 0
+
+
+def check(name, ok, detail=""):
+    global fails
+    print(f"  {'ok  ' if ok else 'FAIL'} {name}" + ("" if ok or not detail else f"\n       {detail}"))
+    fails += 0 if ok else 1
+
+
+root = Path(tempfile.mkdtemp(prefix="office-editor-probe.")).resolve()
+home = root / "home"
+cfg = home / ".config" / "agent-office" / "config.toml"
+cfg.parent.mkdir(parents=True)
+fake = root / "bin"
+fake.mkdir()
+log = root / "calls.log"
+SYSTEM = "/usr/bin:/bin:/usr/sbin:/sbin"
+GIT = shutil.which("git")
+REAL_NVIM = shutil.which("nvim")
+
+# herdr: one line per call, its arguments as JSON. `pane get` answers with the folders the
+# FAKE_ variables name, `pane split` with a new pane; FAKE_FAIL=<verb> makes that one fail.
+(fake / "herdr").write_text(f"""#!/bin/sh
+{sys.executable} -c 'import json, sys; print("herdr " + json.dumps(sys.argv[1:]))' "$@" >>'{log}'
+[ "${{FAKE_FAIL:-}}" = "$2" ] && {{ echo '{{"error":{{"code":"pane_not_found","message":"pane gone"}}}}'; exit 1; }}
+case "$1 $2" in
+  "pane get") {sys.executable} -c 'import json, os
+p = {{"pane_id": "w1:p1"}}
+for k in ("cwd", "foreground_cwd"):
+    if os.environ.get("FAKE_" + k.upper()):
+        p[k] = os.environ["FAKE_" + k.upper()]
+print(json.dumps({{"result": {{"pane": p}}}}))' ;;
+  "pane split") echo '{{"result":{{"pane":{{"pane_id":"w1:p9"}}}}}}' ;;
+  "pane run") ;;
+  *) echo '{{"result":{{}}}}' ;;
+esac
+""")
+# each editor: how it was started, as JSON, then it exits
+EDITOR_STANDIN = f"""#!/bin/sh
+{sys.executable} -c 'import json, os, sys
+print("editor " + json.dumps({{"argv0": os.path.basename(sys.argv[1]), "args": sys.argv[2:], "cwd": os.getcwd(),
+      "appname": os.environ.get("NVIM_APPNAME"), "pack": os.environ.get("AGENT_OFFICE_NVIM_PACK")}}))' "$0" "$@" >>'{log}'
+"""
+for name in ("nvim", "hx", "micro", "vi"):
+    (fake / name).write_text(EDITOR_STANDIN)
+(fake / "git").symlink_to(GIT)
+for f in fake.iterdir():
+    if not f.is_symlink():
+        f.chmod(0o755)
+# bin/office and herdr/editor find python3 on PATH: this probe's own, so 3.9 is tested there too
+(fake / "python3").symlink_to(sys.executable)
+env = {k: v for k, v in os.environ.items()
+       if not k.startswith(("XDG_", "HERDR_", "FAKE_", "NVIM", "GIT_")) and k not in ("VISUAL", "EDITOR")}
+env.update(HOME=str(home), PYTHONDONTWRITEBYTECODE="1", PATH=f"{fake}:{SYSTEM}")
+PACK = home / ".local" / "share" / "agent-office" / "nvim"
+
+
+def git(*args, cwd):
+    subprocess.run([GIT, "-c", "user.name=probe", "-c", "user.email=probe@example.com", "-c", "commit.gpgsign=false",
+                    "-c", "init.defaultBranch=main", *args], cwd=cwd, check=True, capture_output=True, env=env)
+
+
+# a worktree like an agent's: a branch off main with a commit, a changed file and a new one
+work = root / "work tree's"  # a space and a quote: the line typed into the pane must keep them
+(work / "sub").mkdir(parents=True)
+git("init", "-q", cwd=work)
+(work / "kept.txt").write_text("kept\n")
+(work / "old.txt").write_text("old\n")
+git("add", ".", cwd=work)
+git("commit", "-q", "-m", "base", cwd=work)
+git("checkout", "-q", "-b", "agent", cwd=work)
+(work / "committed.txt").write_text("on the branch\n")
+git("add", ".", cwd=work)
+git("commit", "-q", "-m", "agent", cwd=work)
+(work / "old.txt").write_text("changed\n")
+(work / "sub" / "new.txt").write_text("not committed\n")
+plain = root / "plain"
+plain.mkdir()
+
+
+def config(text):
+    cfg.write_text("schema = 1\n" + text)
+
+
+ON = "[editor]\nenabled = true\n"
+
+
+def fresh():
+    if log.exists():
+        log.unlink()
+
+
+def calls(kind):
+    lines = log.read_text().splitlines() if log.exists() else []
+    return [json.loads(l[len(kind) + 1:]) for l in lines if l.startswith(kind + " ")]
+
+
+def notes():
+    return [a[4] for a in calls("herdr") if a[:2] == ["notification", "show"]]
+
+
+def office(*args, stdin=None, **extra):
+    fresh()
+    e = dict(env, **extra)
+    return subprocess.run([sys.executable, str(OFFICE), "editor", *args], env=e, capture_output=True, text=True,
+                          input=stdin, stdin=None if stdin is not None else subprocess.DEVNULL, timeout=60)
+
+
+def started():
+    got = calls("editor")
+    return got[0] if len(got) == 1 else None
+
+
+print("off by default")
+r = office("--pane", "w1:p1", FAKE_FOREGROUND_CWD=str(work))
+check("no config file: exit 1, no pane made", r.returncode == 1 and not [a for a in calls("herdr") if a[:2] == ["pane", "split"]],
+      r.stdout + r.stderr)
+check("and herdr shows why", any("off" in n and "[editor] enabled = true" in n for n in notes()), str(notes()))
+r = office(str(work))
+check("run here, off: no editor starts", r.returncode == 1 and started() is None, r.stdout + r.stderr)
+
+print("the config is checked")
+for text, says in [
+    ('[editor]\nsplit = "left"\n', "editor.split must be one of"),
+    ('[editor]\ncommand = ""\n', "editor.command must be a non-empty string"),
+    ("[editor]\noffice_config = 1\n", "editor.office_config must be true or false"),
+    ('[editor]\nplugins = "lazy"\n', "unknown key editor.plugins"),
+]:
+    config(text)
+    r = office(str(work))
+    check(f"refused: {says}", r.returncode == 1 and says in r.stderr and started() is None, r.stdout + r.stderr)
+
+print("prefix+f: a pane next to the focused one, in its agent's worktree")
+config(ON)
+r = office("--pane", "w1:p1", FAKE_CWD=str(plain), FAKE_FOREGROUND_CWD=str(work / "sub"))
+h = calls("herdr")
+split = next((a for a in h if a[:2] == ["pane", "split"]), [])
+check("exit 0", r.returncode == 0, r.stdout + r.stderr)
+check("the agent's folder (foreground_cwd) wins over the shell's, and the worktree is its git top level",
+      split == ["pane", "split", "w1:p1", "--direction", "right", "--cwd", str(work), "--focus"], str(split))
+run = next((a for a in h if a[:2] == ["pane", "run"]), [])
+check("the new pane runs `office editor` there, every word quoted for the shell",
+      run[:3] == ["pane", "run", "w1:p9"] and len(run) == 4
+      and shlex.split(run[3]) == ["exec", str(OFFICE), "editor", "--in-pane", str(work)], str(run))
+check("the pane is named editor", ["pane", "rename", "w1:p9", "editor"] in h, str(h))
+check("nothing is typed into the agent's pane", not [a for a in h if a[:2] in (["pane", "send-text"], ["pane", "send-keys"])
+                                                     or (a[:2] == ["pane", "run"] and a[2] != "w1:p9")], str(h))
+check("the plugins are not checked out: herdr says so, and the pane opens anyway",
+      any("office install" in n and "mini.nvim" in n for n in notes()), str(notes()))
+r = office("--pane", "w1:p1", FAKE_CWD=str(work / "sub"))
+split = next((a for a in calls("herdr") if a[:2] == ["pane", "split"]), [])
+check("no foreground_cwd: the pane's cwd", split[6:7] == [str(work)], str(split))
+r = office("--pane", "w1:p1", FAKE_FOREGROUND_CWD=str(plain))
+split = next((a for a in calls("herdr") if a[:2] == ["pane", "split"]), [])
+check("outside a repository: that folder itself", split[6:7] == [str(plain)], str(split))
+config(ON + 'split = "down"\n')
+r = office("--pane", "w1:p1", FAKE_FOREGROUND_CWD=str(work))
+split = next((a for a in calls("herdr") if a[:2] == ["pane", "split"]), [])
+check('split = "down" splits down', split[3:5] == ["--direction", "down"], str(split))
+config(ON)
+
+print("when herdr fails")
+r = office("--pane", "w1:p1", FAKE_FOREGROUND_CWD=str(work), FAKE_FAIL="get")
+check("the pane cannot be read: exit 1 with herdr's reason, no pane made",
+      r.returncode == 1 and "pane gone" in r.stderr and not [a for a in calls("herdr") if a[:2] == ["pane", "split"]],
+      r.stdout + r.stderr)
+r = office("--pane", "w1:p1", FAKE_FOREGROUND_CWD=str(work), FAKE_FAIL="run")
+check("the editor cannot be started in the new pane: exit 1, and only that pane is closed",
+      r.returncode == 1 and [a for a in calls("herdr") if a[:2] == ["pane", "close"]] == [["pane", "close", "w1:p9"]],
+      r.stdout + r.stderr + str(calls("herdr")))
+r = office("--pane", "w1:p1")
+check("herdr names no folder: exit 1, no pane made", r.returncode == 1 and "which folder" in r.stderr
+      and not [a for a in calls("herdr") if a[:2] == ["pane", "split"]], r.stdout + r.stderr)
+
+print("in the pane: which editor, and how")
+r = office("--in-pane", str(work / "sub"))
+s = started()
+check("nvim by default, at the worktree's top level", r.returncode == 0 and s and s["argv0"] == "nvim"
+      and s["cwd"] == str(work), r.stdout + r.stderr + str(s))
+check("with the office config, its own NVIM_APPNAME and the plugin folder",
+      s and s["args"] == ["-u", str(INIT)] and s["appname"] == "agent-office-nvim" and s["pack"] == str(PACK), str(s))
+r = office(str(work), EDITOR="micro")
+s = started()
+check("$EDITOR is respected", s and s["argv0"] == "micro" and s["args"] == [] and s["appname"] is None, str(s))
+r = office(str(work), EDITOR="micro", VISUAL="hx --vsplit")
+s = started()
+check("$VISUAL before $EDITOR, split into words, no office config", s and s["argv0"] == "hx"
+      and s["args"] == ["--vsplit"] and s["pack"] is None, str(s))
+r = office(str(work), EDITOR="nvim -p")
+s = started()
+check("$EDITOR=nvim gets the office config too, its own words kept", s and s["args"] == ["-u", str(INIT), "-p"], str(s))
+config(ON + 'command = "vi"\n')
+r = office(str(work), EDITOR="micro", VISUAL="hx")
+s = started()
+check("[editor] command before both", s and s["argv0"] == "vi", str(s))
+config(ON + f'command = "{fake}/nvim"\n')
+r = office(str(work))
+s = started()
+check("nvim named by its path is still nvim", s and s["args"][:1] == ["-u"], str(s))
+config(ON + "office_config = false\n")
+r = office(str(work))
+s = started()
+check("office_config = false: plain nvim, your own config", s and s["args"] == [] and s["appname"] is None, str(s))
+config(ON + 'command = "$(touch pwned) nvim"\n')
+r = office(str(work))
+check("the command is never run by a shell", r.returncode == 1 and not (work / "pwned").exists()
+      and not list(root.rglob("pwned")) and "is not on PATH" in r.stderr, r.stdout + r.stderr)
+config(ON + 'command = "kak"\n')
+r = office("--in-pane", str(work), stdin="\n")
+check("an editor that is not there: exit 1, and the pane waits for Enter so the reason can be read",
+      r.returncode == 1 and "kak is not on PATH" in r.stderr and "Press Enter" in r.stdout, r.stdout + r.stderr)
+config(ON)
+r = office(str(root / "gone"))
+check("a folder that is not there: exit 1", r.returncode == 1 and "no folder" in r.stderr and started() is None,
+      r.stdout + r.stderr)
+r = office("--pane")
+check("--pane without a pane: usage, exit 2", r.returncode == 2 and "usage:" in r.stderr, r.stderr)
+
+print("the herdr action")
+r = subprocess.run(["sh", str(HOOK)], env=dict(env, HERDR_PANE_ID="w3:p2", FAKE_FOREGROUND_CWD=str(work)),
+                   capture_output=True, text=True, timeout=60)
+split = next((a for a in calls("herdr") if a[:2] == ["pane", "split"]), [])
+check("prefix+f opens the pane next to the focused one", r.returncode == 0 and split[2:3] == ["w3:p2"],
+      r.stdout + r.stderr + str(calls("herdr")))
+
+print("the plugins: pinned, checked, checked out only by office install")
+plugins = V.nvim_plugins()
+check("components.toml pins mini.nvim and nvim-tree.lua", sorted(plugins) == ["mini.nvim", "nvim-tree.lua"], str(plugins))
+check("each at a full commit, with its license", all(len(p["commit"]) == 40 and p["license"] for p in plugins.values()))
+# a local upstream stands in for GitHub
+up = root / "upstream"
+(up / "lua" / "probe").mkdir(parents=True)
+(up / "lua" / "probe" / "init.lua").write_text("return {}\n")
+(up / "tests").mkdir()
+(up / "tests" / "big.lua").write_text("-- not wanted\n")
+git("init", "-q", cwd=up)
+git("add", ".", cwd=up)
+git("commit", "-q", "-m", "v1", cwd=up)
+commit = subprocess.run([GIT, "-C", str(up), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+plugin = {"name": "probe.nvim", "repo": up.as_uri(), "commit": commit, "paths": ["lua"],
+          "sha256": V.tree_hash(up, ["lua"]), "license": "MIT"}
+ienv = dict(env, GIT_ALLOW_PROTOCOL="file")
+inst = install.Installer(ienv, out=open(os.devnull, "w"))
+step = inst.want_nvim_plugin(plugin)
+dest = PACK / "pack" / "office" / "opt" / "probe.nvim"
+check("not there: create", step.kind == "create" and step.path == dest, f"{step.kind} {step.path}")
+inst.apply([step])
+check("checked out at the pin, only the folders named", V.head(dest, ienv) == commit
+      and (dest / "lua" / "probe" / "init.lua").is_file() and not (dest / "tests").exists())
+check("and recorded as Agent Office's", inst.manifest["owned"].get(str(dest), {}).get("kind") == "nvim-plugin")
+check("run again: keep", inst.want_nvim_plugin(plugin).kind == "keep")
+(dest / "lua" / "probe" / "init.lua").write_text("return { mine = true }\n")
+check("changed by hand: left alone", inst.want_nvim_plugin(plugin).kind == "manual")
+shutil.rmtree(dest)
+bad = dict(plugin, sha256="0" * 64)
+step = inst.want_nvim_plugin(bad)
+try:
+    inst.apply([step])
+    raised = ""
+except OSError as e:
+    raised = str(e)
+check("files that are not the pinned ones are not put in place", "not the pinned files" in raised
+      and not dest.exists(), raised)
+plan = inst.plan(None, "", "", {"enabled": False})
+check("[editor] off: office install checks out no plugin", not [s for s in plan if "nvim plugin" in s.what])
+plan = inst.plan(None, "", "", {"enabled": True})
+got = sorted(s.path.name for s in plan if "nvim plugin" in s.what)
+check("[editor] on: office install checks out both", got == ["mini.nvim", "nvim-tree.lua"], str(got))
+
+print("office doctor")
+rep = doctor.Report(env)
+rep.editor({"enabled": False})
+check("off is reported, and is no problem", rep.facts[-1] == ("editor pane", "off (opt-in: [editor])") and not rep.problems,
+      str(rep.facts))
+rep = doctor.Report(env)
+rep.editor({"enabled": True, "office_config": True, "split": "right"})
+check("on without the plugins: a problem that says what to run",
+      any("mini.nvim" in p and "office install" in p for p in rep.problems), str(rep.problems))
+rep = doctor.Report(dict(env, PATH=SYSTEM))
+rep.editor({"enabled": True, "office_config": True, "split": "right"})
+check("on without nvim: a problem that says how to get it", any("brew install neovim" in p for p in rep.problems),
+      str(rep.problems))
+
+print("the nvim config")
+text = INIT.read_text()
+fetchers = [w for w in ("vim.pack", "mini.deps", "MiniDeps", "lazy", "packer", "clone", "curl", "wget", "http")
+            if w in text]
+check("it fetches nothing: no plugin manager, no URL", not fetchers, str(fetchers))
+if not REAL_NVIM:
+    print("  skip nvim not installed: the config was not started")
+else:
+    script = root / "check.lua"
+    out = root / "nvim-out.json"
+    script.write_text(f"""
+vim.cmd("OfficeChanged")
+local qf = vim.tbl_map(function(i) return vim.fn.bufname(i.bufnr) end, vim.fn.getqflist())
+local f = io.open([[{out}]], "w")
+f:write(vim.json.encode({{colors = vim.g.colors_name, errors = vim.v.errmsg, changed = qf,
+  leader_c = vim.fn.maparg(" c", "n") ~= "", leader_e = vim.fn.maparg(" e", "n") ~= ""}}))
+f:close()
+vim.cmd("qa!")
+""")
+    nenv = dict(env, NVIM_APPNAME="agent-office-nvim", AGENT_OFFICE_NVIM_PACK=str(root / "no-plugins"),
+                PATH=f"{Path(REAL_NVIM).parent}:{fake}:{SYSTEM}")
+    r = subprocess.run([REAL_NVIM, "--headless", "-u", str(INIT), "-c", f"luafile {script}"], cwd=work, env=nenv,
+                       capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+    got = json.loads(out.read_text()) if out.exists() else {}
+    check("nvim starts with it, without its plugins, and no error", r.returncode == 0 and got.get("errors") == "",
+          r.stdout + r.stderr + str(got))
+    check("in the office colours", got.get("colors") == "office", str(got))
+    check("Space c lists what this branch changed: committed, changed and new, not what it kept",
+          sorted(got.get("changed", [])) == ["committed.txt", "old.txt", "sub/new.txt"], str(got))
+    check("Space e still opens a file tree (netrw)", got.get("leader_c") and got.get("leader_e"), str(got))
+    check("nothing was written into your own nvim's folders",
+          not (home / ".config" / "nvim").exists() and not (home / ".local" / "state" / "nvim").exists())
+
+shutil.rmtree(root)
+print("editor-probe: " + ("all pass" if not fails else f"{fails} failed"))
+sys.exit(1 if fails else 0)

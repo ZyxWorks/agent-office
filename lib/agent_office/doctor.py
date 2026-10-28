@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 
 from . import config as C
+from . import editor as E
 from . import setup_home
 
 MANIFEST = C.REPO / "config" / "components.toml"
@@ -242,6 +243,28 @@ class Report:
         if not model.is_file():
             problems.append(f"no model file at {self.show(model)} (dictate.model; README, \"Dictation\")")
         self.fact("dictation", f"on, local: {self.show(model)}, language {d['language']}", problems=problems)
+
+    def editor(self, e: dict):
+        """Off is not a problem. On, it needs its editor on PATH, and nvim with the office config
+        needs the pinned plugins `office install` checks out."""
+        if not e.get("enabled"):
+            self.fact("editor pane", "off (opt-in: [editor])")
+            return
+        argv = E.command(e, self.env)
+        problems = []
+        if not shutil.which(argv[0], path=self.env.get("PATH", "")):
+            problems.append(f"{argv[0]} is not on PATH" + (" (brew install neovim)" if argv[0] == "nvim" else ""))
+        if E.office_nvim(e, argv):
+            value = f"on: {argv[0]} with the office config"
+            try:
+                missing = E.missing_plugins(self.env)
+            except C.ConfigError as err:
+                missing, problems = [], problems + err.problems
+            if missing:
+                problems.append(f"not checked out at the pinned commit: {', '.join(missing)} (`office install`)")
+        else:
+            value = f"on: {' '.join(argv)}"
+        self.fact("editor pane", value, problems=problems)
 
     def installed(self, cfg: dict):
         """What office install wrote, against what your config and this release make now."""
@@ -516,6 +539,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
         rep.fact("workstation tools", f"{len(have)} of {len(extra)} installed"
                  + ("" if len(have) == len(extra) else " (optional: `office tools --workstation`)"))
     rep.dictation(cfg["dictate"])
+    rep.editor(cfg["editor"])
     rep.installed(cfg)
     rep.agents(cfg)
     rep.meter_plugin()

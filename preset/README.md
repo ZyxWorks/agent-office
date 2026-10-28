@@ -132,6 +132,7 @@ Shortcuts, Input Sources.
 | leave herdr, everything keeps running | `prefix+d` | `detach` |
 | show or hide the sidebar | `prefix+b` | `toggle_sidebar` |
 | dictate: press, talk, press again to type it (opt-in) | `prefix+m` | `agent-office.meter.dictate` |
+| editor pane in the focused agent's worktree (opt-in) | `prefix+f` | `agent-office.meter.editor` |
 | all keys | `prefix+?` | `help` |
 | reload the config: no key, it is in settings |  | `reload_config` |
 

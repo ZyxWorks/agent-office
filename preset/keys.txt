@@ -14,10 +14,10 @@ prefix+q             close pane           prefix+tab           next pane
 prefix+z             zoom, and back       prefix+shift+tab     previous pane
 prefix+a             adjust the size      prefix+l             last pane
 prefix+shift+p       rename pane          prefix+enter         copy mode
-HERDR                                     prefix+e             edit scrollback
+HERDR  (m and f: opt-in)                  prefix+e             edit scrollback
 prefix+g   go to an agent  prefix+b   sidebar         prefix+s   settings
 prefix+o   notification    prefix+?   all keys        ctrl+v     image (remote)
-prefix+d   leave herdr, everything keeps running   prefix+m   dictate (opt-in)
+prefix+d   leave, runs on  prefix+m   dictate         prefix+f   editor
 TEXT  in Claude, Codex and the shell, with the WezTerm example
 cmd+left   line start      opt+left   word back       cmd+backspace    del line
 cmd+right  line end        opt+right  word forward    opt+backspace    del word

@@ -32,6 +32,12 @@ schema = 1
 # url = "https://ntfy.sh/<a-long-random-topic>"   # anyone who knows a ntfy.sh topic can read it
 # quiet = false                       # true: only "needs you" gets through
 
+# [editor]                            # prefix+f: an editor pane in the focused agent's worktree
+# enabled = true
+# command = "nvim"                    # unset: $VISUAL, then $EDITOR, then nvim
+# office_config = true                # false: nvim reads your own ~/.config/nvim
+# split = "right"                     # or "down"
+
 # [dictate]                           # push-to-talk dictation, local only, off by default
 # enabled = true
 # model = "~/.local/share/whisper.cpp/ggml-base.en.bin"   # a whisper.cpp model you downloaded
