@@ -26,7 +26,7 @@ KINDS = {
     "link": ("target", "to"),
     "flags": ("target", "from"),
 }
-OPTIONAL = ("when", "mode")
+OPTIONAL = ("when", "mode", "harness", "why")
 
 PLACEHOLDER = re.compile(r"\{\{([a-z_.]+)(?:\|([^{}]*))?\}\}")
 # a value put into YAML must stay one plain scalar, whatever it is
@@ -145,6 +145,10 @@ def manifest() -> list:
             problems.append(f"{where}: when names no config key: {e['when']}")
         if "from" in e and e["from"] not in NAMES:
             problems.append(f"{where}: from names no config key: {e['from']}")
+        if "harness" in e and e["harness"] not in ("claude", "codex"):
+            problems.append(f"{where}: harness must be claude or codex")
+        if ("harness" in e) != isinstance(e.get("why"), str):
+            problems.append(f"{where}: harness and why go together: why says what to do on another harness")
         if "mode" in e and not re.fullmatch(r"[0-7]{3}", str(e["mode"])):
             problems.append(f"{where}: mode must be three octal digits, say \"755\"")
     if problems:
@@ -163,7 +167,8 @@ def plan(cfg: dict, env=None) -> list:
     """Every write `office setup` would make for this config, in manifest order.
 
     Each item is a dict: kind, target (a Path), and by kind content (the rendered text), to (the
-    link's target, a Path), names (the flag files) and mode (an int, for owned files).
+    link's target, a Path), names (the flag files) and mode (an int, for owned files). An entry
+    for another harness is kind "skip" with why: it is not written, and why says what to do.
     """
     harness = cfg["firstmate"]["harness"]
     models = cfg["setup"]["models"]
@@ -180,6 +185,9 @@ def plan(cfg: dict, env=None) -> list:
         if when and vals.get(when) != "true":
             continue
         item = {"kind": e["kind"], "target": _target(e["target"], vals, where, env)}
+        if e.get("harness", harness) != harness:
+            out.append({"kind": "skip", "target": item["target"], "why": render(e["why"], vals, where)})
+            continue
         if "source" in e:
             text = (SETUP / e["source"]).read_text(encoding="utf-8")
             if "{{" not in text:
