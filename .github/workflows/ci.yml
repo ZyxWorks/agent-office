@@ -178,12 +178,13 @@ jobs:
           sh -n bin/office-ctx
           sh -n bin/office-cwd
           python3 -m py_compile bin/key-probe bin/mouse-probe bin/menu-probe preset/preset-probe \
-            bin/office bin/install-probe bin/update-probe bin/notify-probe bin/fm bin/fm-probe lib/agent_office/*.py \
+            bin/office bin/install-probe bin/update-probe bin/notify-probe bin/dictate-probe bin/fm bin/fm-probe lib/agent_office/*.py \
             bin/officeoff-all bin/lifecycle-probe bin/leak-scan bin/leak-scan-probe bin/setup-probe bin/setup-home-probe \
             bin/setup-all-probe \
             setup/claude/hooks/agents-md.py
           sh -n .githooks/pre-push
           sh -n herdr/notify
+          sh -n herdr/dictate
           sh -n herdr/nav
           sh -n herdr/nav-probe
 
@@ -269,6 +270,15 @@ jobs:
       - name: notify-probe on the system Python 3.9 (macOS)
         if: runner.os == 'macOS'
         run: /usr/bin/python3 bin/notify-probe
+
+      # `office dictate` and the herdr action, with stand-ins for rec, whisper-cli and herdr.
+      # No microphone, no model, no server, no network.
+      - name: dictate-probe
+        run: bin/dictate-probe
+
+      - name: dictate-probe on the system Python 3.9 (macOS)
+        if: runner.os == 'macOS'
+        run: /usr/bin/python3 bin/dictate-probe
 
       # fm and fm restart against a herdr server of the probe's own, in a throwaway HOME, with a
       # stand-in Firstmate that herdr detects as claude.

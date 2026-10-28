@@ -32,6 +32,15 @@ provider = "ntfy"
 # url: where to push, for ntfy the server and topic. Unset means nothing can be sent.
 quiet = false                         # true: only "needs you" gets through
 
+# Push-to-talk dictation into the focused pane: off until you turn it on. Local only: sox records,
+# whisper.cpp transcribes on this machine, nothing is sent anywhere. The model is a file you
+# download yourself, so it has no default (README, "Dictation").
+[dictate]
+enabled = false
+# model: the whisper.cpp model file, such as ~/.local/share/whisper.cpp/ggml-base.en.bin
+language = "auto"                     # or a code such as "en"; an .en model needs "en" or "auto"
+max_seconds = 120                     # a recording stops by itself after this long
+
 # The agent working setup: the values `office setup agents` puts into the agent rules, Claude Code,
 # Firstmate, no-mistakes and gnhf. The templates live in setup/ (setup/README.md). Nothing here
 # names a person, a path or an account: those stay in your own config.toml.
