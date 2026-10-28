@@ -1,4 +1,4 @@
-# What `office setup` puts into your home, and how. setup/README.md explains each kind.
+# What `office setup agents` puts into your home, and how. setup/README.md explains each kind.
 #
 # Only the files listed here ship: a template is a file under setup/ that this list names, and
 # setup-probe fails on a file under setup/ that it does not name. A target is a path in your

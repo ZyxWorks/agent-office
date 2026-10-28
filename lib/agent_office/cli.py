@@ -9,7 +9,7 @@ import sys
 from . import config as C
 from . import doctor, install, lifecycle, tools
 from . import notify
-from . import setup_home
+from . import setup_all
 from . import update
 
 VERSION = "1.0.0-dev"
@@ -19,10 +19,14 @@ office: Agent Office, one command for the whole agent setup.
 
   office install [--check] [--yes]   check your config and write what the office needs,
                                      showing every change and backing up what it replaces
-  office setup [--check] [--yes] [--remove] [--reset-key <file>:<key>]
-                                     write the agent working setup (rules, Claude Code
-                                     settings and hooks, Firstmate, no-mistakes, gnhf) from
-                                     your [setup] keys, showing every change first
+  office setup [--check] [--yes]     the whole setup in one run, on a new machine the one
+                                     line after the clone: a few questions, tools, Firstmate,
+                                     install, herdr's integration, the agent working setup,
+                                     doctor. Shows every change first
+  office setup agents [--check] [--yes] [--remove] [--reset-key <file>:<key>]
+                                     only the agent working setup (rules, Claude Code settings
+                                     and hooks, Firstmate, no-mistakes, gnhf) from your
+                                     [setup] keys, showing every change first
   office config check                check your config, and the herdr config made from it
   office config show                 print the config in effect: defaults, your file, preset
   office keys                        one screen of every office key (preset/keys.txt)
@@ -107,7 +111,7 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
     if verb == "install":
         return install.run(rest, out=out, err=err)
     if verb == "setup":
-        return setup_home.run(rest, out=out, err=err)
+        return setup_all.run(rest, out=out, err=err)
     if verb == "tools":
         return tools.run(rest, out=out, err=err)
     if verb == "doctor":

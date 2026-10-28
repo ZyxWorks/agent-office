@@ -172,6 +172,7 @@ KEYS = {
         "quiet": _boolean,
     },
     "setup": {
+        "enabled": _boolean,
         "machine": {"test_workers": _int_in(1, 256), "max_subagents": _int_in(0, 64)},
         "models": {"default": _MODEL, "mechanical": _MODEL, "gate": _MODEL},
         "tokens": {"cold_cache_minutes": _int_in(1, 1440), "auto_compact_tokens": _int_in(10_000, 10_000_000)},
@@ -438,7 +439,7 @@ def meter_settings(cfg: dict) -> str:
     return json.dumps({"schema": 1, **{k: m[k] for k in keys}}, indent=2) + "\n"
 
 
-def herdr_check(text: str) -> tuple[bool, str]:
+def herdr_check(text: str, env=None) -> tuple[bool, str]:
     """Ask herdr itself. It reads the file and talks to no server.
 
     The file sits in a scratch folder with the preset's sounds next to it, because herdr
@@ -451,7 +452,7 @@ def herdr_check(text: str) -> tuple[bool, str]:
         sounds.mkdir()
         for f in PRESET_SOUNDS.iterdir():
             (sounds / f.name).write_bytes(f.read_bytes())
-        env = dict(os.environ, HERDR_CONFIG_PATH=str(cfg))
+        env = dict(os.environ if env is None else env, HERDR_CONFIG_PATH=str(cfg))
         try:
             got = subprocess.run(["herdr", "config", "check"], env=env, capture_output=True, text=True)
         except FileNotFoundError:

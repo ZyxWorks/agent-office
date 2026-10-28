@@ -47,14 +47,11 @@ You need macOS or Linux, git, Node 22.19 or newer, and a coding agent you
 installed and signed in to yourself (Claude Code or Codex).
 
 ```sh
-git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office
-~/agent-office/bin/office tools   # herdr, treehouse and the agent tools you lack. Lists them and asks first
-~/agent-office/install.sh         # your config, herdr's config, the meter, the office and fm commands. Shows every change first
-herdr integration install claude  # herdr learns each agent's session, so the meter can read its size
+git clone https://github.com/ZyxWorks/agent-office ~/agent-office && ~/agent-office/bin/office setup
 ```
 
-Clone [Firstmate](https://github.com/kunchenguid/firstmate), and set
-`firstmate.code` in `~/.config/agent-office/config.toml` to where you put it.
+It asks four questions, installs the tools you lack, clones [Firstmate](https://github.com/kunchenguid/firstmate), writes the office and the agent working setup, and checks the result. Every step shows what it changes first and asks before it installs anything or changes a file of yours. It never asks for a token, an account, a name or an email address. Run it again any time: a step with nothing to do says so.
+
 Then:
 
 ```sh
@@ -214,7 +211,8 @@ The rules the config follows:
 | command | what it does |
 |---|---|
 | `office install` | check the config, write the generated herdr config and the `office` command, link the meter plugin into herdr, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. |
-| `office setup` | write the agent working setup into your home from your `[setup]` keys: the agent rules (`~/AGENTS.md`, linked as `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), the review and release process, Claude Code's settings and hooks, Firstmate's model picks and switches, the no-mistakes and gnhf settings. Agent Office owns only what it puts in: a marked block, its own keys, its own files; yours stay. Shows every change first; asks before changing what you changed, and backs it up. `--check` only plans; `--remove` takes out what it put in. See [setup/README.md](setup/README.md). |
+| `office setup` | the whole setup in one run, the one line after the clone: four questions while you have no config yet (your coding agent, where Firstmate goes, whether to write the agent working setup, test workers and subagents), then `office tools`, Firstmate cloned at a tested revision, `office install`, `office setup agents`, herdr's integration for your coding agent, and `office doctor`. Each step shows its changes first and asks before it installs anything or changes a file of yours. `--check` only plans; `--yes` asks nothing. |
+| `office setup agents` | write the agent working setup into your home from your `[setup]` keys: the agent rules (`~/AGENTS.md`, linked as `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), the review and release process, Claude Code's settings and hooks, Firstmate's model picks and switches, the no-mistakes and gnhf settings. Agent Office owns only what it puts in: a marked block, its own keys, its own files; yours stay. Shows every change first; asks before changing what you changed, and backs it up. `--check` only plans; `--remove` takes out what it put in. See [setup/README.md](setup/README.md). |
 | `office tools` | install the tools the office uses that are missing, at pinned versions, each through its owner. A tool you have is left as it is. Shows the list and asks first. `--check` only plans; `--workstation` adds the optional workstation tools. |
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect |
 | `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; attach. Running it again focuses what is there. Starts no workers. |
@@ -539,11 +537,12 @@ own herdr, config or office.
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
 | nothing private ships | `bin/leak-scan-probe` | throwaway git repositories |
 | the agent setup: `setup/`'s templates and the `[setup]` keys | `bin/setup-probe` | a stand-in user, rendered in memory, then `bin/leak-scan` |
-| `office setup`, `--check`, `--remove` | `bin/setup-home-probe` | throwaway homes with files of "yours" |
+| `office setup agents`, `--check`, `--remove` | `bin/setup-home-probe` | throwaway homes with files of "yours" |
+| `office setup`, the one-line install | `bin/setup-all-probe` | throwaway homes, stand-in tools, a local Firstmate, a real herdr, the questions on a terminal |
 
 CI also runs `office tools` for real, on a Linux and a macOS machine that have
-none of the pinned tools: the GitHub release downloads with their SHA-256, the
-npm installs, then `office install` and `office doctor`. That run proves the
+none of the pinned tools: `office setup --yes`, so the GitHub release downloads with their SHA-256, the
+npm installs, the Firstmate clone, `office install`, `office setup agents` and `office doctor`. That run proves the
 pins and hashes in `config/components.toml` still exist.
 
 ## The tmux office (legacy)

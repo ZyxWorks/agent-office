@@ -103,6 +103,16 @@ def find(c: dict, env) -> tuple | None:
     return found, version(found, env, c.get("version_args")), own
 
 
+def integration_state(harness: str, env) -> str | None:
+    """herdr's integration for harness as `herdr integration status` reports it, say "current (v10)",
+    or None when herdr does not report it."""
+    for line in (_run(["herdr", "integration", "status"], env) or "").splitlines():
+        if line.startswith(harness + ": "):
+            # "claude: current (v10) (<path>)": the state, without the path
+            return line[len(harness) + 2:].rsplit(" (", 1)[0]
+    return None
+
+
 def server_status(env, session: str) -> dict | None:
     """What herdr says about the server of this session, or None when it did not say whether it
     runs. It only asks: `status server` starts nothing."""
@@ -175,12 +185,7 @@ class Report:
         self.row(name, ver or "unknown", own or "unknown", compat, problems=problems)
 
     def integration(self, harness: str):
-        out = _run(["herdr", "integration", "status"], self.env)
-        state = None
-        for line in (out or "").splitlines():
-            if line.startswith(harness + ": "):
-                # "claude: current (v10) (<path>)": the state, without the path
-                state = line[len(harness) + 2:].rsplit(" (", 1)[0]
+        state = integration_state(harness, self.env)
         if state is None:
             self.row(f"herdr {harness} integration", "unknown", "herdr", "-",
                      problems=["`herdr integration status` did not report it"])
@@ -198,7 +203,7 @@ class Report:
         rev = rev.strip() if rev else None
         problems = []
         if not code.is_dir():
-            problems.append(f"no checkout at {self.show(code)} (firstmate.code)")
+            problems.append(f"no checkout at {self.show(code)} (firstmate.code): `office setup` clones it")
         elif rev is None:
             problems.append(f"git read no commit in {self.show(code)}")
         urls = set(remotes(code, self.env).values()) if rev else set()
