@@ -1,0 +1,8 @@
+#!/bin/sh
+# editor - prefix+i in the preset: an editor pane next to the focused pane, in the worktree of the
+# agent in it. `office editor` does the work and reads [editor] from your config.toml: off by
+# default. herdr names the focused pane in HERDR_PANE_ID for a plugin action (see nav).
+pane=${HERDR_ACTIVE_PANE_ID:-${HERDR_PANE_ID:-}}
+office=$(cd "$(dirname "$0")/.." && pwd)/bin/office
+[ -x "$office" ] || office=office
+exec "$office" editor ${pane:+--pane "$pane"} </dev/null

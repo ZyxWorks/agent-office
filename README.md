@@ -111,6 +111,7 @@ Two profiles. `core` is the office. `workstation` is optional.
 | [herdr](https://herdr.dev) | terminal sessions, panes, tabs, and each agent's native state (working, idle, done, blocked) | herdr upstream |
 | Agent Office herdr preset | keys for an office with no mouse, sidebar, theme and a silent "done" sound, plus an optional WezTerm example with Mac text keys | this repo ([`preset/`](preset)) |
 | Agent Office meter | a herdr plugin that shows how full each agent's context window is, its transcript age, the quota left on its provider, and its git branch and open PR, in the sidebar. It also carries the Shift+arrow keys | this repo ([`herdr/`](herdr)) |
+| Agent Office editor pane (optional) | an editor next to an agent, in its worktree: nvim with a small config (file tree, fuzzy find, git signs, the office colours, the files the agent changed), or your own `$EDITOR`. Off by default. Its two nvim plugins are checked out at pinned commits | this repo ([`editor/`](editor)); the plugins, their authors |
 | [Firstmate](https://github.com/kunchenguid/firstmate) | supervises coding agents: dispatch, status, review, cleanup | Firstmate upstream |
 | [treehouse](https://github.com/kunchenguid/treehouse) | a pool of pre-warmed git worktrees, one per worker | treehouse upstream |
 | kunchenguid tools | `no-mistakes`, `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `quota-axi`, `tasks-axi`, `gnhf`, `backpass` | [their upstreams](https://github.com/kunchenguid) |
@@ -186,6 +187,7 @@ What each part does:
 | `[herdr]` | merged over the [preset](preset) into the generated herdr config. herdr itself checks it |
 | `[open]` | `roots`: folders whose git checkouts `office open` offers next to Firstmate's projects, say `["~/code"]`. Only the folders directly inside each root are looked at. Empty by default |
 | `[dictate]` | push-to-talk dictation, off by default and local only: `enabled`, `model` (the whisper.cpp model file you downloaded), `language` (`"auto"` or a code such as `"en"`) and `max_seconds` (120). Used by `office dictate` and `prefix+m`. See [Dictation](#dictation) |
+| `[editor]` | the editor pane, off by default: `enabled`, `command` (the editor; else `$VISUAL`, `$EDITOR`, then `nvim`), `office_config` (nvim gets the office's config, `true`) and `split` (`"right"` or `"down"`). Used by `office editor` and `prefix+i`. See [Editor](#editor) |
 | `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
 | `[setup]` | the agent working setup: test workers and subagents, models, the cold-cache minutes, branches, gate commands, review and captain preferences, Firstmate's switches, the Claude Code theme. Checked like the rest. `office setup` fills [setup/](setup)'s templates in from it |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm`, `office on`, `office off` and `office status` use `office.session` and `[firstmate]` except `source`. `treehouse.root` is only reported |
@@ -217,7 +219,7 @@ The rules the config follows:
 
 | command | what it does |
 |---|---|
-| `office install` | check the config, write the generated herdr config and the `office` command, link the meter plugin into herdr, stop loading the tmux office's shell function; show every change first and back up what it replaces. Starts nothing. `--check` only plans. |
+| `office install` | check the config, write the generated herdr config and the `office` command, link the meter plugin into herdr, stop loading the tmux office's shell function; with `[editor]` on, check out the editor pane's nvim plugins at their pins; show every change first and back up what it replaces. Starts nothing. `--check` only plans. |
 | `office setup` | the whole setup in one run, the one line after the clone: four questions while you have no config yet (your coding agent, where Firstmate goes, whether to write the agent working setup, test workers and subagents), then `office tools`, Firstmate cloned at a tested revision, `office install`, `office setup agents`, herdr's integration for your coding agent, and `office doctor`. Each step shows its changes first and asks before it installs anything or changes a file of yours. `--check` only plans; `--yes` asks nothing. |
 | `office setup agents` | write the agent working setup into your home from your `[setup]` keys: the agent rules (`~/AGENTS.md`, linked as `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), the review and release process, Claude Code's settings and hooks, Firstmate's model picks and switches, the no-mistakes and gnhf settings. Agent Office owns only what it puts in: a marked block, its own keys, its own files; yours stay. Shows every change first; asks before changing what you changed, and backs it up. `--check` only plans; `--remove` takes out what it put in. See [setup/README.md](setup/README.md). |
 | `office tools` | install the tools the office uses that are missing, at pinned versions, each through its owner. A tool you have is left as it is. Shows the list and asks first. `--check` only plans; `--workstation` adds the optional workstation tools. |
@@ -234,10 +236,11 @@ The rules the config follows:
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. |
 | `office keys` | print one screen of every office key: the herdr preset's keys and the Mac text keys. Read-only. Inside the office, `ctrl+space` then `?` shows herdr's own list. |
 | `office dictate` / `office dictate cancel` | push-to-talk, if `[dictate]` is on: the first run records from the microphone, the next one stops, transcribes on this machine and types the words into the focused pane, without Enter. `prefix+m` runs it. `cancel` throws the recording away. See [Dictation](#dictation). |
+| `office editor` / `office editor --pane PANE` | if `[editor]` is on: the editor in this folder's worktree, or a new pane next to `PANE` that runs it in the worktree of `PANE`'s agent. `prefix+i` runs the second one. See [Editor](#editor). |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. |
 | `office remote` | read-only: can your phone reach the running office, and what to type there. Checks the office's herdr session, an SSH server on this machine and Tailscale, then prints the `ssh` line and `office on`, or what is missing. Turns nothing on and opens no port. See [From your phone](#from-your-phone). |
 
-`office install`, `office setup`, `office config`, `office keys`, `office dictate`, `office notify`, `office remote`, `office tools`, `office doctor`, `office update`, `office help`,
+`office install`, `office setup`, `office config`, `office keys`, `office dictate`, `office editor`, `office notify`, `office remote`, `office tools`, `office doctor`, `office update`, `office help`,
 `office version`, `office on`, `office break`, `office off`, `office status`, `office open`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
 [legacy README](docs/legacy-tmux/README.md), until its 1.0 version lands. The
 1.0 commands replace them; they are not additions to them. The tmux office's own
@@ -546,6 +549,44 @@ Set it up once. Agent Office installs none of it for you, and ships no model:
 
 `office doctor` then reports dictation as on, and names anything that is missing. On macOS the first recording asks for microphone access for the terminal app herdr runs in. Without it sox records silence, and dictation says it heard nothing.
 
+## Editor
+
+An editor pane next to an agent, to read what it wrote or change a line yourself. It is off until you turn it on.
+
+Press `ctrl+space` `i`. A new pane opens on the right of the focused one. It is in the agent's worktree: the git top level of the folder the agent runs in, not your shell's folder. Quit the editor and the pane closes. The agent's pane is not touched.
+
+The editor is `[editor] command`, else `$VISUAL`, else `$EDITOR`, else `nvim`. It is split into words and started directly, never through a shell. Your shell's `$VISUAL` and `$EDITOR` count: if `$EDITOR` is `micro`, you get micro, and `command = "nvim"` gets you the office's nvim.
+
+nvim gets a small config of the office's own, [`editor/nvim/init.lua`](editor/nvim/init.lua). It never reads or writes your `~/.config/nvim`, and its swap, undo and history files are apart from your nvim's (`NVIM_APPNAME=agent-office-nvim`). Leader is Space:
+
+| keys | what it does |
+|---|---|
+| `Space` `c` | the files this branch changed, committed or not, since it left the default branch. Pick one to open it. When the pane opens, it says how many there are |
+| `Space` `e` | the file tree, with git marks: `M` changed, `?` new. It opens with the pane. `q` closes it |
+| `Space` `f` / `Space` `/` / `Space` `b` | find a file / search the text / the open files |
+| `Space` `g` | show the git changes in the file. The sign column shows them always |
+
+Files the agent changes on disk are read in again within two seconds. A file you changed yourself is never overwritten: nvim asks first. The colours are the office's: amber and red mark only warnings and errors.
+
+The tree, the finder and the git signs are two plugins, [mini.nvim](https://github.com/echasnovski/mini.nvim) (MIT) and [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua) (GPL-3.0). [`config/components.toml`](config/components.toml) pins each to a commit and a SHA-256 of its files. `office install` checks them out into `~/.local/share/agent-office/nvim/` and checks the hash; a new release's pin shows as an update with a link to the change. There is no plugin manager, and nothing in the config fetches anything. Without the plugins nvim still opens, with the colours, the changed files in a list and nvim's own file browser; herdr says to run `office install`.
+
+Set it up once:
+
+1. nvim 0.10 or newer, from its owner: `brew install neovim` on macOS, or your distribution's package.
+2. Turn it on in your `config.toml`:
+
+   ```toml
+   [editor]
+   enabled = true
+   command = "nvim"                    # optional: else $VISUAL, $EDITOR, then nvim
+   # office_config = false             # nvim with your own config instead
+   # split = "down"                    # below the agent, not beside it
+   ```
+
+3. Run `office install`. It checks out the two plugins.
+
+`office doctor` then reports the editor pane as on, and names anything that is missing.
+
 ## From your phone
 
 Look at the office, answer an agent or start a task from your phone, the same way a second terminal does it: an SSH app logs in to this machine over a private network, and `office on` there attaches to the office that already runs. There is no office server and no new port: it is SSH, which you turn on yourself, and herdr, which takes more than one terminal at once. Your terminal at the desk stays attached. Closing the app on the phone only detaches it, and everything keeps running. It is off until you set it up, and Agent Office turns none of it on for you.
@@ -608,6 +649,7 @@ The prefix is `ctrl+space`: press it, let go, then the key.
 | `ctrl+space` `s` | settings |
 | `ctrl+space` `d` | leave herdr. Everything keeps running |
 | `ctrl+space` `m` | dictate: press, talk, press again. Off until you turn on [dictation](#dictation) |
+| `ctrl+space` `i` | an editor pane in the focused agent's worktree. Off until you turn on the [editor](#editor) |
 
 The same letter does the same thing one level down: plain for a space, with
 Shift for a tab. `office keys` prints them all on one screen, and
@@ -631,6 +673,7 @@ own herdr, config or office.
 | `office on`, `break`, `off`, `off --all`, `status` | `bin/lifecycle-probe` | throwaway herdr sessions, a stand-in agent |
 | phone notifications | `bin/notify-probe` | a stand-in ntfy server |
 | dictation | `bin/dictate-probe` | stand-ins for rec, whisper-cli and herdr |
+| the editor pane: `office editor`, its plugins, its nvim config | `bin/editor-probe` | stand-ins for herdr and the editors, a local plugin repository, nvim itself when installed |
 | `office remote` | `bin/remote-probe` | stand-ins for herdr and Tailscale, an SSH port of its own |
 | nothing private ships | `bin/leak-scan-probe` | throwaway git repositories |
 | the agent setup: `setup/`'s templates and the `[setup]` keys | `bin/setup-probe` | a stand-in user, rendered in memory, then `bin/leak-scan` |

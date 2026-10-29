@@ -20,6 +20,7 @@
 #     s                  settings                    a      adjust pane size (resize mode)
 #     Enter              copy mode                   d      leave herdr (keeps running)
 #     m                  dictate: press, talk, press (opt-in, [dictate] in your config)
+#     i                  editor pane in the focused agent's worktree (opt-in, [editor])
 #     ?                  all keys
 # Small letter for the space, capital for the tab: a space holds tabs, so it is the bigger step.
 # Ctrl+Space and not herdr's Ctrl+B: Ctrl+B is "back one character" in the shell and in the
@@ -128,6 +129,14 @@ key = "prefix+m"
 type = "plugin_action"
 command = "agent-office.meter.dictate"
 description = "dictate: press, talk, press again to type it"
+
+# An editor next to the focused pane, in its agent's worktree: off until [editor] is on in your
+# Agent Office config (herdr/editor, `office editor`).
+[[keys.command]]
+key = "prefix+i"
+type = "plugin_action"
+command = "agent-office.meter.editor"
+description = "editor pane in this worktree"
 
 [ui]
 # Agents panel grouped by space. herdr's default too, kept explicit because it is a choice

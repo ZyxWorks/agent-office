@@ -8,7 +8,7 @@ import sys
 
 from . import config as C
 from . import doctor, install, lifecycle, tools
-from . import dictate, notify, project, remote
+from . import dictate, editor, notify, project, remote
 from . import setup_all
 from . import update
 
@@ -35,6 +35,9 @@ office: Agent Office, one command for the whole agent setup.
   office dictate [--pane PANE] | cancel
                                      push-to-talk, if [dictate] is on: run once to record,
                                      again to type the words into the pane. Local whisper.cpp
+  office editor [FOLDER | --pane PANE]
+                                     an editor in a worktree, if [editor] is on: here, or in a
+                                     new pane next to PANE (prefix+i). nvim with a small config
   office remote                      read-only: can your phone reach the running office over
                                      SSH and Tailscale, and what to type there. Turns nothing on
   office tools [--check] [--yes]     install the missing tools the office uses, at pinned
@@ -136,6 +139,8 @@ def main(argv, out=sys.stdout, err=sys.stderr) -> int:
         return notify.run(rest, out=out, err=err)
     if verb == "dictate":
         return dictate.run(rest, out=out, err=err)
+    if verb == "editor":
+        return editor.run(rest, out=out, err=err)
     if verb == "remote":
         return remote.run(rest, out=out, err=err)
     if verb == "keys":

@@ -1,10 +1,12 @@
-"""The optional skill packs: other people's skills, each at the commit config/components.toml pins.
+"""The optional skill packs and the editor pane's nvim plugins: other people's code, each at the
+commit config/components.toml pins.
 
-A pack is checked out from its upstream repository at the pinned commit, only the folders it
+A pack or plugin is checked out from its upstream repository at the pinned commit, only the folders it
 names (a sparse checkout), into a scratch folder beside its place. Its files are hashed and the
 hash must be the one components.toml has before the folder is moved into place. A pin moves only
-after the upstream change was read: the files are instructions an agent follows. Nothing in a
-pack is ever run by Agent Office.
+after the upstream change was read: a skill's files are instructions an agent follows, and a
+plugin's are code nvim runs. Nothing in a pack is ever run by Agent Office, and a plugin runs only
+inside the editor pane's nvim.
 """
 
 from __future__ import annotations
@@ -59,11 +61,11 @@ _PATH = re.compile(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*")
 
 
 @functools.lru_cache(maxsize=None)
-def _read(manifest: Path) -> dict:
-    data = C.read_toml(manifest, str(manifest)).get("skill", [])
+def _read(manifest: Path, table: str) -> dict:
+    data = C.read_toml(manifest, str(manifest)).get(table, [])
     problems, out = [], {}
     for i, s in enumerate(data, 1):
-        where = f"{manifest}: skill {i}"
+        where = f"{manifest}: {table} {i}"
         for k in ("name", "repo", "license"):
             if not isinstance(s.get(k), str) or not s[k]:
                 problems.append(f"{where}: needs {k}")
@@ -83,7 +85,12 @@ def _read(manifest: Path) -> dict:
 
 def skills(manifest: Path = MANIFEST) -> dict:
     """{name: the [[skill]] entry} from components.toml, each checked. Raises C.ConfigError."""
-    return _read(manifest)
+    return _read(manifest, "skill")
+
+
+def nvim_plugins(manifest: Path = MANIFEST) -> dict:
+    """{name: the [[nvim_plugin]] entry} from components.toml, each checked. Raises C.ConfigError."""
+    return _read(manifest, "nvim_plugin")
 
 
 def tree_hash(root: Path, paths: list) -> str:
@@ -113,7 +120,7 @@ def head(root: Path, env) -> Optional[str]:
 
 
 def fetch(skill: dict, dest: Path, env) -> None:
-    """Check skill out at its pinned commit and put it at dest, replacing what is there. Raises
+    """Check a skill or plugin out at its pinned commit and put it at dest, replacing what is there. Raises
     Failed, and leaves dest as it was, when git fails or the files are not the pinned ones."""
     tmp = dest.with_name(f".{dest.name}.agent-office-fetch")
     old = dest.with_name(f".{dest.name}.agent-office-old")

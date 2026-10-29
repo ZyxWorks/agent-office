@@ -1,5 +1,4 @@
 AGENT OFFICE KEYS    prefix = ctrl+space: press it, let go, then the key
-
 shift+arrow   no prefix. left/right: pane, then tab. up/down: pane, then space
 SPACES                                    TABS  the same letter, with shift
 prefix+n             new space            prefix+shift+n       new tab
@@ -14,10 +13,11 @@ prefix+q             close pane           prefix+tab           next pane
 prefix+z             zoom, and back       prefix+shift+tab     previous pane
 prefix+a             adjust the size      prefix+l             last pane
 prefix+shift+p       rename pane          prefix+enter         copy mode
-HERDR                                     prefix+e             edit scrollback
+HERDR  (m and i: opt-in)                  prefix+e             edit scrollback
 prefix+g   go to an agent  prefix+b   sidebar         prefix+s   settings
 prefix+o   notification    prefix+?   all keys        ctrl+v     image (remote)
 prefix+f   open a project  prefix+d   leave herdr     prefix+m   dictate
+prefix+i   editor
 TEXT  in Claude, Codex and the shell, with the WezTerm example
 cmd+left   line start      opt+left   word back       cmd+backspace    del line
 cmd+right  line end        opt+right  word forward    opt+backspace    del word

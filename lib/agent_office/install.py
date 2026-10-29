@@ -9,6 +9,8 @@ What it writes, and nothing else:
 - the `office`, `fm` and `officeoff-all` commands, links in ~/.local/bin,
 - the meter plugin's link in herdr, made by herdr itself (`herdr plugin link`): the sidebar
   numbers and the preset's Shift+arrow come from that plugin,
+- with [editor] on, the editor pane's two nvim plugins, checked out at the commits
+  config/components.toml pins and checked against their SHA-256,
 - and it removes the line that loads the tmux office's (0.x) `office` function from your zsh
   startup files: zsh finds a function before any command on PATH, so while it is loaded the
   1.0 command is never reached.
@@ -42,6 +44,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import config as C
+from . import vendors as V
 
 # What bin/install-tmux (the 0.x installer) wrote. The comment lines go only when they sit
 # right above the line they explain, so a comment you wrote yourself stays.
@@ -291,9 +294,41 @@ class Installer:
         return Step("update", reg, what, go,
                     diff=[f"herdr has version {entry.get('version')}; this release is {manifest.get('version')}"])
 
+    def want_nvim_plugin(self, plugin: dict) -> Step:
+        """One of the editor pane's nvim plugins, checked out at its pinned commit. Only nvim in
+        the editor pane loads it. One that was changed by hand is left alone."""
+        p = C.nvim_pack_dir(self.env) / "pack" / "office" / "opt" / plugin["name"]
+        record = {"kind": "nvim-plugin", "commit": plugin["commit"], "paths": plugin["paths"],
+                  "sha256": plugin["sha256"]}
+        what = (f"the editor pane's nvim plugin {plugin['name']} ({plugin['license']}) from {plugin['repo']} "
+                f"at {plugin['commit'][:12]}, checked against its SHA-256")
+
+        def fetch():
+            try:
+                V.fetch(plugin, p, self.env)
+            except V.Failed as e:
+                raise OSError(f"{plugin['name']}: {e}") from None
+
+        if not (p.exists() or p.is_symlink()):
+            return Step("create", p, what, fetch, record=record)
+        rec = self.manifest["owned"].get(str(p), {})
+        have = V.head(p, self.env) if p.is_dir() and not p.is_symlink() else None
+        if rec.get("kind") != "nvim-plugin" or have is None:
+            return Step("manual", p, f"{what}: something Agent Office did not check out is there; "
+                        "move it, then run this again")
+        if have != rec.get("commit") or V.tree_hash(p, rec.get("paths", [])) != rec.get("sha256"):
+            return Step("manual", p, f"{what}: changed by hand since Agent Office checked it out, so it is "
+                        f"left as it is. Delete {self.show(p)} and run this again for the pinned one")
+        if have == plugin["commit"] and V.tree_hash(p, plugin["paths"]) == plugin["sha256"]:
+            return Step("keep", p, what, record=record)
+        return Step("update", p, what, fetch, record=record,
+                    diff=[f"{have[:12]} -> {plugin['commit'][:12]}: read the change at "
+                          f"{plugin['repo']}/compare/{have}...{plugin['commit']}"])
+
     # --- plan, ask, apply ---------------------------------------------------------------------
 
-    def plan(self, cfg_text: Optional[bytes], herdr_text: str, meter_text: str) -> list:
+    def plan(self, cfg_text: Optional[bytes], herdr_text: str, meter_text: str,
+             editor: Optional[dict] = None) -> list:
         steps = []
         cfg = C.config_path(self.env)
         if cfg_text is not None:
@@ -320,6 +355,10 @@ class Installer:
         steps.append(self.want_link(self.home / ".local" / "bin" / "officeoff-all",
                                     str(C.REPO / "bin" / "officeoff-all"), "the officeoff-all command"))
         steps.append(self.want_plugin())
+        if editor and editor.get("enabled"):
+            # only nvim with the office config loads them, but which editor runs is decided in
+            # the pane, by your shell's $VISUAL and $EDITOR: so they are there whenever it is on
+            steps += [self.want_nvim_plugin(p) for p in V.nvim_plugins().values()]
         # zsh reads ~/.zshenv first, and that is where ZDOTDIR is usually set for the rest
         dirs = [self.home, Path(self.env.get("ZDOTDIR") or self.home)]
         for path in dict.fromkeys(d / n for d in dirs for n in ZSH_STARTUP):
@@ -379,7 +418,7 @@ def _confirm(prompt: str) -> bool:
 
 def wanted(env) -> tuple:
     """What the config makes now: the starter when there is no config yet (else None), the herdr
-    config and the meter settings. Raises ConfigError."""
+    config, the meter settings and the [editor] keys. Raises ConfigError."""
     cfg_path = C.config_path(env)
     starter = None
     if cfg_path.exists() or cfg_path.is_symlink():  # a broken link is an error, not "no config"
@@ -387,7 +426,7 @@ def wanted(env) -> tuple:
     else:
         starter = C.STARTER.read_bytes()
         cfg = C.effective(C.tomllib.loads(starter.decode()), str(C.STARTER))
-    return starter, C.herdr_config(cfg), C.meter_settings(cfg)
+    return starter, C.herdr_config(cfg), C.meter_settings(cfg), cfg["editor"]
 
 
 def run(args, env=None, out=sys.stdout, err=sys.stderr, outcome: Optional[dict] = None) -> int:
@@ -412,7 +451,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, outcome: Optional[dict] 
     inst = Installer(env, out)
     cfg_path = C.config_path(inst.env)
     try:
-        starter, herdr_text, meter_text = wanted(inst.env)
+        starter, herdr_text, meter_text, editor = wanted(inst.env)
     except C.ConfigError as e:
         print("office install: the config has problems. Nothing was changed.", file=err)
         for p in e.problems:
@@ -430,7 +469,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, outcome: Optional[dict] 
             print(f"  Look at the [herdr] keys in {inst.show(cfg_path)}.", file=err)
         return 1
 
-    steps = inst.plan(starter, herdr_text, meter_text)
+    steps = inst.plan(starter, herdr_text, meter_text, editor)
     inst.say(f"office install{' --check' if check_only else ''}: config {inst.show(cfg_path)}")
     inst.print_plan(steps)
     asks = [s for s in steps if s.asks]
@@ -471,7 +510,8 @@ usage: office install [--check] [--yes]
 Check your config, then write what the office needs, showing every change first:
 your config (a starter, only if there is none), herdr's config generated from the preset and
 your [herdr] keys, the meter's settings from your [meter] keys, the office, fm and officeoff-all
-commands in ~/.local/bin, the meter plugin linked into herdr (`herdr plugin link`), and the line
+commands in ~/.local/bin, the meter plugin linked into herdr (`herdr plugin link`), with [editor]
+on the editor pane's nvim plugins at their pinned commits, and the line
 that loads the tmux office's (0.x) function removed from your zsh startup files. Anything it
 replaces or edits is backed up first. It starts nothing and never touches your own
 ~/.config/herdr/config.toml or ~/.tmux.conf. A running meter reads its new settings on its next

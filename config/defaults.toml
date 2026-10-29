@@ -37,6 +37,14 @@ provider = "ntfy"
 # url: where to push, for ntfy the server and topic. Unset means nothing can be sent.
 quiet = false                         # true: only "needs you" gets through
 
+# The editor pane: prefix+i opens an editor next to the focused pane, in that pane's worktree. Off
+# until you turn it on. `command` unset means $VISUAL, then $EDITOR, then nvim (README, "Editor").
+[editor]
+enabled = false
+# command: the editor to run, such as "nvim" or "hx". Split into words, never run by a shell
+office_config = true                  # nvim gets the office's small config, not your ~/.config/nvim
+split = "right"                       # or "down": where the new pane goes
+
 # Push-to-talk dictation into the focused pane: off until you turn it on. Local only: sox records,
 # whisper.cpp transcribes on this machine, nothing is sent anywhere. The model is a file you
 # download yourself, so it has no default (README, "Dictation").

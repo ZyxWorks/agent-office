@@ -337,3 +337,27 @@ commit = "8531ccb9f471ef5099abf930079e47b55c55bb21"
 paths = ["skills/brag-slim"]  # brag-slim only, not the full brag and its 100 MB of sounds
 sha256 = "09cbfc6b65ea39de14325048dc952055223008818f7e3b9b6f166e8cea7d41e9"
 license = "MIT"
+
+# --- the editor pane's nvim plugins: `office install`, when [editor] is on ---------------------
+#
+# Checked out from their upstream at `commit`, only the folders in `paths`, into
+# ~/.local/share/agent-office/nvim/pack/office/opt/<name>, and loaded only by the editor pane's
+# nvim (editor/nvim/init.lua), never by your own. sha256 is the same tree hash as a skill's.
+# These are code nvim runs: a commit moves only after the upstream change was read. Nothing
+# fetches or updates them while nvim runs.
+
+[[nvim_plugin]]
+name = "mini.nvim"            # mini.pick (fuzzy find) and mini.diff (git signs)
+repo = "https://github.com/nvim-mini/mini.nvim"
+commit = "1345d191bb3da9c7b0e977f4387c5761f9bff68d"   # v0.18.0
+paths = ["lua", "doc"]
+sha256 = "9ce5de456adfbaa3e67323c0cb41d998427b35eb076dfa8dd635bccc990dff4b"
+license = "MIT"
+
+[[nvim_plugin]]
+name = "nvim-tree.lua"        # the file tree
+repo = "https://github.com/nvim-tree/nvim-tree.lua"
+commit = "9a2e0006d42f292eb3ade7dfdff201a7429a780c"   # v1.19.0
+paths = ["lua", "plugin", "doc"]
+sha256 = "7fbe27b916753467c6b7bd6c866cb0d779b0abeba0062a57c2d05353614e572d"
+license = "GPL-3.0"

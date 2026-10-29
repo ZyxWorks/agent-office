@@ -69,6 +69,12 @@ def vendors_dir(env=None) -> Path:
     return _xdg(env, "XDG_DATA_HOME", ".local/share") / "agent-office" / "vendors"
 
 
+def nvim_pack_dir(env=None) -> Path:
+    """The packpath folder the editor pane's nvim plugins are checked out under (pack/office/opt/)."""
+    env = os.environ if env is None else env
+    return _xdg(env, "XDG_DATA_HOME", ".local/share") / "agent-office" / "nvim"
+
+
 def herdr_dirs(env=None) -> tuple[Path, Path]:
     """herdr's own config and state folders: its plugins.json, and each plugin's state folder."""
     env = os.environ if env is None else env
@@ -194,6 +200,12 @@ KEYS = {
         "provider": _one_of("ntfy"),
         "url": _url,
         "quiet": _boolean,
+    },
+    "editor": {
+        "enabled": _boolean,
+        "command": _text,
+        "office_config": _boolean,
+        "split": _one_of("right", "down"),
     },
     "dictate": {
         "enabled": _boolean,
