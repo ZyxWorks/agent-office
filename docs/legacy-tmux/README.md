@@ -22,8 +22,8 @@ window is, right on the border. Claude Code out of the box, Codex, a local
 model, or any other CLI — one more line in `OFFICE_AGENTS`.
 
 [**The product page**](https://zyxworks.github.io/agent-office/) ·
-[Our other tools](https://zyxworks.com/) ·
-[What we do for companies](https://zyxworks.com)
+[Our other tools](https://zyx.works/) ·
+[What we do for companies](https://zyx.works)
 
 ```sh
 office on
@@ -942,27 +942,23 @@ MIT. See [LICENSE](../../LICENSE).
 
 ## Where this comes from
 
-Agent Office is one of the tools **[ZyxWorks](https://zyxworks.com)**, a product
-studio and forward deployed engineering practice, built for itself and gave away.
-It is the room [Zyx](https://zyxworks.com#zyx) gets built in, and Zyx is the OS
-the studio runs on. If this is useful to you, that probably is too.
+Agent Office is one of the tools **ZyxWorks** built for its own work on **[Zyx](https://zyx.works/en/)**, our product, and gave away. It is the room Zyx gets built in. Zyx itself answers questions from a company's own mail, files and apps, names the source of every answer, and runs on the company's own server.
 
 The other one is **[MurmurFlow](https://zyxworks.github.io/murmurflow/)**:
 hold a key, say it, let go, and the words land at your cursor in any app,
 transcribed on your own machine.
 
 **Product:** [page](https://zyxworks.github.io/agent-office/) ·
-[all our tools](https://zyxworks.com/) ·
+[all our tools](https://zyx.works/) ·
 [getting started](GETTING-STARTED.md) ·
 [issues](https://github.com/ZyxWorks/agent-office/issues)
 
-**Studio:** [what we do for companies](https://zyxworks.com) ·
-[Zyx](https://zyxworks.com#zyx) ·
+**Zyx:** [what Zyx is](https://zyx.works/en/) ·
 [GitHub](https://github.com/ZyxWorks)
 
 **Legal:** [MIT licence](../../LICENSE) ·
-[privacy](https://zyxworks.com/legal#privacy) ·
-[imprint](https://zyxworks.com/legal#imprint)
+[privacy](https://zyx.works/legal#privacy) ·
+[imprint](https://zyx.works/legal#imprint)
 
 *Agent Office is not affiliated with, endorsed by, or connected to tmux,
 Anthropic, or any agent vendor.*
