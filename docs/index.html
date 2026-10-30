@@ -4,13 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office: several coding agents, one office</title>
-<meta name="description" content="The whole setup for running several coding agents at once, out of one box: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. MIT.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 120 120'><rect width='120' height='120' rx='20' fill='%23FFFFFF'/><g transform='translate(60 60) scale(.86) translate(-60 -60)'><path fill='%23FFD23C' d='M60 18L80.78 30L80.78 54L101.57 66L101.57 90L80.78 102L60 90L39.22 102L18.43 90L18.43 66L39.22 54L39.22 30Z'/><path fill='%23111111' fill-rule='evenodd' d='M60 13.09L85.03 27.55L85.03 51.55L105.82 63.55L105.82 92.45L80.78 106.91L60 94.91L39.22 106.91L14.18 92.45L14.18 63.55L34.97 51.55L34.97 27.55ZM60 22.91L76.53 32.45L76.53 49.06L60 58.61L43.47 49.06L43.47 32.45ZM82.93 60.15L97.32 68.45L97.32 87.55L80.78 97.09L66.4 88.79L66.4 69.7ZM37.07 60.15L53.6 69.7L53.6 88.79L39.22 97.09L22.68 87.55L22.68 68.45Z'/></g></svg>">
-<meta name="theme-color" content="#F4F4F4">
+<meta name="description" content="The whole setup for running several coding agents at once: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. macOS and Linux, MIT licence.">
+<link rel="icon" href="logo/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#FFFFFF">
 <meta name="color-scheme" content="light">
 <meta property="og:title" content="Agent Office: several coding agents, one office">
-<meta property="og:description" content="The whole setup for running coding agents side by side, out of one box. You see which one needs you, and you never reach for the mouse.">
+<meta property="og:description" content="The whole setup for running coding agents side by side. You see which one needs you, and you never reach for the mouse.">
 <meta property="og:type" content="website">
+<!-- ASSET SLOT media/agent-office-og.png (1200x630, light): the prompt mark, "Agent Office",
+     "Several agents. One office.", the ZyxWorks axis small in a corner. When it exists, add
+     <meta property="og:image" content="https://zyxworks.github.io/agent-office/media/agent-office-og.png">
+     and switch twitter:card to summary_large_image. -->
 <meta name="twitter:card" content="summary">
 <!-- Not listed anywhere: a visitor gets here by typing the URL or from the index. "noindex" is
      what actually removes the page from a search index; robots.txt only stops the crawl, and the
@@ -19,364 +23,234 @@
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="ai-content-declaration" content="noai, noimageai">
 <!--
-  ONE FILE plus ui/, a copy of the ZyxWorks UI library: no build step and no external request, which is
-  what lets GitHub Pages serve this straight out of /docs.
+  ONE FILE plus ui/, a copy of @zyxworks/ui 1.0: no build step and no external request, which is
+  what lets GitHub Pages serve this straight out of /docs. ui/ is written by
+  `npm run ship -- <this repo> --static docs/ui` in the library repo; never edit it by hand.
 
-  The look comes from @zyxworks/ui (repo ZyxWorks/ui): tokens, the self-hosted Atkinson Hyperlegible
-  Next and Mono, and every shared part (bar, cell, grid, stand, main and second button, eyebrow, rule,
-  label, rows, table, crop marks, command and its copy button, footer, link, arrow, the ZyxWorks mark
-  and the scroll-in). ui/ is a copy written by `npm run ship -- <this repo> --static docs/ui` in the
-  library repo; never edit it by hand. Below is only what belongs to this page: its layout, the hero,
-  the full-width section bands and the product's own mark. Every colour, edge, shadow and time reads
-  var(--z-*).
-
-  Light only: no data-theme is set anywhere, so the dark values never apply. Yellow is a
-  highlighter: the panels of the cube and the copy buttons, which stand on the yellow shadow of the
-  main button. It is never a link colour, a text colour on the light ground or a page background.
-
-  The look is "hard print": a group of siblings is a ruled grid with no gaps, a section starts at a
-  full-width ink rule, the main button stands on its shadow, and every other control is pressed in
-  on hover and pressed deeper while clicked. What happens once, when a part first comes into view
-  (a block lands on its shadow, a rule draws, a square stamps in, a caret blinks), is the library's
-  reveal: data-zyx-reveal and ui/reveal.js. Without a script, or with reduced motion, every part is
-  simply there.
+  Every part on this page is the library's (site head, hero, band, command, table, code, footer).
+  The <style> below holds only this page's own layout; `zyx-ui lint docs/index.html` finds no raw
+  colour, edge, shadow or time. Light only: no data-theme anywhere.
+  The Agent Office mark (a prompt, three strokes) is the one bold thing; the one filled button is
+  "View the source on GitHub".
 -->
 <link rel="stylesheet" href="ui/zyx/fonts.css">
 <link rel="stylesheet" href="ui/zyx/zyx-ui.css">
 <script src="ui/reveal.js" defer></script>
 <script src="ui/copy.js" defer></script>
 <style>
-  /* --- own identity: what is this page's and not the library's --- */
-  :root { --shell: 820px; }
-
-  body { margin: 0; font-size: 17px; line-height: 1.6; }
-  /* Element defaults of this page's prose. They sit in the library's base layer, so a library
-     part on the same element (a label on a <p>, a button on an <a>) still wins. */
-  @layer zyx-base {
-    p { margin: 0 0 16px; color: var(--z-muted); }
-    strong { color: var(--z-ink); font-weight: 700; }
-    code { font-family: var(--z-font-mono); font-size: 0.9em; }
-  }
-  .shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px; }
-
-  /* A section is a band as wide as the window (zyx-band): white and ground take turns, and a window-wide ink
-     rule (zyx-rule zyx-rule-bleed) marks the edge. The band is drawn behind the text column, so the
-     column never moves. */
-  section { padding: 66px 0 68px; }
-  section { --zyx-band: var(--z-ground); }
-  section:nth-of-type(odd) { --zyx-band: var(--z-surface); }
-
-  h1 { font-size: clamp(40px, 8.4vw, 66px); line-height: 1.04; letter-spacing: var(--z-dt); margin: 0; font-weight: 700; }
-  p.lead { font-size: 21px; margin-top: 22px; max-width: 44ch; }
-  /* zyx-ui-allow: a link in this page's grey prose is ink, so it can be found without the underline */
-  .zyx-link { color: var(--z-ink); }
-
-  /* The product's own glyph (the ZyxWorks cube is the library's zyx-mark): a yellow shape under one
-     filled shape of ink lines, so the yellow shows through. Brand rule: the lines are ink on every
-     ground, so on the ink cell of the bar the glyph sits in a white box. */
-  .mk { flex: none; box-sizing: content-box; padding: 3px; background: var(--z-mark-paper); fill: var(--z-mark-line); }
-  .mk-panels { fill: var(--z-cube); }
-
-  /* --- the bar (zyx-bar): the way up to ZyxWorks, this page as the ink cell, and the source at the
-     end. GitHub carries weight because the licence is the pitch: a cell of its own rather than a
-     word in a corner. Not yellow, though. Yellow is the copy button, and a page with two primary
-     buttons has none. --- */
-  nav { margin-top: 26px; }
-
-  /* Crop marks around the hero (zyx-crop), from the nav bar to the end of the intro. Local change:
-     they reach up past the nav bar, which sits outside the header. */
-  header { padding: 76px 0 4px; --zyx-crop-inset: -64px -14px 4px; }
-
-  /* --- the call to action --- */
-  .cta { margin-top: 34px; }
-  /* The room around a command box (zyx-cmd, standing on the block shadow with zyx-stand). */
-  .cmd { margin: 10px 0; }
-  /* The copy button is the main button (zyx-main): it stands on its yellow shadow, and on hover,
-     keyboard focus and after a copy it is pressed in and turns yellow. */
-  /* The label over a command box (zyx-label). */
-  .os { margin: 24px 0 0; }
-  .after { font-size: 15px; margin-top: 22px; }
-  /* Local change: a key in running text is sized to the 17px prose, not the library's 12px. */
-  kbd { font-size: 0.84em; }
-
-  /* --- the numbers that do the selling: a ruled grid that stands (zyx-grid + zyx-stand). --- */
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 26px; }
-  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 26px 0 8px; }
-  .stat, .fact { padding: 20px 18px 22px; }
-  @media (max-width: 600px) { .stats, .facts { grid-template-columns: minmax(0, 1fr); } }
-  .stat .n { font-size: clamp(34px, 6vw, 46px); font-weight: 700; letter-spacing: var(--z-dt); line-height: 1; color: var(--z-ink); }
-  .stat .l { color: var(--z-muted); font-size: 15px; margin-top: 10px; }
-  .punch { font-size: 19px; color: var(--z-ink); margin: 34px 0 0; max-width: 50ch; letter-spacing: -0.015em; }
-
-  /* Tables (zyx-table). The last column is the key or the command, the one thing a row is for, so
-     it is right-aligned ink mono (zyx-table-num); a short table keeps it on one line. */
-  .short td:last-child { white-space: nowrap; }
-  .note { font-size: 14px; color: var(--z-faint); margin-top: 18px; }
-
-  .fact strong { display: block; margin-bottom: 6px; }
-  .fact span { color: var(--z-muted); font-size: 15px; }
-
-  /* zyx-ui-allow: the list of what it does not do (zyx-rows) is in this page's grey prose */
-  .zyx-rows > li { color: var(--z-muted); font-size: 16px; }
-
-  /* --- footer: the library's footer (zyx-foot, standing) on a raised band as wide as the window. --- */
-  footer { background: var(--z-raised); }
-  footer .shell { padding-top: 56px; padding-bottom: 72px; }
+  body { margin: 0; background: var(--z-bg); color: var(--z-text); }
+  .ao-hero-cmd { margin-top: 32px; }
+  .ao-demo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px 40px; align-items: end; margin: 64px 0 0; }
+  .ao-legend { max-width: 44ch; color: var(--z-text-2); }
+  .ao-legend p { margin: 0; }
+  .ao-legend ul { display: grid; gap: 6px; margin: 16px 0 0; padding: 0; list-style: none; }
+  .ao-legend code { display: inline-block; width: 20px; color: var(--z-text); }
+  @media (max-width: 767px) { .ao-demo { grid-template-columns: minmax(0, 1fr); margin-top: 48px; } }
+  .ao-side { width: fit-content; max-width: 100%; line-height: 1.5; }
+  .ao-line { margin-bottom: 24px; padding-right: 14px; }
+  .ao-line > code::before { content: none; }
+  .ao-note { max-width: 68ch; margin: 20px 0 0; color: var(--z-text-2); line-height: var(--z-lead-read); }
+  .ao-nots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 28px 40px; margin: 0; padding: 0; list-style: none; }
+  .ao-nots > li { padding-top: 16px; border-top: var(--z-bw) solid var(--z-line); }
+  /* zyx-ui-allow: a wrapped two-line cell touches its hairlines at phone width (td has no block padding); library gap */
+  .ao-page .zyx-table td { padding-block: 8px; }
+  .ao-keys td:last-child, .ao-cmds td:last-child { white-space: nowrap; }
+  .ao-nowrap { white-space: nowrap; }
+  .ao-keys kbd + kbd { margin-left: 4px; }
 </style>
 </head>
-<body>
-
-<div class="shell">
-
-  <nav class="zyx-bar zyx-stand" aria-label="Site" data-zyx-reveal>
-    <a class="zyx-bar-up zyx-cell" href="https://zyxworks.com/open-source">
-      <svg class="zyx-mark zyx-hop" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="zyx-mark-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path class="zyx-mark-lines" fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
-      <span>ZyxWorks</span>
-    </a>
-    <span class="zyx-bar-here zyx-cell zyx-cell-ink" aria-current="page">
-      <svg class="mk" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="mk-panels" d="M60 18L80.78 30L80.78 54L101.57 66L101.57 90L80.78 102L60 90L39.22 102L18.43 90L18.43 66L39.22 54L39.22 30Z"/><path fill-rule="evenodd" d="M60 13.09L85.03 27.55L85.03 51.55L105.82 63.55L105.82 92.45L80.78 106.91L60 94.91L39.22 106.91L14.18 92.45L14.18 63.55L34.97 51.55L34.97 27.55ZM60 22.91L76.53 32.45L76.53 49.06L60 58.61L43.47 49.06L43.47 32.45ZM82.93 60.15L97.32 68.45L97.32 87.55L80.78 97.09L66.4 88.79L66.4 69.7ZM37.07 60.15L53.6 69.7L53.6 88.79L39.22 97.09L22.68 87.55L22.68 68.45Z"/></svg>
-      <span>agent office</span>
-    </span>
-    <div class="zyx-bar-end">
-      <a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office">Source on GitHub</a>
-    </div>
-  </nav>
-
-  <header id="top" class="zyx-crop zyx-crop-wide" data-zyx-reveal>
-    <h1>Several agents.<br>One office.</h1>
-    <p class="lead">The whole setup for running coding agents side by side, out of one box. You see
-    which one needs you, and you never reach for the mouse.</p>
-
-    <div class="cta">
-      <p class="os zyx-label">macOS or Linux, paste into a terminal</p>
-      <div class="cmd zyx-cmd zyx-stand">
-        <div class="zyx-cmd-line" tabindex="0"><code>git clone https://github.com/ZyxWorks/agent-office.git ~/agent-office && ~/agent-office/bin/office tools && ~/agent-office/install.sh</code></div>
-        <button type="button" class="zyx-btn zyx-main zyx-cmd-copy" data-zyx-copy data-done-label="copied">copy</button>
-        <span class="zyx-sr" role="status"></span>
-      </div>
-      <p class="os zyx-label">then, every morning</p>
-      <div class="cmd zyx-cmd zyx-stand" style="--zyx-reveal-delay: var(--z-d1)">
-        <div class="zyx-cmd-line" tabindex="0"><code>office on</code></div>
-        <button type="button" class="zyx-btn zyx-main zyx-cmd-copy" data-zyx-copy data-done-label="copied">copy</button>
-        <span class="zyx-sr" role="status"></span>
-      </div>
-      <p class="after"><code>office tools</code> lists every tool you lack and asks before it installs
-      one, each at a pinned version from its own maker. <code>install.sh</code> shows every file it
-      will write and backs up what it replaces. Neither starts anything. You bring git, Node 22.19 or
-      newer, and a coding agent you signed in to yourself, such as Claude Code or Codex. One thing
-      is left to you before the first <code>office on</code>: clone
-      <a class="zyx-link" href="https://github.com/kunchenguid/firstmate">Firstmate</a> and put its path in the config.</p>
-      <p class="after">MIT licensed, and all of it is on GitHub before you run any of it:
-      <a class="zyx-link" href="https://github.com/ZyxWorks/agent-office/blob/main/install.sh">the installer is
-      one short script you can read first</a>, and so is
-      <a class="zyx-link" href="https://github.com/ZyxWorks/agent-office/blob/main/config/components.toml">the list of everything it installs</a>.
-      <a class="zyx-link" href="https://github.com/ZyxWorks/agent-office/blob/main/GETTING-STARTED.md">Getting started</a>
-      walks you through the first day.</p>
-    </div>
-
-  </header>
-
-  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
-    <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>What was in the way</span></h2>
-    <p>Running three or four coding agents at once is normal now. The tools for it exist, and they
-    are good: <a class="zyx-link" href="https://herdr.dev">herdr</a> runs the terminal and knows each agent's state,
-    <a class="zyx-link" href="https://github.com/kunchenguid/firstmate">Firstmate</a> supervises a fleet of workers,
-    <a class="zyx-link" href="https://github.com/kunchenguid/treehouse">treehouse</a> hands each one its own git
-    worktree. But each is its own install, its own config and its own update, and <strong>the wiring
-    between them lived in one person's dotfiles</strong>. A new machine meant doing it all
-    again by hand. A new colleague meant "how did you set that up".</p>
-    <p>Agent Office is that wiring, packaged and tested. It does not rewrite any of those tools.
-    Each one stays with its own maker.</p>
-    <div class="stats zyx-grid zyx-grid-wide zyx-stand">
-      <div class="stat">
-        <div class="n">1</div>
-        <div class="l">config file. The native config of each tool is generated from it</div>
-      </div>
-      <div class="stat">
-        <div class="n">1</div>
-        <div class="l">key, Shift+arrow, walks every pane, tab and space</div>
-      </div>
-      <div class="stat">
-        <div class="n">0</div>
-        <div class="l">scripts piped into a shell, and no sudo, anywhere in the install</div>
-      </div>
-    </div>
-    <p class="punch">Several agents you can keep track of is a different tool from several agents in
-    several windows.</p>
-  </section>
-
-  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
-    <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>Which one needs you</span></h2>
-    <p>Every agent has one line in the sidebar. herdr knows whether it is working, idle, done or
-    blocked. The Agent Office meter adds the two numbers that decide what you do next:
-    <strong>how full its context is, and how long it has been quiet</strong>.</p>
-    <div class="cmd zyx-cmd zyx-stand"><div class="zyx-cmd-line" tabindex="0"><code>claude · 412k▲ · 47m · idle</code></div></div>
-    <div class="zyx-table-wrap">
-      <table class="zyx-table zyx-table-num">
-        <thead><tr><th>you see</th><th>it means</th></tr></thead>
-        <tbody>
-          <tr><td><code>412k</code></td><td>tokens in this agent's context right now</td></tr>
-          <tr><td><code>▲</code> amber</td><td>past 200k, or past half of a smaller window</td></tr>
-          <tr><td><code>▲▲</code> red</td><td>past 600k, or past three quarters</td></tr>
-          <tr><td><code>47m</code></td><td>time since it last wrote to its transcript</td></tr>
-          <tr><td>a push on your phone</td><td>an agent is blocked. Off until you turn it on</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">The numbers come from the agent's own transcript: Claude Code, Codex, and Claude
-    Code on a local Ollama model. An agent the meter cannot identify stays blank. It never guesses.
-    Both limits are yours to set in the config.</p>
-  </section>
-
-  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
-    <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>No mouse</span></h2>
-    <p>One key walks the whole office. <kbd>Shift</kbd>+<kbd>&larr;</kbd> and
-    <kbd>Shift</kbd>+<kbd>&rarr;</kbd> go to the pane on that side, and from the last pane to the
-    next tab. <kbd>Shift</kbd>+<kbd>&uarr;</kbd> and <kbd>Shift</kbd>+<kbd>&darr;</kbd> do the same,
-    and from the last pane to the next space. It stops at the ends, so you can hold it.</p>
-    <p>Everything else is <kbd>Ctrl</kbd>+<kbd>Space</kbd>, then one letter. <strong>A small letter
-    is for the space, the same letter with Shift is for the tab.</strong></p>
-    <div class="zyx-table-wrap">
-      <table class="zyx-table zyx-table-num short">
-        <thead><tr><th>you want to</th><th>after Ctrl+Space</th></tr></thead>
-        <tbody>
-          <tr><td>make a new space, or a new tab</td><td>n &nbsp; N</td></tr>
-          <tr><td>close one</td><td>c &nbsp; C</td></tr>
-          <tr><td>rename one</td><td>r &nbsp; R</td></tr>
-          <tr><td>split the pane to the right, or below</td><td>v &nbsp; -</td></tr>
-          <tr><td>go to any agent by name</td><td>g</td></tr>
-          <tr><td>go to the agent that asked for you</td><td>o</td></tr>
-          <tr><td>leave, with everything still running</td><td>d</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note"><code>office keys</code> prints every key on one screen. A probe checks that
-    sheet against herdr itself on every push, so it cannot drift from what the keys really do.</p>
-  </section>
-
-  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
-    <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>The day</span></h2>
-    <div class="zyx-table-wrap">
-      <table class="zyx-table zyx-table-num short">
-        <thead><tr><th>you want to</th><th>you type</th></tr></thead>
-        <tbody>
-          <tr><td>open the office and its Firstmate</td><td>office on</td></tr>
-          <tr><td>talk to Firstmate</td><td>fm</td></tr>
-          <tr><td>walk away and leave it all running</td><td>office break</td></tr>
-          <tr><td>see what is running</td><td>office status</td></tr>
-          <tr><td>see what is installed, and whether it is a tested version</td><td>office doctor</td></tr>
-          <tr><td>move every tool to the version this release names</td><td>office update</td></tr>
-          <tr><td>go home</td><td>office off</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">You tell Firstmate what you want done. It starts the workers, each in its own
-    worktree, and reports back. You watch the sidebar.</p>
-  </section>
-
-  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
-    <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>What it does not do</span></h2>
-    <ul class="zyx-rows">
-      <li><strong>No rewrite.</strong> herdr, Firstmate, treehouse and the tools around them stay with their own makers and keep their own update paths. Agent Office owns the install, the one config, the tested set of versions and the daily commands.</li>
-      <li><strong>No blind install.</strong> A release is downloaded at a pinned version and checked against a pinned SHA-256 before it is unpacked. npm packages install with their scripts off. Nothing is piped into a shell and nothing uses sudo.</li>
-      <li><strong>No overwriting your files.</strong> Every change is shown first, what it replaces is backed up, and it asks. Your own herdr config file is never touched.</li>
-      <li><strong>No blanket kill.</strong> <code>office off</code> stops the office it started, after it shows you what will stop. It never stops every <code>claude</code> on the machine, and it never deletes a worktree.</li>
-      <li><strong>No signing in for you.</strong> You install and authenticate Claude Code, Codex or any other agent yourself. Your accounts and keys never pass through this.</li>
-      <li><strong>No Windows.</strong> Agent Office runs on macOS and Linux.</li>
-      <li><strong>No telemetry.</strong> Phone notifications are off until you turn them on, and the address they go to exists only in your own config file.</li>
-    </ul>
-    <p class="after">Every command on this page has a probe that runs it in a throwaway home, on
-    macOS and Linux, on every push.
-    <a class="zyx-link" href="https://github.com/ZyxWorks/agent-office#readme">The source is public, and so is
-    every claim on this page.</a></p>
-  </section>
-
-
-  <!-- The studio pitch. This page is the widest-reaching thing ZyxWorks publishes, and a visitor
-       who likes Agent Office enough to install it is exactly the visitor worth telling about the
-       paid work. -->
-  <section class="zyx-rule zyx-rule-bleed zyx-band" data-zyx-reveal>
-    <h2 class="zyx-eyebrow zyx-eyebrow-n"><span>Who builds this</span></h2>
-    <p><strong><a class="zyx-link" href="https://zyxworks.com">ZyxWorks</a></strong> is a product studio and forward
-    deployed engineering practice. Agent Office is one of the tools we built for our own work and gave
-    away. The paid work is putting the same engineering inside a company.</p>
-    <div class="facts zyx-grid zyx-grid-wide zyx-stand">
-      <div class="fact">
-        <strong><a class="zyx-link" href="https://zyxworks.com/">Zyx</a></strong>
-        <span>Ask your company. Zyx answers from your company's own mail, files and apps, on your
-        own server. Every step that matters waits for your approval. Agent Office came out of it.</span>
-      </div>
-      <div class="fact">
-        <strong><a class="zyx-link" href="https://zyxworks.com/#setup">Forward deployed engineering</a></strong>
-        <span>We set up one process with you on Zyx and hand it over to your own people after 90 days.</span>
-      </div>
-    </div>
-    <p class="after"><a class="zyx-btn zyx-push" href="https://zyxworks.com">What we do for companies &rarr;</a></p>
-  </section>
-
-</div>
-
-<footer class="zyx-rule" data-zyx-reveal>
-  <div class="shell">
-    <div class="zyx-foot zyx-foot-stack zyx-stand" style="--zyx-foot-cols: 3">
-      <div class="zyx-foot-brand">
-        <a class="zyx-lockup" href="https://zyxworks.com/">
-          <svg class="zyx-mark" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true"><path class="zyx-mark-panels" d="M60 12L101.6 36V84L60 108L18.4 84V36Z"/><path class="zyx-mark-lines" fill-rule="evenodd" d="M60 7.09L105.82 33.55V86.45L60 112.91L14.18 86.45V33.55ZM53.6 20.6L22.68 38.45V74.16L53.6 56.3ZM66.4 20.6V56.3L97.32 74.16V38.45ZM60 67.39L29.08 85.24L60 103.09L90.92 85.24Z"/></svg>
-          <span>ZyxWorks</span>
-        </a>
-        <p>A product studio and forward deployed engineering practice.
-        Agent Office is one of the things we built for ourselves and gave away.</p>
-      </div>
-      <div class="zyx-foot-col">
-        <h2 class="zyx-label">Product</h2>
-        <ul role="list" class="zyx-cells">
-          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office">Source<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office#readme">Docs<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office/issues">Issues<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-        </ul>
-      </div>
-      <div class="zyx-foot-col">
-        <h2 class="zyx-label">Studio</h2>
-        <ul role="list" class="zyx-cells">
-          <li><a class="zyx-cell" href="https://zyxworks.com/open-source">Our other tools<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-          <li><a class="zyx-cell" href="https://zyxworks.com">What we do for companies<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-          <li><a class="zyx-cell" href="https://zyxworks.com/">Zyx<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-        </ul>
-      </div>
-      <div class="zyx-foot-col">
-        <h2 class="zyx-label">Legal</h2>
-        <ul role="list" class="zyx-cells">
-          <li><a class="zyx-cell" href="https://github.com/ZyxWorks/agent-office/blob/main/LICENSE">MIT licence<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-          <li><a class="zyx-cell" href="https://zyxworks.com/legal#privacy">Privacy<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-          <li><a class="zyx-cell" href="https://zyxworks.com/legal#imprint">Imprint<span class="zyx-arrow" aria-hidden="true">&rarr;</span></a></li>
-        </ul>
-      </div>
-      <p class="zyx-foot-legal">&copy; <span id="year">2026</span> ZYXWORKS &middot; ZYX &middot; FORWARD DEPLOYED AI FOR YOUR COMPANY</p>
+<body class="ao-page">
+<a class="zyx-skip" href="#main">Skip to the content</a>
+<header class="zyx-site-head">
+  <div class="zyx-wrap">
+    <a class="zyx-lockup" href="https://zyxworks.com/open-source"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a>
+    <nav aria-label="Main">
+      <ul class="zyx-site-nav">
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#needs">Which one needs you</a></li>
+        <li><a href="#keys">Keys</a></li>
+      </ul>
+    </nav>
+    <div class="zyx-site-acts">
+      <a class="zyx-btn zyx-btn-ghost" href="https://github.com/ZyxWorks/agent-office">GitHub</a>
     </div>
   </div>
+</header>
+
+<main id="main">
+  <section class="zyx-hero" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <svg class="zyx-mark zyx-mark-xl zyx-hero-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 13l11 11-11 11M24 36h16"/></svg>
+      <h1 class="zyx-hero-title">Several agents. One office.</h1>
+      <p class="zyx-hero-lead">The whole setup for running coding agents side by side. You see which one needs you, and you never reach for the mouse.</p>
+      <div class="ao-hero-cmd">
+        <div class="zyx-cmd"><code tabindex="0">git clone https://github.com/ZyxWorks/agent-office ~/agent-office &amp;&amp; ~/agent-office/bin/office setup</code><button type="button" class="zyx-btn zyx-btn-ghost zyx-btn-xs" data-zyx-copy data-done-label="Copied">Copy</button><span class="zyx-sr" role="status"></span></div>
+      </div>
+      <div class="zyx-hero-acts">
+        <a class="zyx-btn zyx-btn-main zyx-btn-lg" href="https://github.com/ZyxWorks/agent-office">View the source on GitHub</a>
+        <a class="zyx-btn zyx-btn-lg" href="https://github.com/ZyxWorks/agent-office/blob/main/GETTING-STARTED.md">Getting started</a>
+      </div>
+      <p class="zyx-hero-note">macOS or Linux. MIT licence. It asks before it installs anything or changes a file of yours.</p>
+      <!-- ASSET SLOT: media/agent-office-demo.mp4 (+ .webm), 16:10, 20-30 s, muted, poster
+           media/agent-office-demo-poster.png (1600x1000). It shows a herdr office in the grey
+           theme: two spaces, three agents named api, website and docs; one goes blocked (its row
+           shows the × mark and the red word), Shift+arrow walks to it, a context number climbs past
+           the ▲ mark. No real repo names, no home paths, no tokens on screen. English.
+           When it exists, replace the <pre> below with:
+           <div class="zyx-video"><video controls muted playsinline loop preload="none"
+             poster="media/agent-office-demo-poster.png" aria-label="An office with three agents: one asks for you, Shift+arrow walks to it">
+             <source src="media/agent-office-demo.webm" type="video/webm">
+             <source src="media/agent-office-demo.mp4" type="video/mp4"></video></div>
+           Until then the sidebar is shown as the text it really is, not a mock screenshot. -->
+      <figure class="ao-demo">
+        <pre class="zyx-code ao-side" tabindex="0" aria-label="The office sidebar, as text"><code> spaces
+ ○ api
+   main
+ · website
+   main
+ ───────────────────────────
+ agents
+ ○ api
+   firstmate · 88k · 3m · idle
+   89% · main
+ × api
+   claude · 412k▲ · blocked
+   89% · #109 · fix/login</code></pre>
+        <figcaption class="ao-legend">
+          <p>The sidebar. Each agent's state, how full its context is, how long it has been quiet, the quota left, its pull request and its branch.</p>
+          <ul>
+            <li><code>○</code> Idle: your turn</li>
+            <li><code>◐</code> Working</li>
+            <li><code>✓</code> Done</li>
+            <li><code>×</code> Blocked: it waits for you</li>
+          </ul>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="zyx-band" id="how" aria-labelledby="how-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="how-t">How it works</h2>
+      <p class="zyx-band-lead">herdr runs the terminal, Firstmate supervises the agents, treehouse gives each one its own git worktree. Agent Office is the wiring between them, packaged and tested. It rewrites none of them.</p>
+      <div class="zyx-band-body">
+        <ol class="zyx-how">
+          <li><h3 class="zyx-how-title">Paste the line</h3><p class="zyx-how-text"><code>office setup</code> asks four questions, installs the tools you lack, clones Firstmate and checks the result. Run it again any time.</p></li>
+          <li><h3 class="zyx-how-title">Open the office</h3><p class="zyx-how-text"><code>office on</code> opens the office and its Firstmate. <code>office off</code> closes it when you go home.</p></li>
+          <li><h3 class="zyx-how-title">Say what you want done</h3><p class="zyx-how-text">Firstmate starts the workers, each in its own worktree, and reports back. You watch the sidebar.</p></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="zyx-band" id="needs" aria-labelledby="needs-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="needs-t">Which one needs you</h2>
+      <p class="zyx-band-lead">Every agent has one line in the sidebar. herdr knows whether it is working, idle, done or blocked. The meter adds how full its context is and how long it has been quiet.</p>
+      <div class="zyx-band-body">
+        <div class="zyx-cmd ao-line"><code tabindex="0" aria-label="A sidebar line">claude · 412k▲ · 47m · idle</code></div>
+        <div class="zyx-table-wrap" role="region" aria-label="What the sidebar line means" tabindex="0">
+          <table class="zyx-table">
+            <thead><tr><th scope="col">You see</th><th scope="col">It means</th></tr></thead>
+            <tbody>
+              <tr><td><code>412k</code></td><td>Tokens in this agent's context right now</td></tr>
+              <tr><td><code>▲</code>, white and bold</td><td>Past 200k, or past half of a smaller window</td></tr>
+              <tr><td><code>▲▲</code>, red</td><td>Past 600k, or past three quarters</td></tr>
+              <tr><td><code>47m</code></td><td>Time since it last wrote to its transcript</td></tr>
+              <tr><td><code>×</code> blocked</td><td>It waits for you. A push to your phone too, if you turn that on</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="ao-note">The numbers come from the agent's own transcript: Claude Code, Codex, and Claude Code on a local Ollama model. An agent the meter cannot identify stays blank; it never guesses. Both limits are yours to set. The theme is greys with one red, and every state also has its mark and its word, so nothing rests on colour alone.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="zyx-band" id="keys" aria-labelledby="keys-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="keys-t">No mouse</h2>
+      <p class="zyx-band-lead"><span class="ao-nowrap"><kbd>Shift</kbd>+arrow</span> walks the whole office: to the pane on that side, then to the next tab or space. It stops at the ends, so you can hold it. Everything else is <span class="ao-nowrap"><kbd>Ctrl</kbd>+<kbd>Space</kbd></span>, then one letter: small for the space, with Shift for the tab.</p>
+      <div class="zyx-band-body">
+        <div class="zyx-table-wrap" role="region" aria-label="Keys after Ctrl+Space" tabindex="0">
+          <table class="zyx-table ao-keys">
+            <thead><tr><th scope="col">You want to</th><th scope="col">After Ctrl+Space</th></tr></thead>
+            <tbody>
+              <tr><td>Make a new space, or a new tab</td><td><kbd>n</kbd><kbd>N</kbd></td></tr>
+              <tr><td>Close one</td><td><kbd>c</kbd><kbd>C</kbd></td></tr>
+              <tr><td>Rename one</td><td><kbd>r</kbd><kbd>R</kbd></td></tr>
+              <tr><td>Split the pane to the right, or below</td><td><kbd>v</kbd><kbd>-</kbd></td></tr>
+              <tr><td>Go to any agent by name</td><td><kbd>g</kbd></td></tr>
+              <tr><td>Go to the agent that asked for you</td><td><kbd>o</kbd></td></tr>
+              <tr><td>Leave, with everything still running</td><td><kbd>d</kbd></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="ao-note"><code>office keys</code> prints every key on one screen. A probe checks that sheet against herdr itself on every push, so it cannot drift from what the keys do.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="zyx-band" id="day" aria-labelledby="day-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="day-t">The day</h2>
+      <div class="zyx-band-body">
+        <div class="zyx-table-wrap" role="region" aria-label="Daily commands" tabindex="0">
+          <table class="zyx-table ao-cmds">
+            <thead><tr><th scope="col">You want to</th><th scope="col">You type</th></tr></thead>
+            <tbody>
+              <tr><td>Install, or check the install again</td><td><code>office setup</code></td></tr>
+              <tr><td>Open the office and its Firstmate</td><td><code>office on</code></td></tr>
+              <tr><td>Talk to Firstmate</td><td><code>fm</code></td></tr>
+              <tr><td>Walk away and leave it all running</td><td><code>office break</code></td></tr>
+              <tr><td>See what is running</td><td><code>office status</code></td></tr>
+              <tr><td>See what is installed, and whether it is a tested version</td><td><code>office doctor</code></td></tr>
+              <tr><td>Move every tool to the version this release names</td><td><code>office update</code></td></tr>
+              <tr><td>Go home</td><td><code>office off</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="zyx-band" id="not" aria-labelledby="not-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="not-t">What it does not do</h2>
+      <div class="zyx-band-body">
+        <ul class="ao-nots">
+          <li><h3 class="zyx-how-title">No rewrite</h3><p class="zyx-how-text">herdr, Firstmate, treehouse and the tools around them stay with their own makers and keep their own updates. Agent Office owns the install, the one config, the tested versions and the daily commands.</p></li>
+          <li><h3 class="zyx-how-title">No blind install</h3><p class="zyx-how-text">A release is downloaded at a pinned version and checked against a pinned SHA-256 before it is unpacked. npm packages install with their scripts off. Nothing is piped into a shell, nothing uses sudo.</p></li>
+          <li><h3 class="zyx-how-title">No overwriting your files</h3><p class="zyx-how-text">Every change is shown first, what it replaces is backed up, and it asks. Your own herdr config file is never touched.</p></li>
+          <li><h3 class="zyx-how-title">No blanket kill</h3><p class="zyx-how-text"><code>office off</code> stops the office it started, after it shows what will stop. It never stops every <code>claude</code> on the machine and never deletes a worktree.</p></li>
+          <li><h3 class="zyx-how-title">No signing in for you</h3><p class="zyx-how-text">You install and sign in to Claude Code, Codex or any other agent yourself. Your accounts and keys never pass through this.</p></li>
+          <li><h3 class="zyx-how-title">No telemetry</h3><p class="zyx-how-text">Phone pushes are off until you turn them on, and the address they go to is only in your own config file.</p></li>
+        </ul>
+        <p class="ao-note">Every command on this page has a probe that runs it in a throwaway home, on macOS and Linux, on every push. <a class="zyx-link" href="https://github.com/ZyxWorks/agent-office#readme">The source is public, and so is every claim on this page.</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="zyx-band" aria-labelledby="who-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="who-t">Who builds this</h2>
+      <p class="zyx-band-lead">ZyxWorks builds Zyx and puts it to work inside companies. Agent Office is a tool we built for our own work and give away.</p>
+      <div class="zyx-hero-acts">
+        <a class="zyx-btn" href="https://zyxworks.com">What we do for companies</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="zyx-site-foot">
+  <div class="zyx-wrap">
+    <div class="zyx-site-foot-cols">
+      <div class="zyx-site-foot-brand"><a class="zyx-lockup" href="https://zyxworks.com/"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a><p>Agent Office is one of the tools we built for ourselves and give away.</p></div>
+      <div><h2>Product</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office">Source</a></li><li><a href="https://github.com/ZyxWorks/agent-office#readme">Docs</a></li><li><a href="https://github.com/ZyxWorks/agent-office/issues">Issues</a></li></ul></div>
+      <div><h2>Studio</h2><ul><li><a href="https://zyxworks.com/open-source">Other tools</a></li><li><a href="https://zyxworks.com">For companies</a></li></ul></div>
+      <div><h2>Legal</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office/blob/main/LICENSE">MIT licence</a></li><li><a href="https://zyxworks.com/legal#privacy">Privacy</a></li><li><a href="https://zyxworks.com/legal#imprint">Imprint</a></li></ul></div>
+    </div>
+    <div class="zyx-site-foot-legal"><span>© 2026 ZyxWorks</span></div>
+  </div>
 </footer>
-
-<script>
-  var d = document;
-  d.getElementById("year").textContent = new Date().getFullYear();
-  // A stat counts up to its number in at most 8 steps, once, when it first comes into view. The rest
-  // of the scroll-in is the library's (ui/reveal.js).
-  if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    var o = new IntersectionObserver(function (es) {
-      es.forEach(function (e) {
-        if (!e.isIntersecting) return;
-        o.unobserve(e.target);
-        e.target.querySelectorAll(".n").forEach(function (n) {
-          var v = +n.textContent, s = Math.min(v, 8), k = 0;
-          if (!(v > 0)) return;
-          n.textContent = 0;
-          var h = setInterval(function () { n.textContent = Math.round(v * ++k / s); k < s || clearInterval(h); }, 400 / s);
-        });
-      });
-    });
-    d.querySelectorAll(".stats").forEach(function (t) { o.observe(t); });
-  }
-</script>
-
 </body>
 </html>
