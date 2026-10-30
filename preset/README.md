@@ -33,7 +33,7 @@ What it gives you:
   agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. A third row has the quota left on the agent's provider, its open PR and its branch: `89% · #109 · fix/login`. Without the meter those stay blank.
 - **Sound**: only "needs you" plays. A worker finishing is routine, so that
   sound is silent.
-- **Theme**: the Zyx greys, see [Theme](#theme). White and bold means "this needs you"; red is only for a fault (context past the alarm, quota out).
+- **Theme**: the ZyxWorks greys, see [Theme](#theme). White and bold means "this needs you"; red is only for a fault (context past the alarm, quota out).
 - **Onboarding** is left alone: a new herdr user still gets herdr's first-run
   setup, once. It takes the keys until you close it with Esc. herdr then writes
   `onboarding = false` into the config, and `office install` keeps that line.

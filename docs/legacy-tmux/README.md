@@ -784,7 +784,7 @@ source-file ~/agent-office/office.tmux.conf              # required
 source-file ~/agent-office/theme/office-theme.tmux.conf  # optional
 ```
 
-Source it second, because it overrides the pane border. The Zyx greys
+Source it second, because it overrides the pane border. The ZyxWorks greys
 ([palette](../../preset/README.md#theme)): state is tone, weight and inversion.
 White and bold means **your turn**, and red means the context is past the alarm
 mark; nothing else on the screen is given either (PREFIX is an inverted grey chip). It also brings the clickable strip described above.
@@ -942,7 +942,7 @@ MIT. See [LICENSE](../../LICENSE).
 
 ## Where this comes from
 
-Agent Office is one of the tools we built for our own work on **[Zyx](https://zyx.works/en/)** and gave away. It is the room Zyx gets built in. Zyx itself answers questions from a company's own mail, files and apps, names the source of every answer, and runs on the company's own server.
+Agent Office is one of the tools **ZyxWorks** built for its own work on **[Zyx](https://zyx.works/en/)**, our product, and gave away. It is the room Zyx gets built in. Zyx itself answers questions from a company's own mail, files and apps, names the source of every answer, and runs on the company's own server.
 
 The other one is **[MurmurFlow](https://zyxworks.github.io/murmurflow/)**:
 hold a key, say it, let go, and the words land at your cursor in any app,

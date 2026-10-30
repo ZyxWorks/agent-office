@@ -1,5 +1,5 @@
 {
-  "_": "office's look for iTerm2. Optional, exactly like theme/office-theme.tmux.conf: install.sh only merges this into the 'office' profile when you pass --theme, and keys starting with _ are stripped. Appearance only, so your font, your shell and your key mappings are untouched. Zyx greys: a #111111 ground, #EDEDED text, and the 16 ANSI colours as muted versions with no yellow (slot 3 is a stone grey). Same palette as the herdr preset (preset/README.md#theme). Flat, no transparency or blur.",
+  "_": "office's look for iTerm2. Optional, exactly like theme/office-theme.tmux.conf: install.sh only merges this into the 'office' profile when you pass --theme, and keys starting with _ are stripped. Appearance only, so your font, your shell and your key mappings are untouched. ZyxWorks greys: a #111111 ground, #EDEDED text, and the 16 ANSI colours as muted versions with no yellow (slot 3 is a stone grey). Same palette as the herdr preset (preset/README.md#theme). Flat, no transparency or blur.",
   "Ansi 0 Color": {
     "Red Component": 0.164706,
     "Green Component": 0.164706,
