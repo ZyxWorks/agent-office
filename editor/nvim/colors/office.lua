@@ -1,8 +1,9 @@
--- office: the editor pane's colours, the office palette (theme/office-theme.tmux.conf and the
--- preset's [theme.custom]). State is tone, not hue. Amber means "this needs you" and red means
--- "act on this", so here they mark only warnings and errors. The quiet code colours are the
--- Claude Code theme's (setup/claude/themes/office.json), so the editor sits beside an agent
--- without a third look.
+-- office: the editor pane's colours, the ZyxWorks greys (preset/README.md#theme): the same
+-- palette as the preset's [theme.custom] and theme/office-theme.tmux.conf. Ground and text are the
+-- @zyxworks/ui dark tokens. A warning is the stone grey and an error the one red, each with nvim's
+-- own sign, so neither rests on colour alone. The quiet code colours are the muted ANSI colours,
+-- the same as the Claude Code theme (setup/claude/themes/office.json), so the editor sits beside
+-- an agent without a third look.
 vim.cmd("highlight clear")
 if vim.fn.exists("syntax_on") == 1 then
   vim.cmd("syntax reset")
@@ -11,23 +12,23 @@ vim.g.colors_name = "office"
 vim.o.background = "dark"
 
 local c = {
-  bg = "#0b0c10",      -- ink
-  band = "#0e1016",    -- the sidebar
-  panel = "#16181f",   -- panels, the cursor line
-  raised = "#2a2d36",  -- a selection
-  faint = "#4e505a",   -- hairlines only, never text
-  dim = "#6a6c77",     -- the contrast floor for small text
-  kicker = "#8a8d96",
-  muted = "#9a9ca6",
-  ink = "#f6f5f1",     -- text
-  accent = "#C9903F",  -- needs you
-  alarm = "#C25450",   -- act on this
-  green = "#68866a",   -- the Claude theme's success: strings, added lines
-  blue = "#768eac",    -- its permission blue: numbers and constants
-  olive = "#8b886a",   -- its warning olive: preprocessor and special
-  rose = "#b16c6f",    -- its error rose: removed lines, softer than alarm
-  add_bg = "#162e1f",
-  del_bg = "#401c21",
+  bg = "#111111",      -- bg
+  band = "#171717",    -- surface: the sidebar
+  panel = "#1c1c1c",   -- well: panels, the cursor line
+  raised = "#2a2a2a",  -- selected: a selection
+  faint = "#3a3a3a",   -- line-ctl: hairlines only, never text
+  dim = "#8c8c8c",     -- text-3: the contrast floor for small text
+  kicker = "#a3a3a3",  -- text-2
+  muted = "#a3a3a3",   -- text-2
+  ink = "#ededed",     -- text
+  accent = "#ededed",  -- accent = ink: needs you
+  alarm = "#ff7a6e",   -- bad: act on this
+  green = "#8fa894",   -- ANSI 2: strings, added lines
+  blue = "#8c9db5",    -- ANSI 4: numbers and constants
+  stone = "#a8a196",   -- ANSI 3, a stone grey and not a yellow: preprocessor and special
+  rose = "#c98a82",    -- ANSI 1: removed lines, softer than alarm
+  add_bg = "#1a231c",
+  del_bg = "#2c1d1b",
 }
 
 local groups = {
@@ -75,7 +76,7 @@ local groups = {
   ModeMsg = { fg = c.muted },
   MsgArea = { fg = c.muted },
   ErrorMsg = { fg = c.alarm, bold = true },
-  WarningMsg = { fg = c.accent },
+  WarningMsg = { fg = c.stone, bold = true },
   QuickFixLine = { bg = c.raised },
   WildMenu = { fg = c.ink, bg = c.raised },
   SpellBad = { sp = c.alarm, undercurl = true },
@@ -100,16 +101,16 @@ local groups = {
   Label = { fg = c.muted },
   Exception = { fg = c.muted },
   Operator = { fg = c.kicker },
-  PreProc = { fg = c.olive },
+  PreProc = { fg = c.stone },
   Include = { fg = c.muted },
-  Define = { fg = c.olive },
-  Macro = { fg = c.olive },
+  Define = { fg = c.stone },
+  Macro = { fg = c.stone },
   Type = { fg = c.kicker },
   StorageClass = { fg = c.muted },
   Structure = { fg = c.kicker },
   Typedef = { fg = c.kicker },
-  Special = { fg = c.olive },
-  SpecialChar = { fg = c.olive },
+  Special = { fg = c.stone },
+  SpecialChar = { fg = c.stone },
   Tag = { fg = c.ink },
   Delimiter = { fg = c.kicker },
   SpecialComment = { fg = c.dim, italic = true },
@@ -123,14 +124,14 @@ local groups = {
   ["@markup.link"] = { fg = c.muted, underline = true },
   ["@markup.raw"] = { fg = c.green },
 
-  -- diagnostics: the office ladder, amber then red
+  -- diagnostics: stone for a warning, red for an error, each with its sign
   DiagnosticError = { fg = c.alarm },
-  DiagnosticWarn = { fg = c.accent },
+  DiagnosticWarn = { fg = c.stone },
   DiagnosticInfo = { fg = c.muted },
   DiagnosticHint = { fg = c.dim },
   DiagnosticOk = { fg = c.green },
   DiagnosticUnderlineError = { sp = c.alarm, undercurl = true },
-  DiagnosticUnderlineWarn = { sp = c.accent, undercurl = true },
+  DiagnosticUnderlineWarn = { sp = c.stone, undercurl = true },
   DiagnosticUnderlineInfo = { sp = c.muted, underline = true },
   DiagnosticUnderlineHint = { sp = c.dim, underline = true },
 
@@ -140,10 +141,10 @@ local groups = {
   DiffChange = { bg = c.panel },
   DiffText = { bg = c.raised },
   Added = { fg = c.green },
-  Changed = { fg = c.olive },
+  Changed = { fg = c.stone },
   Removed = { fg = c.rose },
   MiniDiffSignAdd = { fg = c.green },
-  MiniDiffSignChange = { fg = c.olive },
+  MiniDiffSignChange = { fg = c.stone },
   MiniDiffSignDelete = { fg = c.rose },
   MiniDiffOverAdd = { bg = c.add_bg },
   MiniDiffOverDelete = { bg = c.del_bg },
@@ -180,11 +181,11 @@ local groups = {
   NvimTreeSymlink = { fg = c.muted, italic = true },
   NvimTreeExecFile = { fg = c.ink },
   NvimTreeSpecialFile = { fg = c.ink },
-  NvimTreeGitDirtyIcon = { fg = c.olive },
+  NvimTreeGitDirtyIcon = { fg = c.stone },
   NvimTreeGitStagedIcon = { fg = c.green },
   NvimTreeGitNewIcon = { fg = c.green },
   NvimTreeGitDeletedIcon = { fg = c.rose },
-  NvimTreeGitRenamedIcon = { fg = c.olive },
+  NvimTreeGitRenamedIcon = { fg = c.stone },
   NvimTreeGitMergeIcon = { fg = c.accent },
   NvimTreeGitIgnoredIcon = { fg = c.faint },
   NvimTreeGitFileDirtyHL = { fg = c.ink },
@@ -198,8 +199,8 @@ for name, spec in pairs(groups) do
 end
 
 -- the 16 terminal colours, for :terminal: the same tones, red and yellow on the ladder
-local term = { c.bg, c.alarm, c.green, c.accent, c.blue, c.kicker, c.olive, c.muted,
-               c.faint, c.alarm, c.green, c.accent, c.blue, c.kicker, c.olive, c.ink }
+local term = { "#2a2a2a", "#c98a82", "#8fa894", "#a8a196", "#8c9db5", "#aa97b0", "#88a8a8", "#a3a3a3",
+               "#8c8c8c", "#ff7a6e", "#aec2b2", "#c4beb4", "#aab8cc", "#c3b3c8", "#a8c2c2", "#ededed" }
 for i, v in ipairs(term) do
   vim.g["terminal_color_" .. (i - 1)] = v
 end
