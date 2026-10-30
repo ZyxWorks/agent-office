@@ -1,4 +1,4 @@
--- office: the editor pane's colours, the Zyx greys (preset/README.md#theme): the same
+-- office: the editor pane's colours, the ZyxWorks greys (preset/README.md#theme): the same
 -- palette as the preset's [theme.custom] and theme/office-theme.tmux.conf. Ground and text are the
 -- @zyxworks/ui dark tokens. A warning is the stone grey and an error the one red, each with nvim's
 -- own sign, so neither rests on colour alone. The quiet code colours are the muted ANSI colours,
