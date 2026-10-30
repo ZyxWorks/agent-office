@@ -185,16 +185,16 @@ Every theme file the repo ships uses one palette: this preset, [WezTerm](wezterm
 | Second text, third text | `#A3A3A3`, `#8C8C8C` |
 | Alarm | `#FF7A6E` |
 
-| ANSI | Normal (0-7) | Bright (8-15) |
-| --- | --- | --- |
-| black | `#2A2A2A` | `#8C8C8C` |
-| red | `#C98A82` | `#FF7A6E` |
-| green | `#8FA894` | `#AEC2B2` |
-| yellow (stone) | `#A8A196` | `#C4BEB4` |
-| blue | `#8C9DB5` | `#AAB8CC` |
-| magenta | `#AA97B0` | `#C3B3C8` |
-| cyan | `#88A8A8` | `#A8C2C2` |
-| white | `#A3A3A3` | `#EDEDED` |
+| Slots | Name | Normal | Bright |
+| --- | --- | --- | --- |
+| 0 / 8 | black | `#2A2A2A` | `#8C8C8C` |
+| 1 / 9 | red | `#C98A82` | `#FF7A6E` |
+| 2 / 10 | green | `#8FA894` | `#AEC2B2` |
+| 3 / 11 | yellow (stone) | `#A8A196` | `#C4BEB4` |
+| 4 / 12 | blue | `#8C9DB5` | `#AAB8CC` |
+| 5 / 13 | magenta | `#AA97B0` | `#C3B3C8` |
+| 6 / 14 | cyan | `#88A8A8` | `#A8C2C2` |
+| 7 / 15 | white | `#A3A3A3` | `#EDEDED` |
 
 In the sidebar, state is a symbol first and a colour second (`status_indicators = "symbols"`): × blocked is red, ○ idle (your turn) is white, ◐ working and ✓ done are grey. The meter marks follow the same ladder: one ▲ or ▼ is white and bold, two are red and bold, everything else is grey.
 
