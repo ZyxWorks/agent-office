@@ -1,4 +1,4 @@
-/* @zyxworks/ui 1.0.0 (build d693bb5665f3), brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
+/* @zyxworks/ui 1.1.0 (build 89704c13b1a9), brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
 @layer zyx-tokens, zyx-base, zyx-components;
 
 @layer zyx-tokens {
@@ -279,6 +279,11 @@
   :where(p, li) { text-wrap: pretty; }
   /* German text breaks long words by syllable. */
   :where([lang|="de"]) { hyphens: auto; }
+  /* Short text (a card's title and line, a tag, a button) splits only where the words say so (1.1). */
+  :where(.zyx-card-title, .zyx-card-sub, .zyx-tag, .zyx-flag, .zyx-btn, .zyx-chip, .zyx-stat-label, .zyx-nav-label) { hyphens: manual; }
+  /* `hidden` always hides, also a part whose class sets its own display (a zyx-seg, a zyx-cmd). An
+     important rule in this first layer beats every later layer's plain one (1.1). */
+  [hidden]:not([hidden="until-found"]) { display: none !important; }
   :where(code, kbd, samp, pre) { font-family: var(--z-font-mono); font-size: 0.92em; }
   :where(a) { color: inherit; }
   :where(button, input, select, textarea) { font: inherit; color: inherit; }
@@ -339,6 +344,28 @@
 :focus-visible { outline: var(--z-ring) solid var(--z-accent); outline-offset: var(--z-ring-gap); }
 /* A row in a box that scrolls: the box would cut an outer ring off, so it is drawn inside. */
 .zyx-focus-inset:focus-visible { outline-offset: calc(var(--z-ring) * -1); }
+
+/*
+ * Each part's own focus, unlayered next to the ring so it wins over it (a layered rule always loses
+ * to an unlayered one, whatever its weight). Only parts that draw focus another way are here.
+ */
+/* A field: the line turns ink. No glow. */
+.zyx-input:focus, .zyx-input:focus-visible {
+  border-color: var(--z-text); outline: var(--z-bw) solid var(--z-text); outline-offset: calc(var(--z-bw) * -1);
+}
+/* A field in a box that draws the focus itself: the box shows it (`:focus-within`). */
+.zyx-palette-input:focus-visible, .zyx-jobbox-input:focus-visible { outline: none; }
+/* A list's element whose scroll box would cut an outer ring off: the ring is drawn inside. */
+.zyx-tab:focus-visible, .zyx-nav-item:focus-visible, .zyx-tabbar-item:focus-visible, .zyx-pick:focus-visible,
+.zyx-nav-back:focus-visible, .zyx-account:focus-visible, .zyx-stat:focus-visible { outline-offset: calc(var(--z-ring) * -1); }
+.zyx-menu-item:focus-visible { background: var(--z-hover); outline-offset: calc(var(--z-ring) * -1); }
+/* A menu takes focus only to pass it on (a headless menu focuses it first): its items show the ring. */
+.zyx-menu:focus-visible { outline: none; }
+/* On the dark toast the ring is the toast's own text colour. */
+.zyx-toast :focus-visible { outline-color: var(--z-on-inverse); outline-offset: calc(var(--z-ring) * -1); }
+/* A row's link covers the row: the ring goes round the whole row, inside it. */
+.zyx-row-link:focus-visible { outline: none; }
+.zyx-row-link:focus-visible::after { outline: var(--z-ring) solid var(--z-accent); outline-offset: calc(var(--z-ring) * -1); }
 
 /* Thin quiet scrollbars. WebKit and Blink draw the parts; Firefox has only a colour and a width. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -409,6 +436,19 @@
   /* Danger: the delete button inside the delete dialog. Nowhere else. */
   .zyx-btn-danger { border-color: var(--z-bad); background: var(--z-bad); color: var(--z-bg); }
   .zyx-btn-danger:hover { background: color-mix(in srgb, var(--z-bad) 88%, var(--z-text)); }
+  /* Quiet danger: red words, no fill (Stop sharing, Remove). The red fill stays for the dialog's last word. */
+  .zyx-btn-danger-quiet { border-color: transparent; background: transparent; color: var(--z-bad); }
+  .zyx-btn-danger-quiet:hover { background: color-mix(in srgb, var(--z-bad) 8%, transparent); }
+  .zyx-btn-danger-quiet:active { background: color-mix(in srgb, var(--z-bad) 14%, transparent); }
+  /* On: a button that stays pressed (a toggle) keeps the selected fill and gets a stronger edge, so it
+     reads as on without the colour alone. A ghost one gets the edge too. */
+  .zyx-btn[aria-pressed="true"]:not(.zyx-btn-main), .zyx-btn[data-on]:not(.zyx-btn-main) { border-color: var(--z-line-strong); background: var(--z-selected); color: var(--z-text); }
+  /* Flush: a ghost button whose words line up with the text edge beside it; the hover fill reaches past it. */
+  .zyx-btn-flush { padding-inline: 0; isolation: isolate; }
+  .zyx-btn-flush::before { content: ""; position: absolute; inset: 0 -8px; z-index: -1; border-radius: var(--z-r-ctl); transition: background-color var(--z-d-fast) var(--z-ease); }
+  .zyx-btn-flush:hover, .zyx-btn-flush:active { background: transparent; }
+  .zyx-btn-flush:hover::before { background: var(--z-hover); }
+  .zyx-btn-flush:active::before { background: var(--z-selected); }
   /* Icon only: square, and it always names itself (aria-label) and shows a tooltip. */
   .zyx-btn-icon { width: var(--z-ctl-sm); padding: 0; }
   .zyx-btn-icon.zyx-btn-xs { width: var(--z-ctl-xs); }
@@ -429,6 +469,7 @@
     cursor: not-allowed; border-color: var(--z-line); background: var(--z-well); color: var(--z-text-3);
   }
   .zyx-btn-ghost:disabled, .zyx-btn-ghost[aria-disabled="true"] { border-color: transparent; background: transparent; }
+  .zyx-btn-danger-quiet:disabled, .zyx-btn-danger-quiet[aria-disabled="true"] { border-color: transparent; background: transparent; }
 
   /* The round send button of the job box. */
   .zyx-send {
@@ -451,6 +492,10 @@
   .zyx-label-opt { color: var(--z-text-3); font-weight: var(--z-w-normal); }
   .zyx-help { color: var(--z-text-3); font-size: var(--z-t-meta); }
   .zyx-error { display: flex; gap: 6px; align-items: baseline; color: var(--z-bad); font-size: var(--z-t-meta); }
+  /* Inline: the label beside the control, the help and error under the control. A phone puts it above again. */
+  .zyx-field-inline { grid-template-columns: minmax(0, 1fr) minmax(0, 240px); align-items: center; column-gap: 16px; }
+  .zyx-field-inline > :not(.zyx-label) { grid-column: 2; }
+  @media (max-width: 767px) { .zyx-field-inline { grid-template-columns: minmax(0, 1fr); } .zyx-field-inline > :not(.zyx-label) { grid-column: 1; } }
   .zyx-input {
     display: block; width: 100%; min-width: 0; height: var(--z-ctl-md); padding: 0 12px;
     border: var(--z-bw) solid var(--z-line-ctl); border-radius: var(--z-r-ctl); background: var(--z-surface);
@@ -460,15 +505,17 @@
   textarea.zyx-input { height: auto; min-height: 88px; padding: 8px 12px; line-height: var(--z-lead-ui); resize: vertical; }
   .zyx-input::placeholder { color: var(--z-text-3); opacity: 1; }
   .zyx-input:hover { border-color: var(--z-line-strong); }
-  /* Focus: the line turns ink. No glow. */
-  .zyx-input:focus, .zyx-input:focus-visible {
-    border-color: var(--z-text); outline: var(--z-bw) solid var(--z-text); outline-offset: calc(var(--z-bw) * -1);
-  }
   .zyx-input[aria-invalid="true"] { border-color: var(--z-bad); }
   .zyx-input[aria-invalid="true"]:focus { outline-color: var(--z-bad); }
   .zyx-input:disabled { cursor: not-allowed; border-color: var(--z-line); background: var(--z-well); color: var(--z-text-3); }
   .zyx-input:read-only:not(:disabled):not(select) { border-color: var(--z-line); background: var(--z-well); }
   .zyx-input-mono { font-family: var(--z-font-mono); font-size: var(--z-t-meta); }
+  /* Small: 28 px with the meta size, to stand beside the chips in a filter bar. */
+  .zyx-input-sm { height: var(--z-ctl-xs); padding-inline: 10px; font-size: var(--z-t-meta); }
+  .zyx-search > .zyx-input-sm { padding-left: 32px; }
+  .zyx-search:has(> .zyx-input-sm) > .zyx-i { left: 10px; width: 14px; height: 14px; }
+  .zyx-select > select.zyx-input-sm { padding-right: 30px; }
+  .zyx-select-sm::after { right: 10px; width: 14px; height: 14px; mask-size: 14px; }
 
   /* Search: a field with the search icon inside. */
   .zyx-search { position: relative; display: block; min-width: 0; }
@@ -499,6 +546,9 @@
   .zyx-check { display: inline-flex; align-items: flex-start; gap: 8px; font-size: var(--z-t-ui); }
   .zyx-check > input { margin-top: 2px; }
   .zyx-check:has(input:disabled) { color: var(--z-text-3); cursor: not-allowed; }
+  /* Bare: the words are for a screen reader only, so no gap is kept for them. */
+  .zyx-check-bare { gap: 0; }
+  .zyx-check-bare > input { margin-top: 0; }
 
   /* ---- Switch: 32 x 18, the accent when on. Saves at once. ---- */
   .zyx-switch {
@@ -515,6 +565,9 @@
   .zyx-switch:disabled, .zyx-switch[aria-disabled="true"] { cursor: not-allowed; border-color: var(--z-line-ctl); background: var(--z-well); }
   .zyx-switch:disabled::after, .zyx-switch[aria-disabled="true"]::after { background: var(--z-line-ctl); }
   .zyx-switch[aria-checked="true"]:disabled { background: var(--z-line-ctl); }
+  /* With its words: the switch, then "On" or "Off" in the quiet text colour. */
+  .zyx-switch-words { display: inline-flex; align-items: center; gap: 8px; }
+  .zyx-switch-word { color: var(--z-text-2); font-size: var(--z-t-meta); }
 
   /* ---- Tabs: page tabs with a line under the current one ---- */
   .zyx-tabs { display: flex; gap: 20px; overflow-x: auto; border-bottom: var(--z-bw) solid var(--z-line); scrollbar-width: none; }
@@ -528,7 +581,6 @@
   .zyx-tab[aria-selected="true"]::after, .zyx-tab[aria-current="page"]::after {
     content: ""; position: absolute; left: 0; right: 0; bottom: calc(var(--z-bw) * -1); height: var(--z-ring); background: var(--z-text);
   }
-  .zyx-tab:focus-visible { outline-offset: calc(var(--z-ring) * -1); }
 
   /* ---- Segmented: 2 or 3 views on a grey track ---- */
   .zyx-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--z-r-ctl); background: var(--z-hover); }
@@ -541,6 +593,10 @@
   .zyx-seg > [aria-pressed="true"], .zyx-seg > [aria-checked="true"], .zyx-seg > [aria-selected="true"], .zyx-seg > [aria-current="page"] {
     border-color: var(--z-line); background: var(--z-surface); color: var(--z-text);
   }
+  /* Wrap: long words break onto a second line where the row has no room; the views share the width. */
+  .zyx-seg-wrap { display: flex; }
+  .zyx-seg-wrap > button, .zyx-seg-wrap > a { flex: 1 1 0; justify-content: center; height: auto; min-height: calc(var(--z-ctl-sm) - 4px); padding-block: 4px; white-space: normal; text-align: center; text-wrap: balance; }
+  .zyx-seg > [data-on] { border-color: var(--z-line); background: var(--z-surface); color: var(--z-text); }
 
   /* ---- Filter chip: 28 px, an outline, an optional count. Chosen = an ink edge. ---- */
   .zyx-chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -577,8 +633,12 @@
   }
   .zyx-menu-item > .zyx-i { color: var(--z-text-2); }
   .zyx-menu-item:hover, .zyx-menu-item[data-active], .zyx-menu-item[aria-selected="true"] { background: var(--z-hover); }
-  .zyx-menu-item:focus-visible { background: var(--z-hover); outline-offset: calc(var(--z-ring) * -1); }
   .zyx-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* Two lines: the words and a quiet note under them. */
+  .zyx-menu-item:has(> .zyx-menu-two) { padding-block: 6px; }
+  .zyx-menu-two { display: grid; line-height: 1.3; }
+  .zyx-menu-line, .zyx-menu-line2 { overflow: hidden; text-overflow: ellipsis; }
+  .zyx-menu-line2 { color: var(--z-text-3); font-size: var(--z-t-micro); }
   .zyx-menu-key { margin-left: auto; padding-left: 16px; color: var(--z-text-3); font-size: var(--z-t-micro); }
   /* Checked: a tick at the end. */
   .zyx-menu-item[aria-checked="true"]::after, .zyx-menu-item[aria-selected="true"][data-tick]::after {
@@ -626,13 +686,31 @@
   .zyx-dialog-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; padding: 0 20px 20px; }
   .zyx-dialog-error { margin-right: auto; color: var(--z-bad); font-size: var(--z-t-meta); }
 
+  /* ---- Drawer: a side sheet on the native dialog, from the right (or the bottom on a phone), the page dimmed ---- */
+  .zyx-drawer {
+    position: fixed; inset: 0 0 0 auto; display: none; flex-direction: column; width: min(var(--z-dlg-md), 100vw); max-width: 100vw;
+    height: 100dvh; max-height: 100dvh; margin: 0; padding: 0; overflow: hidden; border: 0; border-left: var(--z-bw) solid var(--z-line);
+    background: var(--z-surface); color: var(--z-text); box-shadow: var(--z-shadow-float);
+  }
+  .zyx-drawer[open] { display: flex; animation: zyx-in var(--z-d-dialog) var(--z-ease); }
+  .zyx-drawer::backdrop { background: var(--z-scrim); }
+  .zyx-drawer[data-size="sm"] { width: min(var(--z-dlg-sm), 100vw); }
+  .zyx-drawer[data-size="lg"] { width: min(var(--z-dlg-lg), 100vw); }
+  .zyx-drawer[data-side="bottom"] {
+    inset: auto 0 0 0; width: 100vw; height: auto; max-height: min(85dvh, 100dvh - 48px);
+    border-left: 0; border-top: var(--z-bw) solid var(--z-line); border-radius: var(--z-r-panel) var(--z-r-panel) 0 0;
+  }
+  .zyx-drawer-head { flex: none; display: flex; align-items: center; gap: 4px; min-height: var(--z-topline); padding: 0 12px 0 20px; border-bottom: var(--z-bw) solid var(--z-line); }
+  .zyx-drawer-title { flex: 1; min-width: 0; overflow: hidden; margin: 0 8px 0 0; font-size: var(--z-t-ui); font-weight: var(--z-w-medium); text-overflow: ellipsis; white-space: nowrap; }
+  .zyx-drawer-body { flex: 1; min-height: 0; padding: 16px 20px 20px; overflow-y: auto; overscroll-behavior: contain; }
+  .zyx-drawer-foot { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 20px max(12px, env(safe-area-inset-bottom)); border-top: var(--z-bw) solid var(--z-line); }
+
   /* ---- Command palette: 640 wide, a field on top, groups, key hints ---- */
   .zyx-palette { width: min(var(--z-palette), calc(100vw - 32px)); }
   .zyx-palette-search { position: relative; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-bottom: var(--z-bw) solid var(--z-line); }
   .zyx-palette-search > .zyx-i { color: var(--z-text-3); }
   .zyx-palette-input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; color: var(--z-text); font: inherit; font-size: var(--z-t-read); }
   .zyx-palette-input::placeholder { color: var(--z-text-3); }
-  .zyx-palette-input:focus-visible { outline: none; }
   .zyx-palette-search:focus-within { outline: var(--z-bw) solid var(--z-text); outline-offset: calc(var(--z-bw) * -1); }
   .zyx-palette-list { max-height: min(420px, 60dvh); padding: 4px; overflow-y: auto; }
   .zyx-palette-list .zyx-menu-item { min-height: 36px; }
@@ -642,7 +720,8 @@
   /* ---- Toast: an ink pill, bottom centre, Undo and close ---- */
   .zyx-toasts {
     position: fixed; z-index: 60; left: 50%; bottom: 24px; translate: -50% 0; display: grid; justify-items: center; gap: 8px;
-    width: max-content; max-width: calc(100vw - 32px); pointer-events: none;
+    /* One column, as wide as the widest toast but never past the window: a long toast cuts its words. */
+    grid-template-columns: minmax(0, 1fr); width: max-content; max-width: calc(100vw - 32px); pointer-events: none;
   }
   .zyx-toasts > * { pointer-events: auto; }
   .zyx-toast {
@@ -658,7 +737,6 @@
   }
   .zyx-toast-close { width: 32px; padding: 0; }
   .zyx-toast-act:hover, .zyx-toast-close:hover { background: color-mix(in srgb, var(--z-on-inverse) 16%, transparent); }
-  .zyx-toast :focus-visible { outline-color: var(--z-on-inverse); outline-offset: calc(var(--z-ring) * -1); }
 
   /* ---- Banner: white, a hairline, a line icon, one action ---- */
   .zyx-banner {
@@ -672,6 +750,16 @@
   /* The top of the page (off-line, box down): the full width, a line under it. */
   .zyx-banner-top { border-width: 0 0 var(--z-bw); border-radius: 0; }
   .zyx-banner-id { color: var(--z-text-3); font-family: var(--z-font-mono); font-size: var(--z-t-micro); }
+  /* Block: a body with more than a sentence; the icon and the action stay at the top. */
+  .zyx-banner-block { align-items: flex-start; }
+  .zyx-banner-block > .zyx-i { margin-top: 2px; }
+  .zyx-banner-block > .zyx-banner-text > * + * { margin-top: 6px; }
+  .zyx-banner-title { margin: 0; font-weight: var(--z-w-medium); }
+  .zyx-banner[data-kind="error"] .zyx-banner-title { color: var(--z-bad); }
+  /* Needs you: the accent dot, an ink edge. */
+  .zyx-banner[data-kind="needs"] { border-color: var(--z-text); }
+  .zyx-banner-dot { flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; }
+  .zyx-banner-block > .zyx-banner-dot { height: calc(1em * var(--z-lead-ui)); }
 
   /* ---- Tooltip: ink, 12 px, no arrow, shows the shortcut ---- */
   .zyx-tip {
@@ -723,8 +811,6 @@
   .zyx-row[data-done] .zyx-row-title { color: var(--z-text-2); }
   /* The whole row is one target: the title link stretches over it. */
   .zyx-row-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
-  .zyx-row-link:focus-visible { outline: none; }
-  .zyx-row-link:focus-visible::after { outline: var(--z-ring) solid var(--z-accent); outline-offset: calc(var(--z-ring) * -1); }
   /* Row actions (Undo, Fix, more): shown on hover and on keyboard focus; always on a touch screen. */
   .zyx-row-acts { position: relative; z-index: 1; flex: none; display: flex; gap: 4px; opacity: 0; transition: opacity var(--z-d-fast) var(--z-ease); }
   .zyx-row:hover .zyx-row-acts, .zyx-row:focus-within .zyx-row-acts, .zyx-row-acts[data-keep] { opacity: 1; }
@@ -732,6 +818,27 @@
   .zyx-list-empty { padding: 20px 8px; color: var(--z-text-3); }
   /* A dense one-line row (mail). */
   .zyx-row-dense { min-height: 40px; padding-block: 4px; }
+  /* Wrap: the title and its grey line take more lines instead of being cut. */
+  .zyx-row-wrap :is(.zyx-row-title, .zyx-row-sub) { overflow: visible; white-space: normal; }
+  /* Flush: the text lines up with the edge of what stands above the list. */
+  .zyx-row-flush { padding-inline: 0; }
+  /* The row's own link layer (a row with `label`): it covers the row; the actions stay above it. */
+  .zyx-row-cover { position: static; }
+  .zyx-row-cover::after { z-index: 0; }
+  /* Stack: on a phone the actions and the side go under the text. */
+  @media (max-width: 767px) {
+    .zyx-row-stack { flex-wrap: wrap; row-gap: 8px; }
+    .zyx-row-stack > .zyx-row-main { flex-basis: calc(100% - 36px); }
+    .zyx-row-stack:not(:has(> .zyx-row-lead)) > .zyx-row-main { flex-basis: 100%; }
+    .zyx-row-stack > .zyx-row-acts { order: 1; }
+  }
+
+  /* ---- A chosen cell: a calendar day, a slot, a pick in a grid. Hover is the fill; chosen, open or on is the selected fill. ---- */
+  .zyx-pick { border-radius: var(--z-r-ctl); color: var(--z-text); transition: background-color var(--z-d-fast) var(--z-ease); }
+  :is(a, button).zyx-pick:hover, .zyx-pick[data-hover]:hover { background: var(--z-hover); }
+  .zyx-pick:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) { background: var(--z-selected); }
+  /* text-3 steps up to text-2 on the selected ground, so it keeps 4.5:1. */
+  .zyx-pick:is([aria-current]:not([aria-current="false"]), [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-expanded="true"], [data-open], [data-on]) :is(.zyx-meta, .zyx-count) { color: var(--z-text-2); }
 
   /* ---- Table: 40 px rows, a sticky head, sort ---- */
   .zyx-table-wrap { max-width: 100%; overflow-x: auto; }
@@ -740,7 +847,7 @@
     position: sticky; top: 0; z-index: 1; height: 36px; padding: 0 12px; border-bottom: var(--z-bw) solid var(--z-line);
     background: var(--z-bg); color: var(--z-text-3); font-size: var(--z-t-meta); font-weight: var(--z-w-normal); text-align: left; white-space: nowrap;
   }
-  .zyx-table td { height: var(--z-row-table); padding: 0 12px; border-bottom: var(--z-bw) solid var(--z-line); vertical-align: middle; }
+  .zyx-table td { height: var(--z-row-table); padding: 8px 12px; border-bottom: var(--z-bw) solid var(--z-line); vertical-align: middle; }
   .zyx-table tbody tr { transition: background-color var(--z-d-fast) var(--z-ease); }
   .zyx-table tbody tr:hover { background: var(--z-hover); }
   .zyx-table tbody tr[aria-selected="true"] { background: var(--z-selected); }
@@ -755,15 +862,37 @@
   }
   .zyx-sort:hover { background: var(--z-hover); color: var(--z-text); }
   th[aria-sort="ascending"] .zyx-sort, th[aria-sort="descending"] .zyx-sort { color: var(--z-text); }
+  .zyx-table th.zyx-num { text-align: right; }
+
+  /* A table that is a list on a phone: each row a list row, the cells flow, the head for screen readers only. */
+  @media (max-width: 767px) {
+    .zyx-table-phone-list { overflow-x: visible; }
+    .zyx-table-phone-list > .zyx-table, .zyx-table-phone-list > .zyx-table > tbody { display: block; width: 100%; }
+    .zyx-table-phone-list > .zyx-table > thead {
+      position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    }
+    .zyx-table-phone-list > .zyx-table > tbody > tr {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 10px 8px; border-bottom: var(--z-bw) solid var(--z-line);
+    }
+    .zyx-table-phone-list > .zyx-table > tbody > tr > td { display: block; height: auto; padding: 0; border: 0; }
+    .zyx-table-phone-list > .zyx-table > tbody > tr > td[data-main] { flex: 1 1 0; min-width: 0; }
+    .zyx-table-phone-list > .zyx-table > tbody > tr > td.zyx-num { margin-left: auto; }
+    .zyx-table-phone-list > .zyx-table > tbody > tr > td[data-wide] { flex-basis: 100%; }
+    .zyx-table-phone-list > .zyx-table > tbody > tr > td:empty { display: none; }
+    .zyx-table-phone-list .zyx-cut { max-width: none; }
+  }
 
   /* ---- Status: dot (needs you), axis (running), tick (done), ! (failed), words (waiting) ---- */
   .zyx-status { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; color: var(--z-text-2); font-size: var(--z-t-meta); white-space: nowrap; }
   .zyx-status[data-state="needs"] { color: var(--z-text); font-weight: var(--z-w-medium); }
   .zyx-status[data-state="failed"] { color: var(--z-bad); }
   .zyx-status[data-state="waiting"] { color: var(--z-text-3); }
+  .zyx-status[data-state="live"] { color: var(--z-text); }
   .zyx-status > .zyx-i, .zyx-status > .zyx-axis { width: 14px; height: 14px; }
   .zyx-dot { flex: none; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--z-accent); }
   .zyx-status > .zyx-dot { margin-inline: 4px; }
+  /* Live: on now. A filled dot in the text colour, not the accent: it asks nothing. */
+  .zyx-dot-live { background: var(--z-text); }
   .zyx-bang {
     flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; border: var(--z-bw) solid currentColor;
     border-radius: 50%; font-size: 10px; font-weight: var(--z-w-medium); line-height: 1;
@@ -790,6 +919,38 @@
   .zyx-avatar-lg { width: 36px; height: 36px; font-size: var(--z-t-meta); }
   .zyx-faces { display: inline-flex; }
   .zyx-faces > .zyx-avatar + .zyx-avatar { margin-left: -6px; }
+
+  /* ---- Badge: a state word in a quiet frame, with its mark ---- */
+  .zyx-flag {
+    display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 7px; border: var(--z-bw) solid var(--z-line-ctl);
+    border-radius: 999px; color: var(--z-text-2); font-size: var(--z-t-micro); white-space: nowrap; vertical-align: middle;
+  }
+  .zyx-flag > .zyx-i { width: 12px; height: 12px; }
+  .zyx-flag > .zyx-bang { width: 12px; height: 12px; font-size: 9px; }
+  .zyx-flag:is([data-tone="live"], [data-tone="needs"]) { color: var(--z-text); }
+  .zyx-flag[data-tone="needs"] { font-weight: var(--z-w-medium); }
+  .zyx-flag[data-tone="bad"] { border-color: color-mix(in srgb, var(--z-bad) 40%, var(--z-line-ctl)); color: var(--z-bad); }
+
+  /* A count that is a link: the waiting pill in a header goes to its queue. */
+  .zyx-count-link { text-decoration: none; }
+  a.zyx-count:hover { color: var(--z-text); }
+  a.zyx-count-needs:hover { background: color-mix(in srgb, var(--z-accent) 86%, var(--z-bg)); }
+
+  /* ---- Fact: a quiet label over its value, an optional copy button ---- */
+  .zyx-fact { display: grid; gap: 2px; min-width: 0; padding-block: 6px; }
+  .zyx-fact-label { color: var(--z-text-3); font-size: var(--z-t-meta); }
+  .zyx-fact-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .zyx-fact-text { min-width: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .zyx-fact-mono { font-family: var(--z-font-mono); font-size: var(--z-t-meta); user-select: all; }
+  .zyx-fact-line > .zyx-btn { margin-block: -6px; }
+
+  /* ---- Who: a quiet icon and the name ---- */
+  .zyx-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--z-text); }
+  .zyx-who > .zyx-i { color: var(--z-text-2); }
+
+  /* ---- Money and IBAN: figures that line up ---- */
+  .zyx-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .zyx-iban { font-family: var(--z-font-mono); font-size: var(--z-t-meta); white-space: nowrap; }
 
   /* ---- Empty state: a 24 px line icon, one sentence, one button at most ---- */
   .zyx-empty { display: grid; justify-items: center; gap: 12px; padding: 40px 16px; color: var(--z-text-2); text-align: center; }
@@ -822,6 +983,13 @@
   }
   .zyx-cmd > code { min-width: 0; overflow-x: auto; color: var(--z-text); font-size: var(--z-t-meta); white-space: nowrap; scrollbar-width: none; }
   .zyx-cmd > code::before { content: "$ "; color: var(--z-text-3); }
+  /* Another sign before the command (`data-prompt="PS>"`), or none (`data-prompt=""`). */
+  .zyx-cmd > code[data-prompt]::before { content: attr(data-prompt) " "; }
+  .zyx-cmd > code[data-prompt=""]::before { content: none; }
+  /* A command longer than its pill fades at the edge it is cut at, so it reads as more, not as cut. */
+  @supports (animation-timeline: scroll()) {
+    .zyx-cmd > code { animation: zyx-cut linear both; animation-timeline: scroll(self inline); }
+  }
   .zyx-cmd > button { flex: none; border-radius: 999px; }
   .zyx-cmd > button[data-done] { color: var(--z-text); }
 
@@ -842,6 +1010,8 @@
   .zyx-doc :where(table) { width: 100%; border-collapse: collapse; font-size: var(--z-t-ui); }
   .zyx-doc :where(th, td) { padding: 8px 10px; border-bottom: var(--z-bw) solid var(--z-line); text-align: left; }
   .zyx-doc :where(th) { color: var(--z-text-3); font-size: var(--z-t-meta); font-weight: var(--z-w-normal); }
+  /* Print: a document takes the page's width, and its tables the document's. */
+  @media print { .zyx-doc { max-width: none; } .zyx-doc :where(table) { width: 100%; } }
 }
 
 /* ---- css/app.css ---- */
@@ -851,7 +1021,7 @@
  */
 @layer zyx-components {
   /* ---- The mark: the x, y, z axis. Ink on light, white on dark; never grey, never the accent. ---- */
-  .zyx-mark { flex: none; display: inline-block; width: 20px; height: 20px; fill: none; stroke: var(--z-text); stroke-width: 1.5px; stroke-linecap: round; }
+  .zyx-mark { flex: none; display: inline-block; width: 20px; height: 20px; fill: none; stroke: var(--z-text); stroke-width: 1.5px; stroke-linecap: round; stroke-linejoin: round; }
   .zyx-mark path { vector-effect: non-scaling-stroke; }
   /* The line weight by size keeps it optically even: 1.75 px at 14-19 px, 2 px at 12-13 px. */
   .zyx-mark-sm { width: 16px; height: 16px; stroke-width: 1.75px; }
@@ -920,11 +1090,42 @@
   .zyx-nav-item:hover { background: var(--z-hover); color: var(--z-text); }
   .zyx-nav-item[aria-current="page"], .zyx-nav-item[aria-current="true"] { background: var(--z-selected); color: var(--z-text); }
   .zyx-nav-item[data-strong] { color: var(--z-text); }
-  .zyx-nav-item:focus-visible { outline-offset: calc(var(--z-ring) * -1); }
   .zyx-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .zyx-nav-item > .zyx-count, .zyx-nav-item > .zyx-count-needs, .zyx-nav-item > .zyx-dot, .zyx-nav-key, .zyx-nav-via { flex: none; margin-left: auto; }
   .zyx-nav-key { color: var(--z-text-3); font-size: var(--z-t-micro); }
   .zyx-nav-via { display: inline-flex; color: var(--z-text-3); font-size: var(--z-t-micro); }
+  /* On the selected ground the grey hints step up to text-2, so they keep 4.5:1. */
+  .zyx-nav-item:is([aria-current="page"], [aria-current="true"]) :is(.zyx-nav-key, .zyx-nav-via, .zyx-count) { color: var(--z-text-2); }
+  /* A row with its own tools (pin, rename, delete a chat): the tools show on hover and focus, over the right end. */
+  .zyx-nav-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .zyx-nav-tools {
+    position: absolute; top: 0; right: 2px; bottom: 0; display: flex; align-items: center; gap: 2px; padding-left: 8px;
+    border-radius: var(--z-r-ctl); background: var(--z-hover); opacity: 0; pointer-events: none; transition: opacity var(--z-d-fast) var(--z-ease);
+  }
+  .zyx-nav-row:hover > .zyx-nav-tools, .zyx-nav-row:focus-within > .zyx-nav-tools { opacity: 1; pointer-events: auto; }
+  .zyx-nav-row:has(> .zyx-nav-item:is([aria-current="page"], [aria-current="true"])) > .zyx-nav-tools { background: var(--z-selected); }
+  .zyx-nav-row:hover > .zyx-nav-item { background: var(--z-hover); color: var(--z-text); }
+  .zyx-nav-row:hover > .zyx-nav-item:is([aria-current="page"], [aria-current="true"]) { background: var(--z-selected); }
+  .zyx-nav-tools > .zyx-btn { width: 24px; height: 24px; }
+  .zyx-nav-tools > .zyx-btn:hover { background: var(--z-selected); }
+  @media (hover: none) { .zyx-nav-tools { display: none; } }
+  .zyx-side[data-collapsed] .zyx-nav-tools { display: none; }
+  /* The way back out of a part with its own side bar ("Back to the app"). */
+  .zyx-nav-back {
+    display: flex; align-items: center; gap: 8px; min-width: 0; height: var(--z-row-nav); padding: 0 8px; border-radius: var(--z-r-ctl);
+    color: var(--z-text-2); font-size: var(--z-t-ui); text-decoration: none; white-space: nowrap; transition: background-color var(--z-d-fast) var(--z-ease);
+  }
+  .zyx-nav-back:hover { background: var(--z-hover); color: var(--z-text); }
+  /* The account button at the foot: the face, the name, the line under it; open is the selected fill. */
+  .zyx-account {
+    display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; height: 40px; margin: -4px 0 -4px -8px; padding: 0 8px;
+    border: 0; border-radius: var(--z-r-ctl); background: none; color: var(--z-text); font: inherit; text-align: left;
+    transition: background-color var(--z-d-fast) var(--z-ease);
+  }
+  .zyx-account:hover { background: var(--z-hover); }
+  .zyx-account[aria-expanded="true"], .zyx-account[data-open] { background: var(--z-selected); }
+  .zyx-account[data-collapsed] { flex: none; justify-content: center; width: var(--z-ctl-sm); height: var(--z-ctl-sm); margin: 0; padding: 0; }
+  .zyx-side-foot:has(> .zyx-account) { padding-left: 8px; }
   .zyx-side-foot { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 12px 0 0 8px; border-top: var(--z-bw) solid var(--z-line); }
   .zyx-side-who { flex: 1; min-width: 0; line-height: 1.25; }
   .zyx-side-who > b { display: block; overflow: hidden; font-weight: var(--z-w-normal); text-overflow: ellipsis; white-space: nowrap; }
@@ -932,6 +1133,9 @@
   /* Collapsed: the icons only, their names in the tooltip. */
   .zyx-side[data-collapsed] { align-items: center; padding-inline: 8px; }
   .zyx-side[data-collapsed] :is(.zyx-nav-key, .zyx-nav-via, .zyx-side-head, .zyx-side-who, .zyx-side-chats, .zyx-lockup-word) { display: none; }
+  /* The chat lists: one column as wide as the side bar, so a long title takes the ellipsis and the time stays whole. */
+  .zyx-side-chats, .zyx-side-chats > :is(ul, ol) { grid-template-columns: minmax(0, 1fr); }
+  .zyx-side-chats > :is(ul, ol) { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
   /* The label stays for a screen reader: it names the link (the tooltip shows it on hover). */
   .zyx-side[data-collapsed] .zyx-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .zyx-side[data-collapsed] .zyx-nav-item { justify-content: center; width: var(--z-ctl-sm); height: var(--z-ctl-sm); padding: 0; }
@@ -951,7 +1155,6 @@
   }
   .zyx-tabbar-item[aria-current="page"] { color: var(--z-text); }
   .zyx-tabbar-item > .zyx-count-needs { position: absolute; top: 4px; left: calc(50% + 6px); }
-  .zyx-tabbar-item:focus-visible { outline-offset: calc(var(--z-ring) * -1); }
 
   /* ---- Top line of a chat or page: title and actions, 56 px ---- */
   .zyx-topline {
@@ -971,11 +1174,22 @@
   .zyx-page-title { margin: 0; font-size: var(--z-t-title); font-weight: var(--z-w-medium); letter-spacing: var(--z-track-title); line-height: var(--z-lead-tight); }
   .zyx-page-lead { margin: 6px 0 0; color: var(--z-text-2); }
   .zyx-home-title { margin: 6px 0 0; font-size: var(--z-t-home); font-weight: var(--z-w-normal); letter-spacing: var(--z-track-title); line-height: var(--z-lead-tight); }
+  /* The top page of an area: its title at the Home size, light. */
+  .zyx-page-title-home { font-size: var(--z-t-home); font-weight: var(--z-w-normal); }
   .zyx-date { color: var(--z-text-3); font-size: var(--z-t-meta); }
   .zyx-tally { margin: 10px 0 0; color: var(--z-text-2); }
   .zyx-tally b { color: var(--z-text); font-weight: var(--z-w-medium); }
   .zyx-section { margin-top: 32px; }
   .zyx-section-title { margin: 0 0 12px; font-size: var(--z-t-section); font-weight: var(--z-w-medium); line-height: var(--z-lead-tight); }
+  /* A section's head with a grey line under the title and its actions on the right. */
+  .zyx-section-top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-bottom: 12px; }
+  .zyx-section-top > :first-child { flex: 1; min-width: 12rem; }
+  .zyx-section-top .zyx-section-title { margin: 0; }
+  .zyx-section-sub { margin: 4px 0 0; color: var(--z-text-2); }
+  .zyx-section-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* Spaced: one gap between a section's parts. `:where`, so a part with its own margin keeps it. */
+  :where(.zyx-section-spaced > :not(.zyx-section-title, .zyx-section-top) + *) { margin-top: 16px; }
+  :where(.zyx-section-spaced > .zyx-fact + .zyx-fact) { margin-top: 0; }
   .zyx-meta { color: var(--z-text-3); font-size: var(--z-t-meta); }
   .zyx-hints { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--z-text-3); font-size: var(--z-t-micro); }
   .zyx-hints b { color: var(--z-text-2); font-weight: var(--z-w-normal); }
@@ -985,6 +1199,16 @@
   .zyx-card-title { margin: 0; font-size: var(--z-t-ui); font-weight: var(--z-w-medium); }
   .zyx-card-sub { margin: 2px 0 0; color: var(--z-text-3); font-size: var(--z-t-meta); }
   .zyx-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+  /* Fit (1.1): the cards share the whole width, no empty track after the last one (three on a site). */
+  .zyx-cards-fit { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+  /* A card that is a link: the whole card is one target, with the hover and press fills. */
+  a.zyx-card { display: block; color: inherit; text-decoration: none; transition: background-color var(--z-d-fast) var(--z-ease), border-color var(--z-d-fast) var(--z-ease); }
+  a.zyx-card:hover { border-color: var(--z-line-ctl); background: var(--z-hover); }
+  a.zyx-card:active { background: var(--z-selected); }
+  /* The site's card: a bigger title, more room. */
+  .zyx-card-lg { padding: 24px; }
+  .zyx-card-lg > .zyx-card-title { font-size: var(--z-t-section); line-height: var(--z-lead-tight); }
+  .zyx-card-lg > .zyx-card-sub { margin-top: 6px; color: var(--z-text-2); font-size: var(--z-t-ui); }
 
   /* ---- Needs-you card: the one ink line on the screen ---- */
   .zyx-need {
@@ -999,11 +1223,35 @@
   /* ---- Stats strip: each number with its reason ---- */
   .zyx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); border: var(--z-bw) solid var(--z-line); border-radius: var(--z-r-card); }
   .zyx-stat { min-width: 0; padding: 12px 16px; border-left: var(--z-bw) solid var(--z-line); }
+  /* A number that is also a filter: the cell is a button; pressed is the selected fill. */
+  .zyx-stat:where(button) {
+    display: block; width: 100%; margin: 0; border-top: 0; border-right: 0; border-bottom: 0; background: none;
+    color: inherit; font: inherit; text-align: left; transition: background-color var(--z-d-fast) var(--z-ease);
+  }
+  .zyx-stat:where(button):hover { background: var(--z-hover); }
+  .zyx-stat:where(button)[aria-pressed="true"] { background: var(--z-selected); }
+  .zyx-stat:where(button)[aria-pressed="true"] .zyx-stat-label { color: var(--z-text); }
   .zyx-stat:first-child { border-left: 0; }
   .zyx-stat-label { display: flex; align-items: center; gap: 6px; color: var(--z-text-2); font-size: var(--z-t-meta); }
   .zyx-stat-n { display: block; margin-top: 2px; font-size: var(--z-t-title); font-weight: var(--z-w-medium); font-variant-numeric: tabular-nums; letter-spacing: var(--z-track-title); line-height: var(--z-lead-tight); }
   .zyx-stat-why { display: block; margin-top: 2px; color: var(--z-text-3); font-size: var(--z-t-meta); }
-  @media (max-width: 767px) { .zyx-stat { border-left: 0; border-top: var(--z-bw) solid var(--z-line); } .zyx-stat:first-child { border-top: 0; } }
+  /* A link or a press in the note reads as a link. */
+  .zyx-stat-why :is(a, button) { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-decoration-color: var(--z-line-ctl); text-underline-offset: 2px; }
+  .zyx-stat-why :is(a, button):hover { color: var(--z-text); text-decoration-color: currentColor; }
+  /* Inline: the number and its note on one line. */
+  .zyx-stat-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; margin-top: 2px; }
+  .zyx-stat-line > .zyx-stat-n, .zyx-stat-line > .zyx-stat-why { margin-top: 0; }
+  /* Accent: the one number that asks for action. */
+  .zyx-stat-accent .zyx-stat-n { color: var(--z-accent); }
+  .zyx-stats:has(> button.zyx-stat) { overflow: hidden; }
+  /* Under 768 px the strip is one column (the lines assume it), or 2 by 2 with data-phone="grid". */
+  @media (max-width: 767px) { .zyx-stats { grid-template-columns: minmax(0, 1fr); } .zyx-stat { border-left: 0; border-top: var(--z-bw) solid var(--z-line); } .zyx-stat:first-child { border-top: 0; } }
+  /* Two by two on a phone: four numbers in two short rows. */
+  @media (max-width: 767px) {
+    .zyx-stats[data-phone="grid"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .zyx-stats[data-phone="grid"] > .zyx-stat:nth-child(2) { border-top: 0; }
+    .zyx-stats[data-phone="grid"] > .zyx-stat:nth-child(even) { border-left: var(--z-bw) solid var(--z-line); }
+  }
 
   /* ---- Job box: the composer ---- */
   .zyx-jobbox {
@@ -1016,7 +1264,6 @@
     color: var(--z-text); font: inherit; font-size: var(--z-t-read); line-height: var(--z-lead-ui); resize: none;
   }
   .zyx-jobbox-input::placeholder { color: var(--z-text-3); }
-  .zyx-jobbox-input:focus-visible { outline: none; }
   .zyx-jobbox-input:disabled { cursor: not-allowed; color: var(--z-text-3); }
   .zyx-jobbox-bar { display: flex; align-items: center; gap: 4px; padding: 0 10px 10px; }
   .zyx-jobbox-bar > .zyx-gap { flex: 1; }
@@ -1093,11 +1340,25 @@
   .zyx-sources-logos > * { box-sizing: content-box; width: 12px; height: 12px; padding: 2px; border: var(--z-bw) solid var(--z-line); border-radius: 50%; background: var(--z-surface); }
   .zyx-sources-logos > * + * { margin-left: -6px; }
 
+  /* ---- App logo: an app's own logo in one colour, the text colour fills its shape ---- */
+  .zyx-app-logo { flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; color: var(--z-text-2); vertical-align: -2px; }
+  .zyx-app-logo-ink { width: 100%; height: 100%; background: currentColor; mask-position: center; mask-size: contain; mask-repeat: no-repeat; }
+  .zyx-sources-logos > .zyx-app-logo { width: 12px; height: 12px; }
+
+  /* ---- Diff: added words underlined, taken-out words struck through in grey ---- */
+  .zyx-diff { white-space: pre-wrap; }
+  .zyx-diff ins { color: var(--z-text); text-decoration: underline; text-decoration-thickness: var(--z-ring); text-decoration-color: var(--z-text); text-underline-offset: 3px; }
+  .zyx-diff del { color: var(--z-text-3); text-decoration: line-through; text-decoration-color: var(--z-text-3); }
+
   /* ---- Ask card: what, the draft, why it asks, Send / Change / Not now ---- */
   .zyx-ask { padding: 16px 18px; border: var(--z-bw) solid var(--z-text); border-radius: var(--z-r-panel); background: var(--z-surface); }
   .zyx-ask-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
   .zyx-ask-title { margin: 0; font-size: var(--z-t-ui); font-weight: var(--z-w-medium); }
   .zyx-ask-why { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--z-text-3); font-size: var(--z-t-meta); }
+  .zyx-ask-menu { flex: none; margin: -6px -8px -6px auto; }
+  .zyx-ask-why + .zyx-ask-menu { margin-left: 0; }
+  .zyx-ask-pick { flex: none; }
+  .zyx-ask-facts { margin: 4px 0 0; color: var(--z-text-3); font-size: var(--z-t-meta); }
   .zyx-ask-draft {
     margin: 12px 0 14px; padding: 12px 14px; border-radius: var(--z-r-card); background: var(--z-well); color: var(--z-text-2);
     font-size: var(--z-t-meta); line-height: 1.55; overflow-wrap: anywhere;
@@ -1109,11 +1370,26 @@
   .zyx-ask-after { display: inline-flex; align-items: center; gap: 6px; color: var(--z-text-2); font-size: var(--z-t-meta); }
   .zyx-ask[data-state="done"], .zyx-ask[data-state="expired"] { border-color: var(--z-line); }
   .zyx-ask[data-state="expired"] .zyx-ask-draft { color: var(--z-text-3); }
+  /* Row: one ask in a list of asks. A hairline, the title and the presses on one line, the draft under them. */
+  .zyx-ask[data-layout="row"] {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 12px 8px;
+    border: 0; border-bottom: var(--z-bw) solid var(--z-line); border-radius: 0; background: none;
+  }
+  .zyx-ask[data-layout="row"] > .zyx-ask-head { grid-column: 1; }
+  .zyx-ask[data-layout="row"] > .zyx-ask-facts { grid-column: 1; margin-top: -6px; }
+  .zyx-ask[data-layout="row"] > .zyx-ask-draft { grid-column: 1 / -1; margin: 0; }
+  .zyx-ask[data-layout="row"] > :is(.zyx-ask-acts, .zyx-ask-after) { grid-column: 2; grid-row: 1; }
+  @media (max-width: 767px) {
+    .zyx-ask[data-layout="row"] { grid-template-columns: minmax(0, 1fr); }
+    .zyx-ask[data-layout="row"] > :is(.zyx-ask-acts, .zyx-ask-after) { grid-column: 1; grid-row: auto; }
+  }
   /* One thumb on a phone: 44 px buttons. */
   @media (pointer: coarse) { :is(.zyx-ask-acts, .zyx-need-acts) > .zyx-btn { min-height: var(--z-touch); } }
 
   /* ---- Settings: a 200 px rail, a 640 column, one card per topic ---- */
   .zyx-settings { display: grid; grid-template-columns: var(--z-rail) minmax(0, var(--z-col-form)); gap: 40px; padding: 24px; }
+  /* No rail: the app's side bar is the rail, the column stands alone. */
+  .zyx-settings[data-rail="none"] { grid-template-columns: minmax(0, var(--z-col-form)); }
   @media (max-width: 767px) { .zyx-settings { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 16px; } }
   .zyx-rail { display: grid; align-content: start; gap: 1px; }
   .zyx-rail > .zyx-side-head { margin-top: 12px; }
@@ -1166,9 +1442,11 @@
   .zyx-site-nav a:hover, .zyx-site-nav a[aria-current="page"] { color: var(--z-text); }
   .zyx-site-acts { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   .zyx-lang { display: inline-flex; gap: 2px; color: var(--z-text-3); font-size: var(--z-t-meta); }
-  .zyx-lang a { padding: 4px 6px; border-radius: var(--z-r-ctl); color: inherit; text-decoration: none; }
-  .zyx-lang a:hover { color: var(--z-text); }
-  .zyx-lang a[aria-current="true"], .zyx-lang a[aria-current="page"] { color: var(--z-text); }
+  .zyx-lang :is(a, button) { display: inline-flex; align-items: center; padding: 4px 6px; border: 0; border-radius: var(--z-r-ctl); background: none; color: inherit; font: inherit; text-decoration: none; }
+  .zyx-lang :is(a, button):hover { color: var(--z-text); }
+  .zyx-lang :is(a[aria-current="true"], a[aria-current="page"], button[aria-pressed="true"]) { color: var(--z-text); }
+  /* A finger gets the 44 px touch size (1.1). */
+  @media (pointer: coarse) { .zyx-lang :is(a, button) { min-width: var(--z-touch); min-height: var(--z-touch); justify-content: center; } }
   @media (max-width: 767px) {
     .zyx-site-head > .zyx-wrap { gap: 12px; }
     .zyx-site-nav, .zyx-site-acts > .zyx-site-wide { display: none; }
@@ -1251,6 +1529,8 @@
   .zyx-site-foot a:hover { color: var(--z-text); }
   .zyx-site-foot-legal { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 40px; padding-top: 20px; border-top: var(--z-bw) solid var(--z-line); color: var(--z-text-3); }
   .zyx-site-foot-legal > :first-child { margin-right: auto; }
+  /* On a small phone the first line (the name) takes its own row, so the links stay together (1.1). */
+  @media (max-width: 479px) { .zyx-site-foot-legal > :first-child { flex-basis: 100%; } }
   @media (max-width: 767px) { .zyx-site-foot-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } .zyx-site-foot-brand { grid-column: 1 / -1; } }
 
   /* ---- Video or screenshot frame ---- */
@@ -1279,15 +1559,29 @@
  *   zyx-spin    the 16 px spinner of a busy button
  *   zyx-slide   the 2 px progress line of a job with no known end
  *   zyx-level   the level bars while dictating or talking
+ *   zyx-cut     the fade at the cut edge of a line that scrolls sideways (a long command), driven by
+ *               its scroll, not by time (1.1)
  */
 @keyframes zyx-in { from { opacity: 0; translate: 0 4px; } }
 @keyframes zyx-arm { 0% { stroke: var(--z-accent); } 33.33% { stroke: var(--z-line-ctl); } }
 @keyframes zyx-spin { to { rotate: 1turn; } }
 @keyframes zyx-slide { from { translate: -100% 0; } to { translate: 340% 0; } }
 @keyframes zyx-level { to { scale: 1 0.35; } }
+/* The fade's two edges are lengths the scroll moves: at the start only the right edge fades, at the end only the left. */
+@property --zyx-cut-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --zyx-cut-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes zyx-cut {
+  from { --zyx-cut-l: 0px; --zyx-cut-r: 24px; }
+  8%, 92% { --zyx-cut-l: 24px; --zyx-cut-r: 24px; }
+  to { --zyx-cut-l: 24px; --zyx-cut-r: 0px; }
+}
 
 @layer zyx-components {
   .zyx-in { animation: zyx-in var(--z-d-dialog) var(--z-ease) both; }
+  /* What zyx-cut drives: a mask that fades the cut edges (the mask's colour is only its coverage). */
+  .zyx-cmd > code {
+    mask-image: linear-gradient(to right, transparent, var(--z-text) var(--zyx-cut-l), var(--z-text) calc(100% - var(--zyx-cut-r)), transparent);
+  }
   /* A side panel (file preview) and the dimmed page behind it. `data-closed`, `data-transition` and
    * `data-leave` are what Headless UI and Base UI set on a transition. */
   .zyx-sheet { transition: opacity var(--z-d-dialog) var(--z-ease), translate var(--z-d-dialog) var(--z-ease); }

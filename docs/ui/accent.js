@@ -1,4 +1,4 @@
-/* @zyxworks/ui 1.0.0 (build d693bb5665f3), dist/accent.js. Built by scripts/build.mjs from react/accent.ts: do not edit. */
+/* @zyxworks/ui 1.1.0 (build 89704c13b1a9), dist/accent.js. Built by scripts/build.mjs from react/accent.ts: do not edit. */
 (() => {
 // White-label: a client sets one accent (a hex value). It is used only on the accent places (main
 // button, focus ring, needs-you dot, running arm, the on-state of a switch or check box). White text on

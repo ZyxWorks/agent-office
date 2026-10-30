@@ -1,4 +1,4 @@
-/* @zyxworks/ui 1.0.0 (build d693bb5665f3), dist/icons.js. Built by scripts/build.mjs from react/icons.ts: do not edit. */
+/* @zyxworks/ui 1.1.0 (build 89704c13b1a9), dist/icons.js. Built by scripts/build.mjs from react/icons.ts: do not edit. */
 (() => {
 // The line icons of @zyxworks/ui: one icon per idea, from Lucide (lucide-static 1.64.0, ISC licence in
 // icons/LICENSE-lucide.txt). Generated once from the Lucide files; to add one, copy its inner markup from

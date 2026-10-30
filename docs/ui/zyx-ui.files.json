@@ -1,0 +1,29 @@
+{
+  "version": "1.1.0",
+  "files": [
+    "accent.js",
+    "brand/agent-office-favicon.svg",
+    "brand/agent-office-on-dark.svg",
+    "brand/agent-office.svg",
+    "brand/app-icon.svg",
+    "brand/favicon.ico",
+    "brand/favicon.svg",
+    "brand/mark-on-dark.svg",
+    "brand/mark.svg",
+    "brand/murmurflow-favicon.svg",
+    "brand/murmurflow-on-dark.svg",
+    "brand/murmurflow.svg",
+    "copy.js",
+    "fonts/OFL-geist-mono.txt",
+    "fonts/OFL-geist.txt",
+    "fonts/geist-latin-ext-wght-normal.woff2",
+    "fonts/geist-latin-wght-normal.woff2",
+    "fonts/geist-mono-latin-ext-wght-normal.woff2",
+    "fonts/geist-mono-latin-wght-normal.woff2",
+    "icons.js",
+    "reveal.js",
+    "seg.js",
+    "zyx/fonts.css",
+    "zyx/zyx-ui.css"
+  ]
+}
