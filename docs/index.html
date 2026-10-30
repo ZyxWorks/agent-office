@@ -11,11 +11,8 @@
 <meta property="og:title" content="Agent Office: several coding agents, one office">
 <meta property="og:description" content="The whole setup for running coding agents side by side. You see which one needs you, and you never reach for the mouse.">
 <meta property="og:type" content="website">
-<!-- ASSET SLOT media/agent-office-og.png (1200x630, light): the prompt mark, "Agent Office",
-     "Several agents. One office.", the ZyxWorks axis small in a corner. When it exists, add
-     <meta property="og:image" content="https://zyxworks.github.io/agent-office/media/agent-office-og.png">
-     and switch twitter:card to summary_large_image. -->
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://zyxworks.github.io/agent-office/media/agent-office-og.png">
+<meta name="twitter:card" content="summary_large_image">
 <!-- Not listed anywhere: a visitor gets here by typing the URL or from the index. "noindex" is
      what actually removes the page from a search index; robots.txt only stops the crawl, and the
      one that governs this host lives in the ZyxWorks site. Lift this once there
@@ -40,13 +37,12 @@
 <style>
   body { margin: 0; background: var(--z-bg); color: var(--z-text); }
   .ao-hero-cmd { margin-top: 32px; }
-  .ao-demo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px 40px; align-items: end; margin: 64px 0 0; }
+  .ao-demo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; margin: 64px 0 0; }
   .ao-legend { max-width: 44ch; color: var(--z-text-2); }
   .ao-legend p { margin: 0; }
   .ao-legend ul { display: grid; gap: 6px; margin: 16px 0 0; padding: 0; list-style: none; }
   .ao-legend code { display: inline-block; width: 20px; color: var(--z-text); }
   @media (max-width: 767px) { .ao-demo { grid-template-columns: minmax(0, 1fr); margin-top: 48px; } }
-  .ao-side { width: fit-content; max-width: 100%; line-height: 1.5; }
   .ao-line { margin-bottom: 24px; padding-right: 14px; }
   .ao-line > code::before { content: none; }
   .ao-note { max-width: 68ch; margin: 20px 0 0; color: var(--z-text-2); line-height: var(--z-lead-read); }
@@ -89,31 +85,11 @@
         <a class="zyx-btn zyx-btn-lg" href="https://github.com/ZyxWorks/agent-office/blob/main/GETTING-STARTED.md">Getting started</a>
       </div>
       <p class="zyx-hero-note">macOS or Linux. MIT licence. It asks before it installs anything or changes a file of yours.</p>
-      <!-- ASSET SLOT: media/agent-office-demo.mp4 (+ .webm), 16:10, 20-30 s, muted, poster
-           media/agent-office-demo-poster.png (1600x1000). It shows a herdr office in the grey
-           theme: two spaces, three agents named api, website and docs; one goes blocked (its row
-           shows the white × mark and the word blocked), Shift+arrow walks to it, a context number climbs past
-           the ▲ mark. No real repo names, no home paths, no tokens on screen. English.
-           When it exists, replace the <pre> below with:
-           <div class="zyx-video"><video controls muted playsinline loop preload="none"
-             poster="media/agent-office-demo-poster.png" aria-label="An office with three agents: one asks for you, Shift+arrow walks to it">
-             <source src="media/agent-office-demo.webm" type="video/webm">
-             <source src="media/agent-office-demo.mp4" type="video/mp4"></video></div>
-           Until then the sidebar is shown as the text it really is, not a mock screenshot. -->
       <figure class="ao-demo">
-        <pre class="zyx-code ao-side" tabindex="0" aria-label="The office sidebar, as text"><code> spaces
- ○ api
-   main
- · website
-   main
- ───────────────────────────
- agents
- ○ api
-   firstmate · 88k · 3m · idle
-   89% · main
- × api
-   claude · 412k▲ · blocked
-   89% · #109 · fix/login</code></pre>
+        <div class="zyx-video"><video controls muted playsinline loop preload="none"
+          poster="media/agent-office-demo-poster.png" aria-label="An office with three agents: one asks for you, Shift+arrow walks to it">
+          <source src="media/agent-office-demo.webm" type="video/webm">
+          <source src="media/agent-office-demo.mp4" type="video/mp4"></video></div>
         <figcaption class="ao-legend">
           <p>The sidebar. Each agent's state, how full its context is, how long it has been quiet, the quota left, its pull request and its branch.</p>
           <ul>
