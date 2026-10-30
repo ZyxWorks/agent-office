@@ -1,4 +1,4 @@
-/* @zyxworks/ui 0.2.2 (build b45451696a4f), dist/copy.js. Built by scripts/build.mjs from react/copy.ts: do not edit. */
+/* @zyxworks/ui 1.0.0 (build d693bb5665f3), dist/copy.js. Built by scripts/build.mjs from react/copy.ts: do not edit. */
 (() => {
 // Copy: the copy button of a command (`zyx-cmd`). No imports: the build also ships this as a plain
 // `copy.js` for a static page.

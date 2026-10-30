@@ -1,4 +1,4 @@
-/* @zyxworks/ui 0.2.2 (build b45451696a4f), dist/reveal.js. Built by scripts/build.mjs from react/reveal.ts: do not edit. */
+/* @zyxworks/ui 1.0.0 (build d693bb5665f3), dist/reveal.js. Built by scripts/build.mjs from react/reveal.ts: do not edit. */
 (() => {
 // Reveal: a `[data-zyx-reveal]` section waits until it is seen, then plays its draw-in once
 // (css/site.css). No imports: the build also ships this as a plain `reveal.js` for a static page.
