@@ -41,10 +41,10 @@ local groups = {
   CursorLine = { bg = c.panel },
   CursorColumn = { bg = c.panel },
   ColorColumn = { bg = c.panel },
-  LineNr = { fg = c.faint },
+  LineNr = { fg = c.dim },
   CursorLineNr = { fg = c.ink, bold = true },
   SignColumn = { bg = c.bg },
-  FoldColumn = { fg = c.faint, bg = c.bg },
+  FoldColumn = { fg = c.dim, bg = c.bg },
   Folded = { fg = c.muted, bg = c.panel },
   WinSeparator = { fg = c.faint, bg = c.bg },
   VertSplit = { link = "WinSeparator" },
@@ -198,7 +198,7 @@ for name, spec in pairs(groups) do
   vim.api.nvim_set_hl(0, name, spec)
 end
 
--- the 16 terminal colours, for :terminal: the same tones, red and yellow on the ladder
+-- the 16 terminal colours, for :terminal: the same muted tones, stone in the yellow slot, the one red at bright red
 local term = { "#2a2a2a", "#c98a82", "#8fa894", "#a8a196", "#8c9db5", "#aa97b0", "#88a8a8", "#a3a3a3",
                "#8c8c8c", "#ff7a6e", "#aec2b2", "#c4beb4", "#aab8cc", "#c3b3c8", "#a8c2c2", "#ededed" }
 for i, v in ipairs(term) do
