@@ -1,4 +1,4 @@
-/* @zyxworks/ui 1.1.0 (build 89704c13b1a9), brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
+/* @zyxworks/ui 1.1.0 (build f69b21cf273f), brand "zyx". Built by scripts/build.mjs: do not edit, change tokens/zyx/ or css/. */
 @layer zyx-tokens, zyx-base, zyx-components;
 
 @layer zyx-tokens {
@@ -73,6 +73,10 @@
   --z-line-ctl: #d4d4d4;
   /* A check box, radio or switch when off: an edge that must be found (3:1). */
   --z-line-strong: #858585;
+  /* The mark's height in em of its word in a lockup (brand/mark.json lockup.markEm). */
+  --z-mark-lockup: 1.25;
+  /* The mark's line in em of the words beside it: the Geist Medium stem (brand/mark.json stem.em). */
+  --z-mark-stem: 0.106;
   /* Words and icons on the accent. */
   --z-on-accent: #fff;
   /* Words on the inverse ground. */
@@ -593,9 +597,11 @@
   .zyx-seg > [aria-pressed="true"], .zyx-seg > [aria-checked="true"], .zyx-seg > [aria-selected="true"], .zyx-seg > [aria-current="page"] {
     border-color: var(--z-line); background: var(--z-surface); color: var(--z-text);
   }
-  /* Wrap: long words break onto a second line where the row has no room; the views share the width. */
+  /* Wrap: long words break onto a second line where the row has no room; the views share the width. Each view
+     starts from its own words (`auto`, not 0): from 0, a group in a row or a grid cell took one even share per
+     view and broke the longest words although there was room. */
   .zyx-seg-wrap { display: flex; }
-  .zyx-seg-wrap > button, .zyx-seg-wrap > a { flex: 1 1 0; justify-content: center; height: auto; min-height: calc(var(--z-ctl-sm) - 4px); padding-block: 4px; white-space: normal; text-align: center; text-wrap: balance; }
+  .zyx-seg-wrap > button, .zyx-seg-wrap > a { flex: 1 1 auto; justify-content: center; height: auto; min-height: calc(var(--z-ctl-sm) - 4px); padding-block: 4px; white-space: normal; text-align: center; text-wrap: balance; }
   .zyx-seg > [data-on] { border-color: var(--z-line); background: var(--z-surface); color: var(--z-text); }
 
   /* ---- Filter chip: 28 px, an outline, an optional count. Chosen = an ink edge. ---- */
@@ -1020,23 +1026,26 @@
  * steps, file card, sources, ask card, needs-you card, stats strip), settings, and the mark.
  */
 @layer zyx-components {
-  /* ---- The mark: the x, y, z axis. Ink on light, white on dark; never grey, never the accent. ---- */
-  .zyx-mark { flex: none; display: inline-block; width: 20px; height: 20px; fill: none; stroke: var(--z-text); stroke-width: 1.5px; stroke-linecap: round; stroke-linejoin: round; }
+  /* ---- The mark: the x, y, z axis. Ink on light, white on dark; never grey, never the accent. ----
+     Its line is the stem of the words it stands with (brand/mark.json): --z-mark-stem em, and the em is
+     the text around it, so in a lockup, a header or a line of text mark and letters are one weight at
+     every size, and a small mark in text gets relatively heavier by itself. lg and xl stand alone: their
+     em is the size of the word they would have in a lockup. */
+  .zyx-mark { flex: none; display: inline-block; width: 20px; height: 20px; fill: none; stroke: var(--z-text); stroke-width: calc(var(--z-mark-stem) * 1em); stroke-linecap: round; stroke-linejoin: round; }
   .zyx-mark path { vector-effect: non-scaling-stroke; }
-  /* The line weight by size keeps it optically even: 1.75 px at 14-19 px, 2 px at 12-13 px. */
-  .zyx-mark-sm { width: 16px; height: 16px; stroke-width: 1.75px; }
-  .zyx-mark-xs { width: 12px; height: 12px; stroke-width: 2px; }
-  .zyx-mark-lg { width: 32px; height: 32px; }
-  .zyx-mark-xl { width: 48px; height: 48px; }
-  /* Mark and wordmark: Geist Medium, -2 % tracking, the gap 0.4 x the mark's height. */
+  .zyx-mark-sm { width: 16px; height: 16px; }
+  .zyx-mark-xs { width: 12px; height: 12px; }
+  .zyx-mark-lg { font-size: calc(32px / var(--z-mark-lockup)); width: 32px; height: 32px; }
+  .zyx-mark-xl { font-size: calc(48px / var(--z-mark-lockup)); width: 48px; height: 48px; }
+  /* Mark and wordmark: Geist Medium, -2 % tracking, the mark 1.25 em, the gap 0.4 x the mark's height. */
   .zyx-lockup {
-    display: inline-flex; align-items: center; gap: calc(1.25em * 0.4); color: var(--z-text); font-size: var(--z-t-read);
+    display: inline-flex; align-items: center; gap: calc(var(--z-mark-lockup) * 0.4em); color: var(--z-text); font-size: var(--z-t-read);
     font-weight: var(--z-w-medium); letter-spacing: var(--z-track-title); line-height: 1; text-decoration: none;
   }
-  .zyx-lockup > .zyx-mark { width: 1.25em; height: 1.25em; }
-  .zyx-lockup > img { width: 1.25em; height: 1.25em; object-fit: contain; }
+  .zyx-lockup > .zyx-mark, .zyx-lockup > img { width: calc(var(--z-mark-lockup) * 1em); height: calc(var(--z-mark-lockup) * 1em); }
+  .zyx-lockup > img { object-fit: contain; }
   /* Running: the axis is drawn arm by arm, the current arm in the accent, the others light grey. */
-  .zyx-axis { flex: none; display: inline-block; width: 16px; height: 16px; fill: none; stroke: var(--z-accent); stroke-width: 1.5px; stroke-linecap: round; }
+  .zyx-axis { flex: none; display: inline-block; width: 16px; height: 16px; fill: none; stroke: var(--z-accent); stroke-width: calc(var(--z-mark-stem) * 1em); stroke-linecap: round; }
   .zyx-axis path { vector-effect: non-scaling-stroke; animation: zyx-arm calc(var(--z-d-arm) * 3) step-end infinite; }
   .zyx-axis path:nth-child(2) { animation-delay: calc(var(--z-d-arm) * -2); }
   .zyx-axis path:nth-child(3) { animation-delay: calc(var(--z-d-arm) * -1); }
