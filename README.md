@@ -724,6 +724,4 @@ MIT. See [LICENSE](LICENSE).
 
 ---
 
-Made by [Zyx](https://zyxworks.com). Firstmate, treehouse and the kunchenguid
-tools are by [kunchenguid](https://github.com/kunchenguid). herdr is by its own
-authors at [herdr.dev](https://herdr.dev).
+Made by [ZyxWorks](https://zyxworks.com/en/), the studio that builds Zyx. Firstmate, treehouse and the kunchenguid tools are by [kunchenguid](https://github.com/kunchenguid). herdr is by its own authors at [herdr.dev](https://herdr.dev). Our other tools: [zyxworks.com/en/open-source](https://zyxworks.com/en/open-source/).
