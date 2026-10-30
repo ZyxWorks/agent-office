@@ -152,8 +152,8 @@ shows whole hours, `2h`. It is a hint that a desk has sat a while. It is not
 proof of how long the agent has waited on you, and it knows nothing about a
 provider's prompt cache or billing.
 
-One ▲ (amber) past 200k tokens, two ▲▲ (red) past 600k. For smaller windows the
-marks appear sooner: amber past 50%, red past 75%. The worse of size and fill
+One ▲ (white, bold) past 200k tokens, two ▲▲ (red) past 600k. For smaller windows the
+marks appear sooner: one ▲ past 50%, two past 75%. The worse of size and fill
 wins.
 
 The limits and the pass interval come from the `[meter]` keys of your Agent
@@ -184,7 +184,7 @@ Put it on a separate row to keep the default 26-column sidebar readable:
 ["$model"], # add inside ui.sidebar.agents.rows
 ```
 
-The third row is the quota left and where the agent works. `89%` is what [quota-axi](https://github.com/kunchenguid/quota-axi) says is left on the pane's provider (Claude or Codex), on pace to last until the limit resets. `41%▼2h` (amber) means it is projected to run out in about two hours, `0%▼▼` (red) that it is out now. A Claude session on a model with its own limit (Fable has a weekly one) shows that model's figure. `#109` is the open pull request for the branch checked out where the agent runs, as `gh pr view` finds it there, and `fix/login` is that branch. quota-axi and gh ask a server, so the meter asks them in the background at most once every five minutes (once per branch for gh) and shows the last answer. Anything it does not know stays blank: no quota-axi or gh, a stale or unreadable quota reading, two accounts for one provider, a detached HEAD, no open PR.
+The third row is the quota left and where the agent works. `89%` is what [quota-axi](https://github.com/kunchenguid/quota-axi) says is left on the pane's provider (Claude or Codex), on pace to last until the limit resets. `41%▼2h` (white, bold) means it is projected to run out in about two hours, `0%▼▼` (red) that it is out now. A Claude session on a model with its own limit (Fable has a weekly one) shows that model's figure. `#109` is the open pull request for the branch checked out where the agent runs, as `gh pr view` finds it there, and `fix/login` is that branch. quota-axi and gh ask a server, so the meter asks them in the background at most once every five minutes (once per branch for gh) and shows the last answer. Anything it does not know stays blank: no quota-axi or gh, a stale or unreadable quota reading, two accounts for one provider, a detached HEAD, no open PR.
 
 ### Apply meter updates without restarting Herdr
 

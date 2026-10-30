@@ -5,18 +5,19 @@ local wezterm = require("wezterm")
 
 local config = wezterm.config_builder()
 
--- Zyx look: monochrome on #0B0C10, warm-white #F6F5F1, brass #C9903F only for the cursor.
--- Same ANSI palette as theme/iterm-office-theme.json.
+-- The ZyxWorks greys (preset/README.md#theme): ground and text from the @zyxworks/ui dark tokens,
+-- the 16 ANSI colours as muted versions, slot 3 (yellow) drawn as a stone grey, the brand's red as
+-- bright red. Same palette as the herdr preset and theme/iterm-office-theme.json.
 config.colors = {
-	foreground = "#c9cad0",
-	background = "#0b0c10",
-	cursor_bg = "#c9903f",
-	cursor_fg = "#0b0c10",
-	cursor_border = "#c9903f",
-	selection_bg = "#2a2d36",
-	selection_fg = "#f6f5f1",
-	ansi = { "#1c1e26", "#b16c6f", "#769a78", "#8b886a", "#768eac", "#9582a4", "#6a9494", "#c9cad0" },
-	brights = { "#4e505a", "#c18286", "#8cb08e", "#a99e80", "#8aa2be", "#a897b6", "#82abab", "#f6f5f1" },
+	foreground = "#ededed",
+	background = "#111111",
+	cursor_bg = "#ededed",
+	cursor_fg = "#111111",
+	cursor_border = "#ededed",
+	selection_bg = "#2a2a2a",
+	selection_fg = "#ededed",
+	ansi = { "#2a2a2a", "#c98a82", "#8fa894", "#a8a196", "#8c9db5", "#aa97b0", "#88a8a8", "#a3a3a3" },
+	brights = { "#8c8c8c", "#ff7a6e", "#aec2b2", "#c4beb4", "#aab8cc", "#c3b3c8", "#a8c2c2", "#ededed" },
 }
 -- config.font = wezterm.font("GeistMono Nerd Font")
 -- config.font_size = 15.0

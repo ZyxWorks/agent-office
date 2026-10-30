@@ -459,10 +459,10 @@ _office_pick_file() {                  # [dir]
 # while the window IS zoomed (every other pane is hidden then, so the way back
 # has to say so itself). The parked count is there because a parked pane is the
 # only kind you can lose: it is running, and nothing on screen shows it.
-_OFFICE_BAR_OPEN='#[fg=#4e505a]'
-_OFFICE_BAR_SHUT='#[fg=#9a9ca6]'
-_OFFICE_BAR_BACK='#[fg=#f6f5f1]'
-_OFFICE_BAR_SEP='#[fg=#3a3c44]'
+_OFFICE_BAR_OPEN='#[fg=#8C8C8C]'
+_OFFICE_BAR_SHUT='#[fg=#A3A3A3]'
+_OFFICE_BAR_BACK='#[fg=#EDEDED]'
+_OFFICE_BAR_SEP='#[fg=#3A3A3A]'
 _office_bar() {                        # <session>
   local out parked d="${_OFFICE_BAR_SEP} · #[default]${_OFFICE_BAR_OPEN}"
   parked=$(_office_parked "$1" | wc -l | tr -d ' ')

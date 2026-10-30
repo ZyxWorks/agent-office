@@ -33,7 +33,7 @@ What it gives you:
   agent last wrote to its transcript: `claude · 412k▲ · 47m · idle`. A third row has the quota left on the agent's provider, its open PR and its branch: `89% · #109 · fix/login`. Without the meter those stay blank.
 - **Sound**: only "needs you" plays. A worker finishing is routine, so that
   sound is silent.
-- **Theme**: monochrome. Amber means "this needs you", red means "act on this".
+- **Theme**: the ZyxWorks greys, see [Theme](#theme). White and bold means "this needs you"; red is only for a fault (context past the alarm, quota out).
 - **Onboarding** is left alone: a new herdr user still gets herdr's first-run
   setup, once. It takes the keys until you close it with Esc. herdr then writes
   `onboarding = false` into the config, and `office install` keeps that line.
@@ -170,6 +170,33 @@ into the prompt of a real agent did what the table says. Option+Right moves to
 the end of the word, as readline does.
 
 Another terminal? Map the same keys to the same bytes there.
+
+## Theme
+
+Every theme file the repo ships uses one palette: this preset, [WezTerm](wezterm/wezterm.lua), the [nvim scheme](../editor/nvim/colors/office.lua), the [Claude Code theme](../setup/claude/themes/office.json), the legacy [tmux](../theme/office-theme.tmux.conf) and [iTerm](../theme/iterm-office-theme.json) themes. Ground and text are the dark tokens of the ZyxWorks UI library. The 16 ANSI colours are muted versions, with no yellow: slot 3 is a stone grey. Every colour but black reads at 5.6:1 or more on the ground.
+
+| Role | Colour |
+| --- | --- |
+| Ground | `#111111` |
+| Sidebar, raised | `#171717`, `#1C1C1C` |
+| Active row, selection | `#222222`, `#2A2A2A` |
+| Line, strong line | `#3A3A3A`, `#6E6E6E` (herdr: hairlines and the · unknown state) |
+| Text | `#EDEDED` |
+| Second text, third text | `#A3A3A3`, `#8C8C8C` |
+| Alarm (faults only) | `#FF7A6E` |
+
+| Slots | Name | Normal | Bright |
+| --- | --- | --- | --- |
+| 0 / 8 | black | `#2A2A2A` | `#8C8C8C` |
+| 1 / 9 | red | `#C98A82` | `#FF7A6E` |
+| 2 / 10 | green | `#8FA894` | `#AEC2B2` |
+| 3 / 11 | yellow (stone) | `#A8A196` | `#C4BEB4` |
+| 4 / 12 | blue | `#8C9DB5` | `#AAB8CC` |
+| 5 / 13 | magenta | `#AA97B0` | `#C3B3C8` |
+| 6 / 14 | cyan | `#88A8A8` | `#A8C2C2` |
+| 7 / 15 | white | `#A3A3A3` | `#EDEDED` |
+
+In the sidebar, state is a symbol first and a colour second (`status_indicators = "symbols"`): × blocked and ○ idle (your turn) are white, since both wait for you, and the symbol tells them apart; ◐ working and ✓ done are grey, · unknown is a darker grey. The meter marks follow the same ladder: one ▲ or ▼ is white and bold, two are red and bold, everything else is grey.
 
 ## The WezTerm example
 

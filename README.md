@@ -1,12 +1,12 @@
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/logo/mark-on-dark.svg"><img src="docs/logo/mark-on-light.svg" width="72" height="72" alt="Agent Office logo"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/ui/brand/agent-office-on-dark.svg"><img src="docs/ui/brand/agent-office.svg" width="64" height="64" alt="Agent Office"></picture>
 
 # Agent Office
 
 **A whole agent developer setup, out of one box.**
 
 [![CI](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml/badge.svg)](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml)
-[![Licence: MIT](https://img.shields.io/badge/licence-MIT-FFD23C)](LICENSE)
-![Platform: macOS and Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-6a6c77)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-111111)](LICENSE)
+![Platform: macOS and Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-555555)
 
 Agent Office is a small, opinionated distribution of the tools one developer
 uses every day to run several coding agents at once: **herdr** for the
@@ -31,15 +31,15 @@ One `office` command to install, start, stop and update the lot.
  ○ api                           ││                       ││                      │
    firstmate · 88k · 3m · idle   ││                       ││                      │
    89% · main                    ││                       ││                      │
- ● api                           ││                       ││                      │
+ × api                           ││                       ││                      │
    claude · 412k▲ · blocked      ││                       ││                      │
    89% · #109 · fix/login        │└───────────────────────┘└──────────────────────┘
 ```
 
 On the left you see every agent: its state from herdr, and from the Agent
 Office meter how full its context is, how long it has been quiet, how much of
-your plan's quota is left, and the branch and open pull request it works on. Amber
-means "this needs you". Shift+arrow walks you there. No mouse.
+your plan's quota is left, and the branch and open pull request it works on. White
+and bold means "this needs you"; red means a fault: context past the alarm or quota out. Shift+arrow walks you there. No mouse.
 
 ## Quick start
 
@@ -566,7 +566,7 @@ nvim gets a small config of the office's own, [`editor/nvim/init.lua`](editor/nv
 | `Space` `f` / `Space` `/` / `Space` `b` | find a file / search the text / the open files |
 | `Space` `g` | show the git changes in the file. The sign column shows them always |
 
-Files the agent changes on disk are read in again within two seconds. A file you changed yourself is never overwritten: nvim asks first. The colours are the office's: amber and red mark only warnings and errors.
+Files the agent changes on disk are read in again within two seconds. A file you changed yourself is never overwritten: nvim asks first. The colours are the office's greys: a stone grey marks warnings and red marks errors.
 
 The tree, the finder and the git signs are two plugins, [mini.nvim](https://github.com/echasnovski/mini.nvim) (MIT) and [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua) (GPL-3.0). [`config/components.toml`](config/components.toml) pins each to a commit and a SHA-256 of its files. `office install` checks them out into `~/.local/share/agent-office/nvim/` and checks the hash; a new release's pin shows as an update with a link to the change. There is no plugin manager, and nothing in the config fetches anything. Without the plugins nvim still opens, with the colours, the changed files in a list and nvim's own file browser; herdr says to run `office install`.
 
@@ -724,6 +724,4 @@ MIT. See [LICENSE](LICENSE).
 
 ---
 
-Made by [Zyx](https://zyxworks.com). Firstmate, treehouse and the kunchenguid
-tools are by [kunchenguid](https://github.com/kunchenguid). herdr is by its own
-authors at [herdr.dev](https://herdr.dev).
+Made by [ZyxWorks](https://zyxworks.com/en/), the studio that builds Zyx. Firstmate, treehouse and the kunchenguid tools are by [kunchenguid](https://github.com/kunchenguid). herdr is by its own authors at [herdr.dev](https://herdr.dev). Our other tools: [zyxworks.com/en/open-source](https://zyxworks.com/en/open-source/).

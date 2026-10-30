@@ -12,9 +12,9 @@ Each one in its own git worktree. The one that has stopped and is waiting on you
 says so, on its own border, without being asked.
 
 [![CI](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml/badge.svg)](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml)
-[![Licence: MIT](https://img.shields.io/badge/licence-MIT-c9903f)](../../LICENSE)
-![Platform: macOS, Linux and WSL2](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-6a6c77)
-![No daemon](https://img.shields.io/badge/daemons-0-6a6c77)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-111111)](../../LICENSE)
+![Platform: macOS, Linux and WSL2](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-555555)
+![No daemon](https://img.shields.io/badge/daemons-0-555555)
 
 **Several coding agents side by side, each in its own git worktree, plus shells
 and a file editor, in one window.** "Your turn" and how full each context
@@ -519,7 +519,7 @@ rows = [
    idle · 47m · 412k▲
 ```
 
-One ▲ (amber) past 200k, two ▲▲ (red) past 600k (`METER_WARN`,
+One ▲ (white, bold) past 200k, two ▲▲ (red) past 600k (`METER_WARN`,
 `METER_ALARM`), or sooner at 50% / 75% of the model window. Claude, Codex,
 and Claude Code launched against a local Ollama model are supported; a direct
 local runtime with no pane-owned context record stays blank. Herdr's own state
@@ -784,17 +784,17 @@ source-file ~/agent-office/office.tmux.conf              # required
 source-file ~/agent-office/theme/office-theme.tmux.conf  # optional
 ```
 
-Source it second, because it overrides the pane border. Monochrome by
-conviction: state is tone, weight and inversion, never hue, and exactly one
-colour is allowed anywhere — it means **your turn**, and nothing else on the
-screen is ever given it. It also brings the clickable strip described above.
+Source it second, because it overrides the pane border. The ZyxWorks greys
+([palette](../../preset/README.md#theme)): state is tone, weight and inversion.
+White and bold means **your turn**, and red means the context is past the alarm
+mark; nothing else on the screen is given either (PREFIX is an inverted grey chip). It also brings the clickable strip described above.
 
 **The right-hand side of the bar is yours.** The theme puts a git branch and a
 clock there and nothing else. To add your own, put one line in your
 `~/.tmux.conf` after the `source-file` line and it wins:
 
 ```tmux
-set -g status-right "#[fg=#f6f5f1]#(~/bin/my-status)  #[fg=#6a6c77]%H:%M "
+set -g status-right "#[fg=#EDEDED]#(~/bin/my-status)  #[fg=#8C8C8C]%H:%M "
 ```
 
 Whatever is in `#()` runs every five seconds and its first line is printed. Keep
@@ -802,8 +802,8 @@ it fast, keep it one line.
 
 ### And the terminal window, on iTerm2
 
-The tmux theme paints the bar and the borders, which leaves the window itself —
-background, the ANSI sixteen, the cursor, the glass — still set by your terminal.
+The tmux theme paints the bar and the borders, which leaves the window itself -
+background, the ANSI sixteen, the cursor - still set by your terminal.
 On iTerm2 you can take that too:
 
 ```sh
@@ -813,24 +813,23 @@ On iTerm2 you can take that too:
 It writes `theme/iterm-office-theme.json` into an `office` dynamic profile,
 which is the *only* thing office puts in iTerm2 now that the key layer is gone.
 Same palette as the tmux theme, the ANSI sixteen
-desaturated toward it so `git diff` and test output stay readable without
-glowing, and transparency `0.15` over a blur radius of `12`.
+muted so `git diff` and test output stay readable without glowing, with no
+yellow. The window is flat: no transparency, no blur.
 
 **It is appearance only.** No font, no shell, no key mappings: a font you do not
 have installed is worse than the one you chose, so the theme does not touch it.
 Your own profile's key map is copied across untouched, and office adds nothing
 to it. Anything the file does not name stays inherited from your own profile.
 
-Re-run without `--theme` and the colours stay — a dynamic profile is just a
+Re-run without `--theme` and the colours stay - a dynamic profile is just a
 file. To undo, delete the `office-keys.json` iTerm2 writes into
 `~/Library/Application Support/iTerm2/DynamicProfiles/`, or make your old
 profile the default again. (That filename is history: it used to carry the
 Ctrl-Shift key map. A `--theme` install overwrites it in place, dropping those
 entries, and keeps the same profile GUID so it stays your default if you made
-it one.) Two numbers are worth
-knowing: `Transparency` and `Blur Radius` are single keys in that JSON, so if
-`0.15` is too much glass for your desktop, edit it rather than dropping the
-theme.
+it one.) If you want
+glass, `Transparency` and `Blur` are single keys in that JSON: edit them rather
+than dropping the theme.
 
 ## Your status bar stays yours
 

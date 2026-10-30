@@ -6,8 +6,8 @@
 #
 # $ctx is what the model was last handed: input + cache-creation + cache-read on
 # the newest usage record, the same number office-ctx shows and /context uses.
-# One ▲ (amber) past min(warn, 50% of window), two ▲▲ (red) past
-# min(alarm, 75% of window). Defaults: 200k / 600k; unmarked is green.
+# One ▲ (white, bold) past min(warn, 50% of window), two ▲▲ (red) past
+# min(alarm, 75% of window). Defaults: 200k / 600k; unmarked is grey.
 # $model is the latest session model, shortened for the sidebar. Window sizes
 # live in model-windows.tsv; unknown models use its 1M fallback.
 #
