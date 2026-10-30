@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office: several coding agents, one office</title>
 <meta name="description" content="The whole setup for running several coding agents at once: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. macOS and Linux, MIT licence.">
-<link rel="icon" href="logo/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="ui/brand/agent-office-favicon.svg" type="image/svg+xml">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="color-scheme" content="light">
 <meta property="og:title" content="Agent Office: several coding agents, one office">
@@ -23,7 +23,7 @@
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="ai-content-declaration" content="noai, noimageai">
 <!--
-  ONE FILE plus ui/, a copy of @zyxworks/ui 1.0: no build step and no external request, which is
+  ONE FILE plus ui/, a copy of @zyxworks/ui 1.1: no build step and no external request, which is
   what lets GitHub Pages serve this straight out of /docs. ui/ is written by
   `npm run ship -- <this repo> --static docs/ui` in the library repo; never edit it by hand.
 
@@ -52,8 +52,6 @@
   .ao-note { max-width: 68ch; margin: 20px 0 0; color: var(--z-text-2); line-height: var(--z-lead-read); }
   .ao-nots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 28px 40px; margin: 0; padding: 0; list-style: none; }
   .ao-nots > li { padding-top: 16px; border-top: var(--z-bw) solid var(--z-line); }
-  /* zyx-ui-allow: a wrapped two-line cell touches its hairlines at phone width (td has no block padding); library gap */
-  .ao-page .zyx-table td { padding-block: 8px; }
   .ao-keys td:last-child, .ao-cmds td:last-child { white-space: nowrap; }
   .ao-nowrap { white-space: nowrap; }
   .ao-keys kbd + kbd { margin-left: 4px; }

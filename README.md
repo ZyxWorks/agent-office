@@ -1,4 +1,4 @@
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/logo/mark-on-dark.svg"><img src="docs/logo/mark-on-light.svg" width="64" height="64" alt="Agent Office"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/ui/brand/agent-office-on-dark.svg"><img src="docs/ui/brand/agent-office.svg" width="64" height="64" alt="Agent Office"></picture>
 
 # Agent Office
 
