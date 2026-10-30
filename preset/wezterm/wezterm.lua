@@ -5,7 +5,7 @@ local wezterm = require("wezterm")
 
 local config = wezterm.config_builder()
 
--- The ZyxWorks greys (preset/README.md#theme): ground and text from the @zyxworks/ui dark tokens,
+-- The Zyx greys (preset/README.md#theme): ground and text from the @zyxworks/ui dark tokens,
 -- the 16 ANSI colours as muted versions, slot 3 (yellow) drawn as a stone grey, the brand's red as
 -- bright red. Same palette as the herdr preset and theme/iterm-office-theme.json.
 config.colors = {
