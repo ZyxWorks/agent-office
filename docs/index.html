@@ -63,7 +63,7 @@
 <a class="zyx-skip" href="#main">Skip to the content</a>
 <header class="zyx-site-head">
   <div class="zyx-wrap">
-    <a class="zyx-lockup" href="https://zyxworks.com/open-source"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a>
+    <a class="zyx-lockup" href="https://zyxworks.com/en/open-source/"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a>
     <nav aria-label="Main">
       <ul class="zyx-site-nav">
         <li><a href="#how">How it works</a></li>
@@ -94,7 +94,7 @@
       <!-- ASSET SLOT: media/agent-office-demo.mp4 (+ .webm), 16:10, 20-30 s, muted, poster
            media/agent-office-demo-poster.png (1600x1000). It shows a herdr office in the grey
            theme: two spaces, three agents named api, website and docs; one goes blocked (its row
-           shows the × mark and the red word), Shift+arrow walks to it, a context number climbs past
+           shows the white × mark and the word blocked), Shift+arrow walks to it, a context number climbs past
            the ▲ mark. No real repo names, no home paths, no tokens on screen. English.
            When it exists, replace the <pre> below with:
            <div class="zyx-video"><video controls muted playsinline loop preload="none"
@@ -123,6 +123,7 @@
             <li><code>◐</code> Working</li>
             <li><code>✓</code> Done</li>
             <li><code>×</code> Blocked: it waits for you</li>
+            <li><code>·</code> Nothing known yet</li>
           </ul>
         </figcaption>
       </figure>
@@ -157,11 +158,11 @@
               <tr><td><code>▲</code>, white and bold</td><td>Past 200k, or past half of a smaller window</td></tr>
               <tr><td><code>▲▲</code>, red</td><td>Past 600k, or past three quarters</td></tr>
               <tr><td><code>47m</code></td><td>Time since it last wrote to its transcript</td></tr>
-              <tr><td><code>×</code> blocked</td><td>It waits for you. A push to your phone too, if you turn that on</td></tr>
+              <tr><td><code>×</code> blocked, white and bold</td><td>It waits for you. A push to your phone too, if you turn that on</td></tr>
             </tbody>
           </table>
         </div>
-        <p class="ao-note">The numbers come from the agent's own transcript: Claude Code, Codex, and Claude Code on a local Ollama model. An agent the meter cannot identify stays blank; it never guesses. Both limits are yours to set. The theme is greys with one red, and every state also has its mark and its word, so nothing rests on colour alone.</p>
+        <p class="ao-note">The numbers come from the agent's own transcript: Claude Code, Codex, and Claude Code on a local Ollama model. An agent the meter cannot identify stays blank; it never guesses. Both limits are yours to set. The theme is greys: white and bold when an agent needs you, red only for a fault (context past the alarm, quota out). Every state also has its mark and its word, so nothing rests on colour alone.</p>
       </div>
     </div>
   </section>
@@ -235,7 +236,7 @@
       <h2 class="zyx-h2" id="who-t">Who builds this</h2>
       <p class="zyx-band-lead">ZyxWorks builds Zyx and puts it to work inside companies. Agent Office is a tool we built for our own work and give away.</p>
       <div class="zyx-hero-acts">
-        <a class="zyx-btn" href="https://zyxworks.com">What we do for companies</a>
+        <a class="zyx-btn" href="https://zyxworks.com/en/">What we do for companies</a>
       </div>
     </div>
   </section>
@@ -244,10 +245,10 @@
 <footer class="zyx-site-foot">
   <div class="zyx-wrap">
     <div class="zyx-site-foot-cols">
-      <div class="zyx-site-foot-brand"><a class="zyx-lockup" href="https://zyxworks.com/"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a><p>Agent Office is one of the tools we built for ourselves and give away.</p></div>
+      <div class="zyx-site-foot-brand"><a class="zyx-lockup" href="https://zyxworks.com/en/"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a><p>Agent Office is one of the tools we built for ourselves and give away.</p></div>
       <div><h2>Product</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office">Source</a></li><li><a href="https://github.com/ZyxWorks/agent-office#readme">Docs</a></li><li><a href="https://github.com/ZyxWorks/agent-office/issues">Issues</a></li></ul></div>
-      <div><h2>Studio</h2><ul><li><a href="https://zyxworks.com/open-source">Other tools</a></li><li><a href="https://zyxworks.com">For companies</a></li></ul></div>
-      <div><h2>Legal</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office/blob/main/LICENSE">MIT licence</a></li><li><a href="https://zyxworks.com/legal#privacy">Privacy</a></li><li><a href="https://zyxworks.com/legal#imprint">Imprint</a></li></ul></div>
+      <div><h2>Studio</h2><ul><li><a href="https://zyxworks.com/en/open-source/">Other tools</a></li><li><a href="https://zyxworks.com/en/">For companies</a></li></ul></div>
+      <div><h2>Legal</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office/blob/main/LICENSE">MIT licence</a></li><li><a href="https://zyxworks.com/en/legal/#privacy">Privacy</a></li><li><a href="https://zyxworks.com/en/legal/#imprint">Imprint</a></li></ul></div>
     </div>
     <div class="zyx-site-foot-legal"><span>© 2026 ZyxWorks</span></div>
   </div>

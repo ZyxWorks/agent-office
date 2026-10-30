@@ -39,7 +39,7 @@ One `office` command to install, start, stop and update the lot.
 On the left you see every agent: its state from herdr, and from the Agent
 Office meter how full its context is, how long it has been quiet, how much of
 your plan's quota is left, and the branch and open pull request it works on. White
-and bold means "this needs you", red means "act on this". Shift+arrow walks you there. No mouse.
+and bold means "this needs you"; red means a fault: context past the alarm or quota out. Shift+arrow walks you there. No mouse.
 
 ## Quick start
 
