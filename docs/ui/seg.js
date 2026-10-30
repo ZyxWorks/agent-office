@@ -1,4 +1,4 @@
-/* @zyxworks/ui 1.1.0 (build 89704c13b1a9), dist/seg.js. Built by scripts/build.mjs from react/seg.ts: do not edit. */
+/* @zyxworks/ui 1.1.0 (build f69b21cf273f), dist/seg.js. Built by scripts/build.mjs from react/seg.ts: do not edit. */
 (() => {
 // Seg: a segmented control on a static page that switches what is shown (1.1). No imports: the build
 // also ships this as a plain `seg.js` for a static page.

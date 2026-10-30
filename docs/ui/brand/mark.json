@@ -1,0 +1,54 @@
+{
+  "$comment": "The Zyx mark and its one line-weight scale. The single source: the library's CSS tokens (--z-mark-stem, --z-mark-lockup), brand/*.svg, favicon.ico, and in the zyx repo brand/assets/mark/geometry.json (a byte copy, checked by a test), its bakes and the Mac app all draw from this file. brand/mark.mjs holds the formulas. Spec section 3.",
+  "mark": "axis",
+  "grid": 48,
+  "path": "M24 26V6M24 26L6.7 36M24 26L41.3 36",
+  "centre": [24, 26],
+  "arm": 20,
+  "inkBox": [6.7, 6, 41.3, 36],
+  "caps": "round",
+  "colour": {
+    "light": "#111111",
+    "dark": "#ffffff",
+    "rule": "Ink on light, white on dark. Never grey, never the client accent, never a gradient."
+  },
+  "clearSpace": "0.5 x the mark's width",
+  "stem": {
+    "em": 0.106,
+    "font": "Geist Medium (wght 500), the face the library ships in dist/fonts",
+    "measured": "2026-10-30 with fontTools on the variable font at wght 500, units of 1000: l and n stems 106, I and H 108, the Z diagonal 105 across the stroke, the Z bars 99. Cap height 710, so the stem is 0.149 of the cap height. Rendered in Chromium at 14, 15, 24 and 48 px, 1x and 2x, the l and a line of 0.106 em carry the same ink to 0.01 px."
+  },
+  "lockup": {
+    "markEm": 1.25,
+    "gapEm": 0.5,
+    "track": "-0.02em",
+    "rule": "The mark is 1.25 times the type size, the gap 0.4 times the mark, the mark's ink centred on the capitals."
+  },
+  "stroke": {
+    "unit": "pt: CSS px of the rendered 48 box of the mark (for a tile or an avatar the box is markScale times the square). A raster multiplies by its pixel ratio.",
+    "withWord": "A mark that stands with words (a lockup, a header, a mark inside a line of text) takes the stem of those words: stem.em x the font size. Exact at every size, so mark and letters are one weight.",
+    "alone": {
+      "floorPt": 2,
+      "stemUpToPt": 48,
+      "largeFromPt": 256,
+      "largeRatio": 0.0667,
+      "rule": "A mark on its own (favicon, tile, avatar, a bare mark): max(floorPt, size x ratio). Up to stemUpToPt the ratio is the lockup's (stem.em / lockup.markEm = 0.0848 of the box, the weight it has beside the word); from largeFromPt it is largeRatio; between, it eases on a log scale. So a tiny mark never goes under 2 pt (a tab, the menu bar), a mark at text sizes looks as it does in the lockup, and a big mark (app icon, banner) gets relatively lighter and stops there.",
+      "why": "Optical sizing as SF Symbols, Material Symbols (opsz 20 to 48) and Apple's app icon grid do it: small sizes need relatively heavier lines to hold their shape against filled neighbours, large sizes look heavy at the same ratio. largeRatio 0.0667 is the app tile's weight since 2026-10 (3.2 on the 48 grid); floorPt 2 is the 16 px tab favicon's line."
+    },
+    "snap": "A raster up to 64 px rounds the line to whole pixels and puts the upright arm's edges on pixel edges, so it stays sharp; above 64 px nothing is snapped."
+  },
+  "tile": {
+    "use": "App icons and every picture that cannot switch colour with the system (PNG, ICO, phone icons)",
+    "ground": "#111111",
+    "mark": "#ffffff",
+    "markScale": 0.62,
+    "radius": 0.2229
+  },
+  "avatar": {
+    "use": "Account avatars and profile logos (GitHub, LinkedIn, Slack): the ink mark on an opaque white square, no corner (the platform crops it)",
+    "ground": "#ffffff",
+    "mark": "#111111",
+    "markScale": 0.62,
+    "seenAtPt": 48
+  }
+}
