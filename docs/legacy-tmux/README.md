@@ -13,8 +13,8 @@ says so, on its own border, without being asked.
 
 [![CI](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml/badge.svg)](https://github.com/ZyxWorks/agent-office/actions/workflows/ci.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-111111)](../../LICENSE)
-![Platform: macOS, Linux and WSL2](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-6a6c77)
-![No daemon](https://img.shields.io/badge/daemons-0-6a6c77)
+![Platform: macOS, Linux and WSL2](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-555555)
+![No daemon](https://img.shields.io/badge/daemons-0-555555)
 
 **Several coding agents side by side, each in its own git worktree, plus shells
 and a file editor, in one window.** "Your turn" and how full each context
@@ -786,8 +786,8 @@ source-file ~/agent-office/theme/office-theme.tmux.conf  # optional
 
 Source it second, because it overrides the pane border. The ZyxWorks greys
 ([palette](../../preset/README.md#theme)): state is tone, weight and inversion.
-White and bold means **your turn**, and red means act on this; nothing else on
-the screen is given either. It also brings the clickable strip described above.
+White and bold means **your turn**, and red means the context is past the alarm
+mark; nothing else on the screen is given either (PREFIX is an inverted grey chip). It also brings the clickable strip described above.
 
 **The right-hand side of the bar is yours.** The theme puts a git branch and a
 clock there and nothing else. To add your own, put one line in your
