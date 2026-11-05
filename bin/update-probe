@@ -70,13 +70,15 @@ def herdr_text(version, log):
 class Home:
     def __init__(self):
         self.root = Path(tempfile.mkdtemp(prefix="office-update-probe."))
+        self.tmp = self.root / "tmp"
+        self.tmp.mkdir()
         self.home = self.root / "home"
         self.bin = self.home / "fakebin"
         self.bin.mkdir(parents=True)
         self.log = self.root / "calls.log"
         self.state = self.home / ".local" / "state" / "agent-office"
         self.record = self.state / "update.json"
-        self.office = self.home / "agent-office"
+        self.office = self.home / ".local" / "share" / "agent-office" / "release"
         self.fm = self.home / "firstmate"
         os.symlink(GIT, self.bin / "git")
         os.symlink(shutil.which("bash") or "/bin/bash", self.bin / "bash")   # Firstmate's parser runs in it
@@ -84,7 +86,11 @@ class Home:
     def env(self, **extra):
         env = {k: v for k, v in os.environ.items()
                if not k.startswith(("XDG_", "HERDR_", "GIT_", "FM_")) and k != "ZDOTDIR"}
-        env.update(HOME=str(self.home), PYTHONDONTWRITEBYTECODE="1",
+        env.update(HOME=str(self.home), TMPDIR=str(self.tmp), PYTHONDONTWRITEBYTECODE="1",
+                   GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+                   GIT_CONFIG_COUNT="3", GIT_CONFIG_KEY_0="maintenance.auto", GIT_CONFIG_VALUE_0="false",
+                   GIT_CONFIG_KEY_1="gc.auto", GIT_CONFIG_VALUE_1="0",
+                   GIT_CONFIG_KEY_2="clone.defaultRemoteName", GIT_CONFIG_VALUE_2="unexpected",
                    PATH=f"{self.bin}:{self.home / '.local' / 'bin'}", **extra)
         return env
 
@@ -138,6 +144,7 @@ class Home:
         subprocess.run([GIT, "clone", "-q", "--bare", str(where), str(bare)], env=self.env(), check=True)
         self.git(where, "remote", "add", "origin", str(bare))
         self.git(where, "fetch", "-q", "origin")
+        self.git(where, "remote", "set-head", "origin", "-a")
         self.git(where, "branch", "-q", "-u", "origin/main")
         return self.git(where, "rev-parse", "HEAD")
 
@@ -146,11 +153,11 @@ class Home:
         work = self.root / "work"
         if work.exists():
             shutil.rmtree(work)
-        subprocess.run([GIT, "clone", "-q", str(bare), str(work)], env=self.env(), check=True)
+        subprocess.run([GIT, "clone", "-q", "--origin", "origin", str(bare), str(work)], env=self.env(), check=True)
         edit(work)
         self.git(work, "add", "-A")
         self.git(work, "commit", "-q", "-m", "next")
-        self.git(work, "push", "-q", "origin", "main")
+        self.git(work, "push", "-q", "origin", "HEAD")
         return self.git(work, "rev-parse", "HEAD")
 
     def done(self):
@@ -340,8 +347,8 @@ def kept_at(cmd):
 def bump(pin):
     def edit(work):
         m = work / "config" / "components.toml"
-        m.write_text(m.read_text().replace('pin = "0.1.35"\nnode = "20"\n[[component]]\nname = "quota-axi"',
-                                           f'pin = "{pin}"\nnode = "20"\n[[component]]\nname = "quota-axi"'))
+        m.write_text(re.sub(r'pin = "[^"]+"\nnode = "20"\n\[\[component\]\]\nname = "quota-axi"',
+                           f'pin = "{pin}"\nnode = "20"\n[[component]]\nname = "quota-axi"', m.read_text()))
     return edit
 
 
@@ -371,7 +378,7 @@ check("it ran no updater: no npm, brew or curl, and herdr was only asked for its
       not [c for c in h.calls() if not re.fullmatch(r"herdr (--version|--session office status server --json)|\S+ --version", c)],
       str(h.calls()))
 plan = rows(said)
-for name, want in (("agent-office", rf"update: \w{{12}} +{tip[:12]} +git, origin/main"),
+for name, want in (("agent-office", rf"update: \w{{12}} +{tip[:12]} +git, origin/HEAD"),
                    ("herdr", r"update: 0\.9\.0 +0\.9\.1 +itself \(herdr update\)"),
                    ("treehouse", r"update: 3\.0\.0 +3\.1\.0 +Homebrew \(treehouse\)"),
                    ("no-mistakes", r"update: 1\.83\.0 +1\.84\.0 +itself \(no-mistakes update\)"),
@@ -383,9 +390,9 @@ for name, want in (("agent-office", rf"update: \w{{12}} +{tip[:12]} +git, origin
     check(f"{name}: installed, target, owner", re.fullmatch(want, plan.get(name, "")), said)
 check("one target set: the targets are the release the checkout moves to",
       f"Targets: the release at {tip[:12]} (office " in said, said)
-check("no temporary repository is left behind", not list(Path(tempfile.gettempdir()).glob("office-update.*")))
+check("no temporary repository is left behind", not list(h.tmp.glob("office-update.*")))
 for name, want in (
-        ("agent-office", f"runs: git fetch origin refs/heads/main, then git merge --ff-only {tip[:12]}, in ~/agent-office"),
+        ("agent-office", f"runs: git fetch origin, then git merge --ff-only {tip[:12]}, in ~/.local/share/agent-office/release"),
         ("herdr", "runs: its release asset herdr-test at 0.9.1, SHA-256 checked, over ~/.local/bin/herdr "
                   "(`herdr update` takes no version, so it is not run)"),
         ("herdr", "restart: a running herdr server"),
@@ -523,14 +530,14 @@ tip = h.upstream(h.root / "office.git", bump("0.1.36"))
 (h.office / "bin" / "office").write_text((h.office / "bin" / "office").read_text() + "# mine\n")
 r = h.run("--check")
 check("dirty: uncommitted changes block it, and it says the update does not touch them", r.returncode == 0
-      and "blocker: 1 tracked file(s) in ~/agent-office have uncommitted changes (dirty); the update changes none "
+      and "blocker: 1 tracked file(s) in ~/.local/share/agent-office/release have uncommitted changes (dirty); the update changes none "
           "of them: bin/office." in under(r.stdout, "agent-office"), r.stdout)
 m = h.office / "config" / "components.toml"
 kept = m.read_text()
 m.write_text(kept + "# mine too\n")
 r = h.run("--check")
 check("a dirty file the update changes too is named as a conflict",
-      "2 tracked file(s) in ~/agent-office have uncommitted changes (dirty); the update changes 1 of them too, so "
+      "2 tracked file(s) in ~/.local/share/agent-office/release have uncommitted changes (dirty); the update changes 1 of them too, so "
       "they conflict: config/components.toml." in under(r.stdout, "agent-office"), r.stdout)
 check("blocked, it plans with this release's targets", "Targets: this release (office " in r.stdout
       and re.fullmatch(r"ok: 0\.1\.35 +0\.1\.35 .*", rows(r.stdout).get("gh-axi", "")), r.stdout)
@@ -849,7 +856,7 @@ try:
         r = "held"
 except OSError:
     r = "none"
-head = subprocess.run(["git", "-C", home + "/agent-office", "rev-parse", "HEAD"], capture_output=True, text=True)
+head = subprocess.run(["git", "-C", home + "/.local/share/agent-office/release", "rev-parse", "HEAD"], capture_output=True, text=True)
 open({str(h.log)!r}, "a").write("lockwatch " + r + " " + head.stdout.strip() + "\\n")
 """)
 watch.chmod(0o755)
@@ -862,6 +869,106 @@ r = h.run("--yes")
 check("and it let go of it at the end: the next run takes it", r.returncode == 0 and "another office update" not in r.stderr,
       r.stdout + r.stderr)
 h.done()
+
+print("office update: release updates are independent of the developer's branch")
+for branch in ("no-upstream", "feature-upstream", "deleted-upstream", "detached"):
+    h = Home()
+    h.office = h.home / "developer"
+    kit(h)
+    tip = h.upstream(h.root / "office.git", bump("0.1.36"))
+    h.git(h.office, "switch", "-qc", branch)
+    if branch in ("feature-upstream", "deleted-upstream"):
+        h.git(h.office, "push", "-qu", "origin", branch)
+        if branch == "deleted-upstream":
+            h.git(h.office, "push", "-q", "origin", "--delete", branch)
+    if branch == "detached":
+        h.git(h.office, "checkout", "-q", "--detach")
+    entry = h.office / "bin" / "office"
+    entry.write_text(entry.read_text() + "# unfinished work\n")
+    (h.office / "unfinished.txt").write_text("mine\n")
+    before = h.snapshot()
+    r = h.run("--check")
+    check(f"{branch}: plans the release without writing anything", r.returncode == 0
+          and rows(r.stdout).get("agent-office", "").startswith("update:")
+          and tip[:12] in rows(r.stdout).get("agent-office", "") and h.snapshot() == before,
+          r.stdout + r.stderr)
+    dev = {p: v for p, v in h.snapshot().items() if p.startswith(str(h.office) + "/")}
+    r = h.run("--yes")
+    release = h.home / ".local" / "share" / "agent-office" / "release"
+    check(f"{branch}: installs the release and preserves all developer files and git state", r.returncode == 0
+          and h.git(release, "rev-parse", "HEAD") == tip
+          and {p: v for p, v in h.snapshot().items() if p.startswith(str(h.office) + "/")} == dev,
+          r.stdout + r.stderr)
+    for name in ("office", "fm", "officeoff-all"):
+        check(f"{branch}: {name} uses the managed release",
+              (h.home / ".local" / "bin" / name).resolve() == (release / "bin" / name).resolve())
+    plugins = json.loads((h.home / ".config" / "herdr" / "plugins.json").read_text())
+    check(f"{branch}: the meter uses the managed release",
+          Path(plugins[0]["plugin_root"]).resolve() == (release / "herdr").resolve())
+    if branch == "no-upstream":
+        h.upstream(h.root / "office.git", bump("0.1.37"))
+        runtime_entry = release / "bin" / "office"
+        original_entry = runtime_entry.read_bytes()
+        runtime_entry.write_bytes(original_entry + b"# local edit\n")
+        dev_manifest = h.office / "config" / "components.toml"
+        original_manifest = dev_manifest.read_bytes()
+        dev_manifest.write_text("not valid TOML [\n")
+        r = h.run("--yes")
+        check("a blocked release never loads development pins or repoints installed links", r.returncode == 1
+              and "dirty" in under(r.stdout, "agent-office")
+              and tip[:12] in rows(r.stdout.split("Results:")[0]).get("agent-office", "")
+              and (h.home / ".local" / "bin" / "office").resolve() == runtime_entry.resolve(),
+              r.stdout + r.stderr)
+        runtime_entry.write_bytes(original_entry)
+        dev_manifest.write_bytes(original_manifest)
+        h.git(h.root / "office.git", "update-ref", "refs/heads/stable", tip)
+        h.git(h.root / "office.git", "symbolic-ref", "HEAD", "refs/heads/stable")
+        for pin in ("0.1.37", "0.1.38"):
+            newer = h.upstream(h.root / "office.git", bump(pin))
+            r = h.run("--yes")
+            check(f"the renamed default branch keeps updating to {pin}", r.returncode == 0
+                  and h.git(release, "rev-parse", "HEAD") == newer, r.stdout + r.stderr)
+    h.done()
+
+print("office update: clone errors do not disclose credentials or ask for a password")
+from agent_office import update as U
+import io
+h = Home()
+u = U.Update(h.env(), io.StringIO(), {"office": {"session": "office"}}, {}, PLAT)
+original_call = tools.call
+url = "https://fixture-user:fixture-token@example.invalid/office.git"
+
+def failed_clone(argv, env):
+    check("the clone explicitly names origin and cannot prompt",
+          argv[:4] == ["git", "clone", "--origin", "origin"] and env.get("GIT_TERMINAL_PROMPT") == "0")
+    raise tools.Failed("clone failed: " + url)
+
+try:
+    tools.call = failed_clone
+    try:
+        u._office_clone(url, "a" * 40, "b" * 40)
+        check("a failed clone is reported", False)
+    except tools.Failed as e:
+        check("the failure removes URL credentials", "fixture-token" not in str(e) and "fixture-user" not in str(e))
+finally:
+    tools.call = original_call
+    h.done()
+
+if shutil.which("zsh"):
+    print("office update: a legacy shell forwards to the release updater")
+    h = Home()
+    legacy = h.home / "legacy"
+    (legacy / "bin").mkdir(parents=True)
+    shutil.copy2(REPO / "office.zsh", legacy / "office.zsh")
+    entry = legacy / "bin" / "office"
+    entry.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$HOME/forwarded"\n')
+    entry.chmod(0o755)
+    r = subprocess.run([shutil.which("zsh"), "-f", "-c",
+                        'source "$1"; _office_pane_cwd() { :; }; office update --check',
+                        "probe", str(legacy / "office.zsh")], env=h.env(), capture_output=True, text=True)
+    check("update forwards its options without needing or pulling a git checkout", r.returncode == 0
+          and (h.home / "forwarded").read_text() == "update\n--check\n", r.stdout + r.stderr)
+    h.done()
 
 print("PASS" if not fails else f"FAIL: {fails}")
 sys.exit(1 if fails else 0)

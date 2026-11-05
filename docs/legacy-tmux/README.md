@@ -454,7 +454,7 @@ live ones for exactly that reason.
 | `office doctor` | what is running and what it costs in RAM, read-only |
 | `office clean` | pick panes to close, heaviest first (rarely needed) |
 | `office sweep [h]` | close offices you walked away from, and everything in them |
-| `office update` | pull the newest agent-office |
+| `office update` | update the installed Agent Office release |
 | `office install` | moves you to Agent Office 1.0: it runs `./install.sh`, the 1.0 installer, which shows every change and asks before it stops your zsh loading the office function. Wiring the tmux office again is `bin/install-tmux [--theme]`, safe to re-run, starts nothing |
 | `office clean --idle [h]` | no picker: close anything idle over `h` hours |
 | `office help` | all of the above, with the diagram |
@@ -693,11 +693,7 @@ detached itself survives, and agent CLIs leave host and daemon processes behind
 that no pane is the parent of. So the process *group* of every pane is taken
 first and made sure of afterwards. Nothing outlives going home.
 
-**Updates never happen behind your back.** `office on` fetches in the
-background and says nothing unless you are behind, because this package is the
-thing drawing your window and changing it under you mid-session is how a morning
-gets ruined. `office update` is the deliberate act, and it refuses on a dirty
-tree rather than merging over your edits.
+**Updates never happen behind your back.** `office update` delegates to the installed release updater, which follows the remote default branch in a separate managed checkout. Your development checkout and unfinished edits stay untouched, and running sessions are not restarted. `office update --check` previews the plan.
 
 **`office cd` is for working next to an agent.** Every session gets its own git
 worktree, which is what stops four agents committing over each other — and it

@@ -1276,21 +1276,7 @@ office() {
       # fuzzy repo match below and looked for a repo called "install".
       "$_OFFICE_HOME/install.sh" "${@[2,-1]}" ;;
     update|upgrade)
-      [[ -d $_OFFICE_HOME/.git ]] || { print -u2 "office: $_OFFICE_HOME is not a git checkout"; return 1 }
-      if [[ -n $(git -C "$_OFFICE_HOME" status --porcelain) ]]; then
-        print -u2 "office: $_OFFICE_HOME has local changes. Commit or stash them first."
-        git -C "$_OFFICE_HOME" status --short | sed 's/^/  /'
-        return 1
-      fi
-      git -C "$_OFFICE_HOME" pull --ff-only || return 1
-      _office_reload_conf
-      # ...and here too, not only on the way in. A pull that moves the package
-      # (or the first one that brings a watcher at all) leaves a running server
-      # holding no @office_home, which turns the border readout off silently —
-      # "I updated and the new thing does nothing", with nothing to see.
-      _office_watch_setup
-      print "updated. The next 'office' command in any shell runs the new version;"
-      print "panes already open keep what they are running until you close them." ;;
+      "$_OFFICE_HOME/bin/office" update "${@[2,-1]}" ;;
     renumber|grid)
       _office_grid "$(_office_here)" ;;
     sweep|stale)

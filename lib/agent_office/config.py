@@ -63,6 +63,11 @@ def state_dir(env=None) -> Path:
     return _xdg(env, "XDG_STATE_HOME", ".local/state") / "agent-office"
 
 
+def release_dir(env=None) -> Path:
+    env = os.environ if env is None else env
+    return _xdg(env, "XDG_DATA_HOME", ".local/share") / "agent-office" / "release"
+
+
 def vendors_dir(env=None) -> Path:
     """Where the optional skill packs are checked out, each at the commit components.toml pins."""
     env = os.environ if env is None else env

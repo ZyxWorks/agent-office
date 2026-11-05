@@ -303,7 +303,7 @@ shows the plan, asks, and then works through it one component at a time:
 
 | component | target | what runs |
 |---|---|---|
-| this checkout (the CLI, preset and meter) | the tip of the branch it follows | `git fetch`, then `git merge --ff-only`. Never a merge commit, a rebase or a reset. When it moved, the new release's `office update` takes over, so the rest follows the new release's list. |
+| Agent Office (the CLI, preset and meter) | the remote default branch, normally `main` | A managed release checkout in `~/.local/share/agent-office/release` (`$XDG_DATA_HOME/agent-office/release` when set). The first update creates it and moves the installed links there. Later updates fast-forward it. Your development checkout, branch and unfinished work stay untouched. When it moves, the new release's `office update` takes over, so the rest follows the new release's list. |
 | a tool npm owns | its pin | `npm install -g --ignore-scripts <package>@<pin>` |
 | a tool Homebrew owns | its pin or tested version | `brew info` first; `brew upgrade` only if Homebrew has exactly that version, otherwise skipped |
 | herdr, treehouse, no-mistakes, where `office tools` puts them | its pin or tested version | the owner's release asset at that version, SHA-256 checked, put over the program. The program it replaces is kept in `~/.local/state/agent-office/previous/`, and put back when the new one does not report the target version |
@@ -323,13 +323,7 @@ workstation tools, is left to its owner. So is your harness (Claude Code,
 Codex). A tool that is not installed is `office tools`' job. Nothing is ever
 downgraded.
 
-Before anything changes, each component is checked, and a blocker skips that
-one component and says why: a checkout with uncommitted changes, one that has
-diverged from its remote or follows none, a remote that did not answer, a
-Firstmate checkout whose remote is not your `firstmate.source`, a tool with an
-unknown owner, a version that cannot be read. While no Firstmate revision is
-tested, Firstmate is skipped, and `office update` exits 1 for the same reason
-`office doctor` does.
+Before anything changes, each component is checked, and a blocker skips that one component and says why: a managed release checkout with uncommitted changes or diverged commits, a remote that did not answer, a Firstmate checkout whose remote is not your `firstmate.source`, a tool with an unknown owner, or a version that cannot be read. A feature branch, detached HEAD or unfinished work in your development checkout does not block Agent Office updates. While no Firstmate revision is tested, Firstmate is skipped, and `office update` exits 1 for the same reason `office doctor` does.
 
 After each update it reads the version again, and only the target counts:
 
