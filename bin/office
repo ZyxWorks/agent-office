@@ -8,6 +8,12 @@ import sys
 if sys.version_info < (3, 8):
     sys.exit("office: needs Python 3.8 or newer; this is " + sys.version.split()[0])
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
-from agent_office import cli  # noqa: E402
+from agent_office import cli, config  # noqa: E402
+
+if sys.argv[1:2] == ["update"]:
+    release = config.release_dir()
+    entry = release / "bin" / "office"
+    if entry.is_file() and release.resolve() != config.REPO.resolve():
+        os.execv(sys.executable, [sys.executable, str(entry), *sys.argv[1:]])
 
 sys.exit(cli.main(sys.argv[1:]))

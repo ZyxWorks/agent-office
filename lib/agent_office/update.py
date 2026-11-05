@@ -15,8 +15,8 @@ commit into a throwaway repository it removes again. It writes nothing of yours.
 
 `office update` shows that plan, asks, and applies it under a lock, one component at a time:
 
-- this checkout: git, fast-forward only, to the newest commit of the branch it follows. When it
-  moved, the rest runs from the new release, with the new release's plan.
+- Agent Office: origin's default branch, in its managed release checkout. Development checkouts
+  stay untouched. When it moved, the rest runs from the new release, with the new release's plan.
 - a tool npm owns: `npm install -g --ignore-scripts <package>@<pin>`.
 - a tool Homebrew owns: `brew upgrade`, only after Homebrew said it has the target version.
 - a tool that updates itself: its own release asset at the pin, SHA-256 checked, over the program
@@ -252,6 +252,7 @@ class Update:
         self.show = doctor.Report(env).show
         self.session = cfg["office"]["session"]
         self.record = C.state_dir(env) / RECORD
+        self.release = C.release_dir(env)
         self.next: Optional[Commit] = None    # the release this checkout moves to, when it was read
         self.targets = ""                     # where the targets come from, for the plan
         self.retry: set = set()               # the components the last run stopped or failed on
@@ -264,6 +265,8 @@ class Update:
 
     def plan(self) -> list:
         office = self.office()
+        if office.blocker and not doctor._same(C.REPO, self.release):
+            return [office]
         comps = self.comps
         if self.next is not None:
             # The release this checkout moves to applies its own targets after the handoff, so
@@ -325,40 +328,50 @@ class Update:
             it.action, it.run = action, run
 
     def office(self) -> Item:
-        co = Checkout(C.REPO, self.env)
-        head = co.head()
+        source = Checkout(C.REPO, self.env)
+        head = source.head()
         it = Item(OFFICE, head[:12] if head else "unknown", "-", "unknown",
                   after="the meter and the herdr config of a running office session")
-        top = co.git("rev-parse", "--show-toplevel") if head else None
+        top = source.git("rev-parse", "--show-toplevel") if head else None
         if top is None or not doctor._same(Path(top), C.REPO):
             it.blocker = (f"{self.show(C.REPO)} is not a git checkout, so nothing says how it is updated "
                           "(owner unknown): get the new release the way you got this one")
             return it
-        branch = co.git("symbolic-ref", "--short", "-q", "HEAD")
-        remote = co.git("config", f"branch.{branch}.remote") if branch else None
-        ref = co.git("config", f"branch.{branch}.merge") if branch else None
-        if not remote or not ref or remote == ".":
-            it.blocker = (f"{'the branch ' + branch if branch else 'a detached HEAD'} follows no remote branch, "
-                          "so nothing says where its updates come from (owner unknown)")
+        remote, ref = "origin", "HEAD"
+        url = source.git("remote", "get-url", remote)
+        if not url:
+            it.blocker = "the checkout has no origin remote, so its release source is unknown"
             return it
-        up = f"{remote}/{ref.replace('refs/heads/', '', 1)}"
+        if "://" not in url and not os.path.isabs(url) and (source.path / url).exists():
+            url = str((source.path / url).resolve())
+        up = f"{remote}/{ref}"
         it.owner = f"git, {up}"
-        tip = co.tip(remote, ref)
+        tip = source.tip(remote, ref)
         if tip is None:
             it.blocker = f"the remote {remote} did not answer (offline?), so the newest {up} is unknown"
             return it
         it.target = tip[:12]
-        where = co.toward(head, tip, "@{upstream}")
-        if where == "newer":
-            it.note = f"it has commits {up} does not have yet"
+        co = Checkout(self.release, self.env)
+        installed = doctor._same(C.REPO, self.release)
+        have = co.head()
+        if self.release.exists() and (not have or doctor._norm(co.git("remote", "get-url", remote) or "") != doctor._norm(url)):
+            it.blocker = f"{self.show(self.release)} is not a release checkout from this origin"
             return it
-        if where == "same":
+        where = co.toward(have, tip, "origin/HEAD") if have else "older"
+        if installed and where == "same":
             return it
-        got, why = co.read(remote, tip, READ) if where == "older" else (None, "")
-        self._move(it, co, where, f"git fetch {remote} {ref}, then git merge --ff-only {tip[:12]}, "
-                   f"in {self.show(C.REPO)}", lambda: co.forward(["fetch", remote, ref], tip),
-                   lambda: co.changed(got))
-        if where != "older":
+        got, why = source.read(remote, tip, READ) if where in ("older", "same") else (None, "")
+        if have:
+            action = f"git fetch {remote}, then git merge --ff-only {tip[:12]}, in {self.show(self.release)}"
+            self._move(it, co, where, action, lambda: self._office_forward(co, tip),
+                       lambda: co.changed(got))
+            if not installed and where == "same" and not it.blocker:
+                it.action = f"use the release at {self.show(self.release)}; leave the development checkout untouched"
+                it.run = lambda: f"{head[:12]} -> {tip[:12]}"
+        else:
+            it.action = f"clone origin's default branch into {self.show(self.release)}; leave the development checkout untouched"
+            it.run = lambda: self._office_clone(url, tip, head)
+        if where not in ("older", "same"):
             return it
         if got is None:
             it.parts.append(f"the release at {tip[:12]} could not be read ({why}), so what it changes is unknown")
@@ -369,10 +382,30 @@ class Update:
             return it
         if it.run:
             self.next = got
-        it.parts, live = self._parts(co, got)
-        it.after = live or "nothing: the next office command runs the new release"
-        it.live = bool(live)
+        it.parts, live = self._parts(source, got)
+        it.after = live or ("the meter of a running office session" if not installed else
+                            "nothing: the next office command runs the new release")
+        it.live = bool(live) or not installed
         return it
+
+    def _office_clone(self, url: str, tip: str, old: str) -> str:
+        self.release.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="office-release.", dir=self.release.parent) as tmp:
+            staged = Path(tmp) / "release"
+            try:
+                tools.call(["git", "clone", "--origin", "origin", "--", url, str(staged)],
+                           Checkout(staged, self.env).env)
+            except Failed as e:
+                raise Failed(str(e).replace(url, doctor._bare(url))) from None
+            if Checkout(staged, self.env).head() != tip:
+                raise Failed("the release moved while cloning; run office update again")
+            staged.rename(self.release)
+        return f"{old[:12]} -> {tip[:12]}"
+
+    def _office_forward(self, co: Checkout, tip: str) -> str:
+        detail = co.forward(["fetch", "origin"], tip)
+        tools.call(["git", "-C", str(co.path), "remote", "set-head", "origin", "-a"], self.env)
+        return detail
 
     def _parts(self, co: Checkout, got: Commit) -> tuple:
         """What moves with this checkout, the CLI, preset and meter, and what of it is active only
@@ -819,7 +852,7 @@ class Update:
                     # held without a gap: the new release goes on with this lock, not a new one
                     os.set_inheritable(lock.fileno(), True)
                     os.environ[LOCK_FD] = str(lock.fileno())
-                os.execv(sys.executable, [sys.executable, str(C.REPO / "bin" / "office"), "update", *again])
+                os.execv(sys.executable, [sys.executable, str(self.release / "bin" / "office"), "update", *again])
 
         results = rec["results"]
         for name, why in self.inactive({n for n, r in results.items() if r["state"] == "updated"}).items():
@@ -1078,8 +1111,9 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
 USAGE = """\
 usage: office update [--check] [--yes]
 
-Bring every component to the set this release is tested with, each through its own owner: this
-checkout (the CLI, preset and meter) by git, fast-forward only; a tool npm owns by npm at the
+Bring every component to the set this release is tested with, each through its own owner: Agent
+Office follows origin's default branch in its managed release checkout, leaving development
+checkouts untouched; a tool npm owns by npm at the
 pin; one Homebrew owns by `brew upgrade`, when Homebrew has the target; one that updates itself
 by its own release asset at the pin, SHA-256 checked; Firstmate by its own updater, or git,
 fast-forward only, to a tested revision; the generated config as office install writes it.
