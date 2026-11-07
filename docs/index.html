@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://zyxworks.github.io/agent-office/media/agent-office-og.png">
 <meta name="twitter:card" content="summary_large_image">
 <!-- Indexed since the Impressum went live at zyx.works/legal/. The robots.txt that governs this
-     host lives in the ZyxWorks site (zyxworks.github.io) and keeps AI crawlers out. -->
+     host lives in the ZyxWorks site (zyxworks.github.io) and keeps the named AI crawlers out. -->
 <link rel="canonical" href="https://zyxworks.github.io/agent-office/">
 <meta property="og:url" content="https://zyxworks.github.io/agent-office/">
 <meta name="ai-content-declaration" content="noai, noimageai">
@@ -136,7 +136,7 @@
           <li>Node 22.19 or newer, with npm.</li>
           <li>Claude Code or Codex, installed and signed in by you. Agent Office never signs in for you.</li>
         </ul>
-        <div class="zyx-table-wrap zyx-table-phone-list ao-steps">
+        <div class="zyx-table-wrap zyx-table-phone-list">
           <table class="zyx-table ao-two">
             <thead><tr><th scope="col">Step</th><th scope="col">What it does</th></tr></thead>
             <tbody>
@@ -145,7 +145,7 @@
               <tr><td data-main><code>office install</code></td><td data-wide>Writes the herdr config and the <code>office</code> command, and links the meter. Starts nothing. <code>./install.sh</code> in the checkout runs this step alone.</td></tr>
               <tr><td data-main><code>office setup agents</code></td><td data-wide>Writes the agent working setup. Your own lines and keys stay.</td></tr>
               <tr><td data-main><code>herdr integration install claude</code></td><td data-wide>Lets herdr learn each agent's session, so the meter finds its transcript. Use <code>codex</code> for Codex. Start your agent once and sign in first.</td></tr>
-              <tr><td data-main><code>office doctor</code></td><td data-wide>Shows what is installed and what is missing. Changes nothing.</td></tr>
+              <tr><td data-main><code>office doctor</code></td><td data-wide>Shows what is installed and what is missing. Changes nothing. On a fresh install, two "not tested" lines (Firstmate, treehouse) are expected.</td></tr>
             </tbody>
           </table>
         </div>
