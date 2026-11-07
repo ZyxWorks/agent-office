@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Office: several coding agents, one office</title>
 <meta name="description" content="The whole setup for running several coding agents at once: herdr, Firstmate, treehouse and a context meter, with one install, one config file and no mouse. macOS and Linux, MIT licence.">
-<link rel="icon" href="ui/brand/agent-office-favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/agent-office/ui/brand/agent-office-favicon.svg" type="image/svg+xml">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="color-scheme" content="light">
 <meta property="og:title" content="Agent Office: several coding agents, one office">
 <meta property="og:description" content="The whole setup for running coding agents side by side. You see which one needs you, and you never reach for the mouse.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://zyxworks.github.io/agent-office/media/agent-office-og.png">
+<meta property="og:image" content="https://zyx.works/agent-office/media/agent-office-og.png">
 <meta name="twitter:card" content="summary_large_image">
 <!-- Indexed since the Impressum went live at zyx.works/legal/. The robots.txt that governs this
      host lives in the ZyxWorks site (zyxworks.github.io) and keeps the named AI crawlers out. -->
-<link rel="canonical" href="https://zyxworks.github.io/agent-office/">
-<meta property="og:url" content="https://zyxworks.github.io/agent-office/">
+<link rel="canonical" href="/agent-office/">
+<meta property="og:url" content="https://zyx.works/agent-office/">
 <meta name="ai-content-declaration" content="noai, noimageai">
 <!--
   ONE FILE plus ui/, a copy of @zyxworks/ui 1.1: no build step and no external request, which is
@@ -29,10 +29,10 @@
   The Agent Office mark (a prompt, three strokes) is the one bold thing; the one filled button is
   "View the source on GitHub".
 -->
-<link rel="stylesheet" href="ui/zyx/fonts.css">
-<link rel="stylesheet" href="ui/zyx/zyx-ui.css">
-<script src="ui/reveal.js" defer></script>
-<script src="ui/copy.js" defer></script>
+<link rel="stylesheet" href="/agent-office/ui/zyx/fonts.css">
+<link rel="stylesheet" href="/agent-office/ui/zyx/zyx-ui.css">
+<script src="/agent-office/ui/reveal.js" defer></script>
+<script src="/agent-office/ui/copy.js" defer></script>
 <style>
   body { margin: 0; background: var(--z-bg); color: var(--z-text); }
   .ao-hero-cmd { margin-top: 32px; }
@@ -94,9 +94,9 @@
       <p class="zyx-hero-note ao-meta">Agent Office 1.0, in development on <code>main</code>. Tested with herdr 0.9.1. <a class="zyx-link ao-nowrap" href="#version">Versions and the tmux office</a></p>
       <figure class="ao-demo">
         <div class="zyx-video"><video controls muted playsinline loop preload="none"
-          poster="media/agent-office-demo-poster.png" aria-label="An office with three agents: one asks for you, Shift+arrow walks to it">
-          <source src="media/agent-office-demo.webm" type="video/webm">
-          <source src="media/agent-office-demo.mp4" type="video/mp4"></video></div>
+          poster="/agent-office/media/agent-office-demo-poster.png" aria-label="An office with three agents: one asks for you, Shift+arrow walks to it">
+          <source src="/agent-office/media/agent-office-demo.webm" type="video/webm">
+          <source src="/agent-office/media/agent-office-demo.mp4" type="video/mp4"></video></div>
         <figcaption class="ao-legend">
           <p>The sidebar. Each agent's state, how full its context is, how long it has been quiet, the quota left, its pull request and its branch.</p>
           <ul>
