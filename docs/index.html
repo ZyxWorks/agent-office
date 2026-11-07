@@ -13,11 +13,10 @@
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://zyxworks.github.io/agent-office/media/agent-office-og.png">
 <meta name="twitter:card" content="summary_large_image">
-<!-- Not listed anywhere: a visitor gets here by typing the URL or from the index. "noindex" is
-     what actually removes the page from a search index; robots.txt only stops the crawl, and the
-     one that governs this host lives in the ZyxWorks site. Lift this once there
-     is a proper Impressum. -->
-<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<!-- Indexed since the Impressum went live at zyx.works/legal/. The robots.txt that governs this
+     host lives in the ZyxWorks site (zyxworks.github.io) and keeps AI crawlers out. -->
+<link rel="canonical" href="https://zyxworks.github.io/agent-office/">
+<meta property="og:url" content="https://zyxworks.github.io/agent-office/">
 <meta name="ai-content-declaration" content="noai, noimageai">
 <!--
   ONE FILE plus ui/, a copy of @zyxworks/ui 1.1: no build step and no external request, which is
@@ -51,18 +50,25 @@
   .ao-keys td:last-child, .ao-cmds td:last-child { white-space: nowrap; }
   .ao-nowrap { white-space: nowrap; }
   .ao-keys kbd + kbd { margin-left: 4px; }
+  .ao-meta { margin-top: 4px; }
+  .ao-reqs { display: grid; gap: 6px; max-width: 68ch; margin: 0 0 24px; padding-left: 20px; color: var(--z-text-2); line-height: var(--z-lead-read); }
+  .ao-two td:first-child { width: 34%; }
+  .ao-prose > p { max-width: 68ch; margin: 0; color: var(--z-text-2); font-size: var(--z-t-read); line-height: var(--z-lead-read); }
+  .ao-prose > p + p { margin-top: 16px; }
+  .ao-after { margin: 24px 0 0; }
 </style>
 </head>
 <body class="ao-page">
 <a class="zyx-skip" href="#main">Skip to the content</a>
 <header class="zyx-site-head">
   <div class="zyx-wrap">
-    <a class="zyx-lockup" href="https://zyx.works/en/open-source/"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a>
+    <a class="zyx-lockup" href="https://zyxworks.github.io/" aria-label="ZyxWorks, all tools"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a>
     <nav aria-label="Main">
       <ul class="zyx-site-nav">
-        <li><a href="#how">How it works</a></li>
+        <li><a href="#install">Install</a></li>
         <li><a href="#needs">Which one needs you</a></li>
         <li><a href="#keys">Keys</a></li>
+        <li><a href="#fix">Fix it</a></li>
       </ul>
     </nav>
     <div class="zyx-site-acts">
@@ -84,7 +90,8 @@
         <a class="zyx-btn zyx-btn-main zyx-btn-lg" href="https://github.com/ZyxWorks/agent-office">View the source on GitHub</a>
         <a class="zyx-btn zyx-btn-lg" href="https://github.com/ZyxWorks/agent-office/blob/main/GETTING-STARTED.md">Getting started</a>
       </div>
-      <p class="zyx-hero-note">macOS or Linux. MIT licence. It asks before it installs anything or changes a file of yours.</p>
+      <p class="zyx-hero-note">macOS or Linux, git, Node 22.19 or newer, and Claude Code or Codex signed in. MIT licence. It asks before it installs anything or changes a file of yours.</p>
+      <p class="zyx-hero-note ao-meta">Agent Office 1.0, in development on <code>main</code>. Tested with herdr 0.9.1. <a class="zyx-link ao-nowrap" href="#version">Versions and the tmux office</a></p>
       <figure class="ao-demo">
         <div class="zyx-video"><video controls muted playsinline loop preload="none"
           poster="media/agent-office-demo-poster.png" aria-label="An office with three agents: one asks for you, Shift+arrow walks to it">
@@ -110,11 +117,40 @@
       <p class="zyx-band-lead">herdr runs the terminal, Firstmate supervises the agents, treehouse gives each one its own git worktree. Agent Office is the wiring between them, packaged and tested. It rewrites none of them.</p>
       <div class="zyx-band-body">
         <ol class="zyx-how">
-          <li><h3 class="zyx-how-title">Paste the line</h3><p class="zyx-how-text"><code>office setup</code> asks four questions, installs the tools you lack, clones Firstmate and checks the result. Run it again any time.</p></li>
+          <li><h3 class="zyx-how-title">Paste the line</h3><p class="zyx-how-text">It clones Agent Office and runs <code>office setup</code>: four questions, then the tools you lack, Firstmate, the office and a check. Run it again any time.</p></li>
           <li><h3 class="zyx-how-title">Open the office</h3><p class="zyx-how-text"><code>office on</code> opens the office and its Firstmate. <code>office off</code> closes it when you go home.</p></li>
           <li><h3 class="zyx-how-title">Say what you want done</h3><p class="zyx-how-text">Firstmate starts the workers, each in its own worktree, and reports back. You watch the sidebar.</p></li>
         </ol>
       </div>
+    </div>
+  </section>
+
+  <section class="zyx-band" id="install" aria-labelledby="install-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="install-t">Install</h2>
+      <p class="zyx-band-lead">You bring four things. <code>office setup</code> does the rest, one step at a time, and shows each change before it makes it.</p>
+      <div class="zyx-band-body">
+        <ul class="ao-reqs">
+          <li>macOS or Linux. Windows and WSL2 are not supported by 1.0.</li>
+          <li>git.</li>
+          <li>Node 22.19 or newer, with npm.</li>
+          <li>Claude Code or Codex, installed and signed in by you. Agent Office never signs in for you.</li>
+        </ul>
+        <div class="zyx-table-wrap zyx-table-phone-list ao-steps">
+          <table class="zyx-table ao-two">
+            <thead><tr><th scope="col">Step</th><th scope="col">What it does</th></tr></thead>
+            <tbody>
+              <tr><td data-main><code>office tools</code></td><td data-wide>Installs each tool you lack at a pinned version: herdr 0.9.1, treehouse and no-mistakes from their GitHub releases, checked against a pinned SHA-256; the Node tools with npm, scripts off.</td></tr>
+              <tr><td data-main>Firstmate</td><td data-wide>Cloned at the newest revision this release is tested with, when nothing is there yet.</td></tr>
+              <tr><td data-main><code>office install</code></td><td data-wide>Writes the herdr config and the <code>office</code> command, and links the meter. Starts nothing. <code>./install.sh</code> in the checkout runs this step alone.</td></tr>
+              <tr><td data-main><code>office setup agents</code></td><td data-wide>Writes the agent working setup. Your own lines and keys stay.</td></tr>
+              <tr><td data-main><code>herdr integration install claude</code></td><td data-wide>Lets herdr learn each agent's session, so the meter finds its transcript. Use <code>codex</code> for Codex. Start your agent once and sign in first.</td></tr>
+              <tr><td data-main><code>office doctor</code></td><td data-wide>Shows what is installed and what is missing. Changes nothing.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="ao-after"><a class="zyx-link" href="https://github.com/ZyxWorks/agent-office/blob/main/GETTING-STARTED.md">Every step, in Getting started</a></p>
     </div>
   </section>
 
@@ -188,6 +224,39 @@
     </div>
   </section>
 
+  <section class="zyx-band" id="fix" aria-labelledby="fix-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="fix-t">Fix it</h2>
+      <p class="zyx-band-lead"><code>office doctor</code> and <code>office status</code> change nothing, so run them any time.</p>
+      <div class="zyx-band-body">
+        <div class="zyx-table-wrap zyx-table-phone-list">
+          <table class="zyx-table ao-two">
+            <thead><tr><th scope="col">You see</th><th scope="col">Do this</th></tr></thead>
+            <tbody>
+              <tr><td data-main><kbd>Ctrl</kbd>+<kbd>Space</kbd> does nothing on macOS</td><td data-wide>macOS uses it to switch input source. Turn that off in System Settings &gt; Keyboard &gt; Keyboard Shortcuts &gt; Input Sources.</td></tr>
+              <tr><td data-main>No key works right after <code>office on</code></td><td data-wide>herdr's first-run setup is open. Close it with Esc.</td></tr>
+              <tr><td data-main>The keys are herdr's defaults</td><td data-wide>You attached with <code>herdr session attach</code>. Use <code>office on</code> or <code>fm</code> instead.</td></tr>
+              <tr><td data-main><code>office on</code> says the herdr config is older</td><td data-wide>Run <code>office install</code>, then <code>office on</code>.</td></tr>
+              <tr><td data-main>The sidebar shows no numbers</td><td data-wide>Run <code>herdr integration install claude</code> (or <code>codex</code>), then <code>office doctor</code>.</td></tr>
+              <tr><td data-main><code>office off</code> stops nothing</td><td data-wide>It says why: Firstmate did not confirm its save, or an agent is still working. <code>office status</code> shows it again.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="zyx-band" id="version" aria-labelledby="version-t" data-zyx-reveal>
+    <div class="zyx-wrap">
+      <h2 class="zyx-h2" id="version-t">1.0 and the tmux office</h2>
+      <div class="zyx-band-body ao-prose">
+        <p>This page is Agent Office 1.0, the herdr-first version. It is in development on <code>main</code> and has no tag yet. It is tested with herdr 0.9.1, the version CI pins and <code>office tools</code> installs. <code>office doctor</code> shows each tool's version and whether this release is tested with it.</p>
+        <p>The last tagged release, 0.1.0, is the tmux office (0.x). It is retired and gets no further changes. Its docs stay in <a class="zyx-link" href="https://github.com/ZyxWorks/agent-office/tree/main/docs/legacy-tmux">docs/legacy-tmux</a>. Moving to 1.0: <code>office install</code> finds the old <code>office</code> shell function, shows it, backs it up and replaces it after you say yes.</p>
+      </div>
+      <p class="ao-after"><a class="zyx-link" href="https://github.com/ZyxWorks/agent-office/releases">Release notes</a> · <a class="zyx-link" href="https://github.com/ZyxWorks/agent-office/commits/main/">Every change on main</a></p>
+    </div>
+  </section>
+
   <section class="zyx-band" id="not" aria-labelledby="not-t" data-zyx-reveal>
     <div class="zyx-wrap">
       <h2 class="zyx-h2" id="not-t">What it does not do</h2>
@@ -220,8 +289,8 @@
   <div class="zyx-wrap">
     <div class="zyx-site-foot-cols">
       <div class="zyx-site-foot-brand"><a class="zyx-lockup" href="https://zyx.works/en/"><svg class="zyx-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 26V6M24 26L6.7 36M24 26L41.3 36"/></svg><span class="zyx-lockup-word">ZyxWorks</span></a><p>Agent Office is one of the tools we built for ourselves and give away.</p></div>
-      <div><h2>Product</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office">Source</a></li><li><a href="https://github.com/ZyxWorks/agent-office#readme">Docs</a></li><li><a href="https://github.com/ZyxWorks/agent-office/issues">Issues</a></li></ul></div>
-      <div><h2>ZyxWorks</h2><ul><li><a href="https://zyx.works/en/open-source/">Other tools</a></li><li><a href="https://zyx.works/en/">For companies</a></li></ul></div>
+      <div><h2>Product</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office">Source</a></li><li><a href="https://github.com/ZyxWorks/agent-office/blob/main/GETTING-STARTED.md">Getting started</a></li><li><a href="https://github.com/ZyxWorks/agent-office#readme">Docs</a></li><li><a href="https://github.com/ZyxWorks/agent-office/releases">Release notes</a></li><li><a href="https://github.com/ZyxWorks/agent-office/issues">Issues</a></li></ul></div>
+      <div><h2>ZyxWorks</h2><ul><li><a href="https://zyxworks.github.io/">All our tools</a></li><li><a href="https://zyx.works/en/">Zyx, for companies</a></li></ul></div>
       <div><h2>Legal</h2><ul><li><a href="https://github.com/ZyxWorks/agent-office/blob/main/LICENSE">MIT licence</a></li><li><a href="https://zyx.works/en/legal/#privacy">Privacy</a></li><li><a href="https://zyx.works/en/legal/#imprint">Imprint</a></li></ul></div>
     </div>
     <div class="zyx-site-foot-legal"><span>© 2026 ZyxWorks</span></div>
