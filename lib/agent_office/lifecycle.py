@@ -953,15 +953,17 @@ def _restored(o: fm.Office, rep, agents: list):
                 f"no agent runs in pane {pane}, as after a herdr restart: a husk. Firstmate has to "
                 "start it again, with its own flags and `--resume` with the session id herdr kept"])
             continue
-        if o.harness != "claude":
-            continue  # a bare resume is measured for Claude only
+        kind = by_pane[pane].get("agent")
+        if kind != "claude":
+            continue  # a bare resume is measured for Claude only; the worker's own harness, not Firstmate's
         try:
             procs = o.herdr.call("pane", "process-info", "--pane", pane).get("process_info", {})
         except fm.HerdrError as e:
+            bad += 1  # not checked, so no all-clear line
             rep.fact(name, f"pane {pane}: unknown", problems=[f"herdr did not say what runs in it: {e}"])
             continue
         argv = next((x.get("argv") or [] for x in procs.get("foreground_processes") or []
-                     if bare_resume(x.get("argv") or [], o.harness)), None)
+                     if bare_resume(x.get("argv") or [], kind)), None)
         if argv is not None:
             bad += 1
             rep.fact(name, f"pane {pane}: {' '.join(argv)}", problems=[

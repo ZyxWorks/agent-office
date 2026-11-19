@@ -440,6 +440,7 @@ try:
 
     print("office status names the workers a herdr restart left without their launch flags")
     office("on")
+    wait(lambda: meter_pid(A))  # the exit-0 status below needs the meter up
     wt = {k: root / f"wt-{k}" for k in ("husk", "bare", "full")}
     panes = {}
     for k, d in wt.items():
