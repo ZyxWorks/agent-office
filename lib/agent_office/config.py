@@ -195,9 +195,9 @@ def _remote(v):
 
 
 def _hooks(v):
-    # each hook is an argv list run without a shell: ["zyx", "off"], never "zyx off; x"
+    # each hook is an argv list run without a shell: ["my-tool", "stop"], never "my-tool stop; x"
     if not isinstance(v, list) or any(not isinstance(h, list) or not h or _words(h) for h in v):
-        return ('must be a list of commands, each a list of words such as ["zyx", "off"]: '
+        return ('must be a list of commands, each a list of words such as ["my-tool", "stop"]: '
                 "a command is run directly, never by a shell")
     return None
 

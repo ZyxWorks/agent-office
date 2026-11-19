@@ -4,18 +4,23 @@ zsh finds a function or an alias before any command on PATH, so a shell that def
 `fm` never reaches Agent Office's. A text scan of the startup files cannot see every way a shell
 defines one: a file that another file sources, a path built at run time, a quote at the end of
 the line. So this starts the zsh you would get in a new terminal, an interactive login shell with
-your own HOME and ZDOTDIR, and asks it with `whence -w`. zsh's source trace says which files it
+your own HOME and ZDOTDIR and a clean environment (not the one of the herdr pane or tmux this runs
+in), and asks it with `whence -w`. zsh's source trace says which files it
 read, so a function can be traced back to the line that loaded it.
 
-Nothing here edits a file. `office install` still removes the one loader line it knows, the tmux
-office's (install.LEGACY_ZSH); everything else is your own code, and you are told where it is.
+That runs your startup files once. What they leave running in that shell's own session, a
+background job say, is stopped when the answer is in. Nothing here edits a file. `office
+install` still removes the one loader line it knows, the tmux office's (install.LEGACY_ZSH); everything else is your own code, and you are told where it is.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import signal
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -28,6 +33,10 @@ _ASK = (f"print -r -- {MARK}\n"
         "for n in " + " ".join(NAMES) + "; do\n"
         "  print -r -- \"$n\t$(whence -w -- $n)\t${functions_source[$n]-}\"\n"
         "done\n")
+# what a new terminal's zsh starts from; the caller's own variables (HERDR_ENV, TMUX, a guard of
+# yours) would make it judge the context this runs in, not a new terminal
+_KEEP = ("HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "ZDOTDIR")
+_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 _TRACE = re.compile(r"^\+(.+):\d+> <sourcetrace>$")
 
 
@@ -92,24 +101,38 @@ def shadows(env) -> Optional[list]:
     zsh = shutil.which("zsh", path=env.get("PATH", ""))
     if not zsh:
         return None
-    # no terminal: a startup file that waits for input or takes the terminal over cannot hang this
-    try:
-        r = subprocess.run([zsh, "-o", "sourcetrace", "-l", "-i", "-c", _ASK], env=env, cwd=env.get("HOME") or "/",
-                           capture_output=True, text=True, errors="replace", stdin=subprocess.DEVNULL,
-                           start_new_session=True, timeout=SECONDS)
-    except subprocess.TimeoutExpired:
+    clean = {k: env[k] for k in _KEEP if env.get(k)}
+    clean.setdefault("TERM", "dumb")
+    clean["PATH"] = _PATH
+    # no terminal: a startup file that waits for input or takes the terminal over cannot hang this.
+    # Files, not pipes: a job a startup file leaves running would hold a pipe open after zsh answered
+    with tempfile.TemporaryFile("w+", errors="replace") as so, tempfile.TemporaryFile("w+", errors="replace") as se:
+        try:
+            p = subprocess.Popen([zsh, "-o", "sourcetrace", "-l", "-i", "-c", _ASK], env=clean,
+                                 cwd=env.get("HOME") or "/", stdin=subprocess.DEVNULL, stdout=so, stderr=se,
+                                 start_new_session=True)
+        except OSError as e:
+            raise Unknown(f"zsh did not start: {e}")
+        try:
+            code = p.wait(timeout=SECONDS)
+        except subprocess.TimeoutExpired:
+            code = None
+        finally:
+            _stop(p)
+        so.seek(0)
+        se.seek(0)
+        stdout, stderr = so.read(), se.read()
+    if code is None:
         raise Unknown(f"zsh did not answer within {SECONDS} seconds")
-    except OSError as e:
-        raise Unknown(f"zsh did not start: {e}")
-    if MARK not in r.stdout:
-        raise Unknown(f"zsh did not run `whence` (exit {r.returncode})")
+    if MARK not in stdout:
+        raise Unknown(f"zsh did not run `whence` (exit {code})")
     read = []
-    for line in r.stderr.splitlines():
+    for line in stderr.splitlines():
         m = _TRACE.match(line)
         if m and Path(m.group(1)) not in read:
             read.append(Path(m.group(1)))
     found = []
-    for line in r.stdout.split(MARK, 1)[1].splitlines():
+    for line in stdout.split(MARK, 1)[1].splitlines():
         name, _, rest = line.partition("\t")
         said, _, source = rest.partition("\t")
         kind = said.rpartition(": ")[2].strip()
@@ -122,6 +145,21 @@ def shadows(env) -> Optional[list]:
         n, text = _find(where, pattern) if where else (None, "")
         found.append(Shadow(name, kind, where, n, text, _loader(where, read) if where else None))
     return found
+
+
+def _stop(p: subprocess.Popen):
+    """Stop the zsh this started, and whatever its startup files left in its session."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(p.pid, sig)
+        except OSError:
+            pass
+        try:
+            p.wait(timeout=2)
+            if sig == signal.SIGTERM:
+                return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def problem(s: Shadow, show, fixed_by_install: bool = False) -> str:

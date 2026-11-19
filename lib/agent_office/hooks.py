@@ -10,9 +10,12 @@ shows it.
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
+import signal
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -45,17 +48,24 @@ def run(hooks: list, kind: str, env, out=None, nonce: str = "") -> list:
         if out is not None:
             print(f"office {kind}: running {show(hook)}", file=out)
             out.flush()
-        try:
-            r = subprocess.run(argv(hook, env), env=env, capture_output=True, text=True, errors="replace",
-                               stdin=subprocess.DEVNULL, timeout=TIMEOUT)
-        except subprocess.TimeoutExpired:
-            said = f"did not finish within {TIMEOUT} seconds and was stopped"
-        except OSError as e:
-            said = f"did not start: {e.strerror or e}"
-        else:
-            tail = (r.stdout + r.stderr).strip()
-            if r.returncode != 0:
-                said = f"exited {r.returncode}"
+        # output to a file, not a pipe: a hook that starts a service and exits is done when it
+        # exits, although the service it left running still holds what the hook wrote to
+        with tempfile.TemporaryFile("w+", errors="replace") as log:
+            try:
+                p = subprocess.Popen(argv(hook, env), env=env, stdin=subprocess.DEVNULL, stdout=log,
+                                     stderr=subprocess.STDOUT, start_new_session=True)
+            except OSError as e:
+                said = f"did not start: {e.strerror or e}"
+            else:
+                try:
+                    code = p.wait(timeout=TIMEOUT)
+                except subprocess.TimeoutExpired:
+                    _stop(p)
+                    said = f"did not finish within {TIMEOUT // 60} minutes, so it was stopped, with what it started"
+                else:
+                    said = f"exited {code}" if code else None
+            log.seek(0)
+            tail = log.read()[-4000:].strip()
         if out is not None and tail:
             print("\n".join("  " + line for line in tail.splitlines()), file=out)
         results.append({"hook": hook, "result": "ok" if said is None else "failed",
@@ -67,6 +77,20 @@ def run(hooks: list, kind: str, env, out=None, nonce: str = "") -> list:
         data[kind] = {"at": int(time.time()), "nonce": nonce, "results": results}
         C.write_json(path(env), data)
     return failed
+
+
+def _stop(p: subprocess.Popen):
+    """Stop a hook that ran too long, and what it started: its own process group."""
+    for sig, wait in ((signal.SIGTERM, 5), (signal.SIGKILL, 5)):
+        try:
+            os.killpg(p.pid, sig)
+        except OSError:
+            pass
+        try:
+            p.wait(timeout=wait)
+            return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def last(env, kind: str) -> dict | None:

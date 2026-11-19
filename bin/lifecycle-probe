@@ -584,18 +584,26 @@ try:
     hook.chmod(0o755)
     hlog = Path(str(hook) + ".log")
     pwned = root / "pwned"
-    config(A, '[hooks]\non = [["~/bin/hook", "w1", "%s", "0"], ["~/bin/hook", "w2", "%s", "0"]]\n'
+    # w3 starts a service and exits at once: the service keeps what the hook writes to open
+    config(A, '[hooks]\non = [["~/bin/hook", "w1", "%s", "0"], ["~/bin/hook", "w2", "%s", "0"], '
+              '["sh", "-c", "sleep 45 & echo service started"]]\n'
               'off = [["~/bin/hook", "g1", "%s", "1"], ["~/bin/hook", "g2", "%s", "x; touch %s", "$(touch %s)", "0"]]\n'
            % (A, A, A, A, pwned, pwned))
+    began = time.monotonic()
     r = office("on")
     check("office on runs the walk-in hooks in order, once the session and Firstmate are up", r.returncode == 0
           and hlog.read_text().splitlines() == ["w1 running=True agents=1 words=[]", "w2 running=True agents=1 words=[]"],
           r.stdout + r.stderr + (hlog.read_text() if hlog.exists() else ""))
+    check("a hook that starts a service is done when it exits, not when the service does",
+          time.monotonic() - began < 40 and "service started" in r.stdout, r.stdout)
+    r = office("on")
+    check("office on again only focuses: it runs no walk-in hook", r.returncode == 0 and "focused it" in r.stdout
+          and len(hlog.read_text().splitlines()) == 2 and "running ~/bin/hook" not in r.stdout, r.stdout + r.stderr)
     r = office("status")
     check("office status names the other session that runs, and still exits 0", r.returncode == 0
           and f"session '{F}'" in r.stdout and "0 agents, not this office's" in r.stdout, r.stdout + r.stderr)
     check("office status counts the office's agents by state, and shows the walk-in hooks",
-          "1: 1 idle" in r.stdout and "walk-in hooks (2)" in r.stdout and "2 ran" in r.stdout
+          "1: 1 idle" in r.stdout and "walk-in hooks (3)" in r.stdout and "3 ran" in r.stdout
           and "all ok" in r.stdout, r.stdout)
     check("a development checkout shows no update line", "update available" not in r.stdout, r.stdout)
     hlog.unlink()
@@ -622,8 +630,12 @@ try:
     shutil.copytree(REPO, src, ignore=shutil.ignore_patterns(".git", "__pycache__"))
     for argv in (["init", "-q", "-b", "main", str(src)], ["-C", str(src), "add", "-A"],
                  ["-C", str(src), "commit", "-q", "-m", "one"], ["clone", "-q", str(src), str(rel)],
-                 ["-C", str(src), "commit", "-q", "--allow-empty", "-m", "two"], ["-C", str(rel), "fetch", "-q"]):
+                 ["-C", str(src), "commit", "-q", "--allow-empty", "-m", "two"]):
         subprocess.run(["git", *argv], env=git, check=True, capture_output=True)
+    r = office("status", exe=rel / "bin" / "office")
+    check("a release checkout at its fetched origin never says up to date, only how it stands to that fetch",
+          "the same as origin when last fetched" in r.stdout and "up to date" not in r.stdout, r.stdout + r.stderr)
+    subprocess.run(["git", "-C", str(rel), "fetch", "-q"], env=git, check=True, capture_output=True)
     old, new = (subprocess.run(["git", "-C", str(rel), "rev-parse", "--short", ref], env=git, capture_output=True,
                                text=True).stdout.strip() for ref in ("HEAD", "origin/HEAD"))
     r = office("status", exe=rel / "bin" / "office")

@@ -197,7 +197,7 @@ What each part does:
 | `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
 | `[setup]` | the agent working setup: test workers and subagents, models, the cold-cache minutes, branches, gate commands, review and captain preferences, Firstmate's switches, the Claude Code theme. Checked like the rest. `office setup` fills [setup/](setup)'s templates in from it |
 | `[firstmate]` `args`, `remote_control` | `args`: extra arguments for the harness each time `fm` or `office on` starts Firstmate, a list of words such as `["--model", "claude-opus-5-5"]`, before the ones typed on `fm`. `remote_control`: `false`, or a name such as `"firstmate"`; with `harness = "claude"` Firstmate then starts with `--remote-control <name>`, so the Claude app on your phone lists it. See [From your phone](#from-your-phone) |
-| `[hooks]` | your own commands: `on` runs each time `office on` has the session and Firstmate up, `off` once `office off` has stopped `office.session`. Each is a list of commands, and each command a list of words, such as `on = [["~/bin/pull-all"], ["zyx", "on"]]`. The first word is the program (a leading `~/` is your home); no shell runs them, so `;` or `$(...)` is only text. A hook that fails stops nothing: the command names it and exits 1, and `office status` shows the last result. A hook gets 10 minutes |
+| `[hooks]` | your own commands: `on` runs when `office on` started the session or Firstmate, `off` once `office off` has stopped `office.session`. Each is a list of commands, and each command a list of words, such as `on = [["~/bin/sync-repos"], ["my-tool", "start"]]`. The first word is the program (a leading `~/` is your home); no shell runs them, so `;` or `$(...)` is only text. A hook that fails stops nothing: the command names it and exits 1, and `office status` shows the last result. A hook gets 10 minutes |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm`, `office on`, `office off` and `office status` use `office.session` and `[firstmate]` except `source`. `treehouse.root` is only reported |
 
 The generated herdr config is written to
@@ -232,12 +232,12 @@ The rules the config follows:
 | `office setup agents` | write the agent working setup into your home from your `[setup]` keys: the agent rules (`~/AGENTS.md`, linked as `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), the review and release process, Claude Code's settings and hooks, Firstmate's model picks and switches, the no-mistakes and gnhf settings. Agent Office owns only what it puts in: a marked block, its own keys, its own files; yours stay. Shows every change first; asks before changing what you changed, and backs it up. `--check` only plans; `--remove` takes out what it put in. See [setup/README.md](setup/README.md). |
 | `office tools` | install the tools the office uses that are missing, at pinned versions, each through its owner. A tool you have is left as it is. Shows the list and asks first. `--check` only plans; `--workstation` adds the optional workstation tools. |
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect |
-| `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; run the walk-in hooks (`hooks.on`); attach. Running it again focuses what is there. Starts no workers. |
+| `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; when it started the session or Firstmate, run the walk-in hooks (`hooks.on`); attach. Running it again focuses what is there and runs no hook. Starts no workers. |
 | `office break` | detach only: the terminals `office on` and `fm` attached. Firstmate, the workers and the terminals keep running. herdr has no detach command, so a herdr you attached yourself detaches with its key, which `office break` prints. |
 | `office off` | stop this office: show what will stop, ask, let Firstmate save its work, and only when the save is confirmed stop the owned session and its meter. A session `office on` did not start is left running. It refuses while an agent in the session is working or waiting; `--stop-workers` has Firstmate stop its own busy workers first, keeping their worktrees and task records. `--force`, confirmed separately on the terminal, stops when the save fails. Then it runs the go-home hooks (`hooks.off`), which its plan lists. Repos and worktree pools are kept. |
 | `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. Anything left running makes it exit non-zero. |
-| `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, the agent working setup, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing, and exits 0 when it could make the plan, blocked components too: the plan names each blocker, and `office update` itself exits 1 for it. |
-| `office doctor` | read-only: whether your zsh hides `office` or `fm` with a function or an alias, and where that is defined; each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active; the agent working setup that `office setup agents` wrote, in place or behind. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. |
+| `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, the agent working setup, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing, and exits 0 when it could make the plan, blocked components too. Exit 1 means it could not plan, so a script can tell a plan with blockers from no plan; the plan names each blocker, and `office update` itself exits 1 for it. |
+| `office doctor` | read-only: whether your zsh hides `office` or `fm` with a function or an alias, and where that is defined; each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active; the agent working setup that `office setup agents` wrote, in place or behind. Changes nothing. The zsh check runs your zsh startup files once, and stops what they leave running in that shell. Unknown is never reported as healthy: it exits 1 on any problem. |
 | `office status` | read-only: what is running, what the office owns, its agents by state, meter health, pending restarts, the other herdr sessions on this machine, an Agent Office update the last fetch saw, and the result of the last `office off` and of the hooks. Unknown is never reported as healthy: it exits 1 on any problem. Pending updates are planned, with `office update`. |
 | `office open [<project>]` | go to a project's space in the office's herdr session, or make one with its first pane in the project; attach when the terminal is outside herdr. With no project named, fzf picks one from the projects Firstmate has registered and cloned (its `data/projects.md`, read only) and the git checkouts directly inside each `open.roots` folder. An exact name opens without a picker, a part of one opens the picker typed in, a folder (`office open .`) opens that folder. A space is the project's when its label is the project's name and one of its panes is in the project's folder; nothing is closed or renamed. `--list` prints the projects. Inside the office, `prefix+f` runs it in a popup. Needs the herdr session running; `office on` starts it. |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` starts it. |
@@ -259,7 +259,8 @@ The rules the config follows:
 First, your shell. zsh finds a function or an alias before any command, so a
 zsh that defines `office` or `fm` never runs Agent Office's. `office doctor`
 starts the zsh a new terminal gets (an interactive login shell, with your
-`HOME` and `ZDOTDIR`) and asks it `whence -w office fm`. A function or an
+`HOME` and `ZDOTDIR` and a clean environment) and asks it `whence -w office
+fm`. What your startup files leave running in that shell is stopped again. A function or an
 alias is a problem, with the file and line that define it and the line that
 loaded that file. The fix it names is yours to make, except the tmux office's
 loader line, which `office install` removes. `office install --check` lists the
@@ -489,19 +490,25 @@ name, is somebody else's: `office off` says so, leaves it running and exits 1.
   offices this installation started, and the last `office off`. It counts the
   office's agents by state. It names each other herdr session that runs, with
   its agent count, as "not this office's": those are no problem. In the managed
-  release checkout it compares `HEAD` with the last fetched `origin/HEAD`, with
-  no network call: "Agent Office update available (`c347b34` to `dd8837e`)".
+  release checkout it compares `HEAD` with `origin/HEAD` as the checkout last
+  fetched it, with no network call, and says how old that fetch is: "Agent
+  Office update available (`c347b34` to `dd8837e`)". It never says "up to
+  date": only `office update --check` asks origin.
   It shows the last result of the walk-in and go-home hooks; a failed one is a
   problem. It also names each Firstmate worker that a herdr restart left
   without its launch flags, as "After a restart" below says.
-- **Hooks.** `office on` runs `hooks.on` after the session and Firstmate are
-  up, each time, also when it only focuses what runs; then it attaches. A
+- **Hooks.** `office on` runs `hooks.on` when it started the session or
+  Firstmate, once both are up; then it attaches. When it only focuses what
+  runs, it runs no hook, so a terminal that runs `office on` for each new
+  window does not run them again. A
   failed hook is named and makes `office on` exit 1, but on a terminal it
   still attaches: the office is up. `office off` runs `hooks.off` once
   `office.session` has stopped, from the helper that stopped it, so they run
-  when `office off` was typed inside the session too. They do not run when
-  nothing was stopped. Each hook runs directly, never through a shell, with
-  your environment.
+  when `office off` was typed inside the session too. They run also when the
+  meter outlived the session. They do not run when the session did not stop.
+  Each hook runs directly, never through a shell, with your environment. A
+  hook is done when it exits: a service it starts can keep running. A hook
+  that runs past 10 minutes is stopped, with what it started.
 
 #### After a restart
 

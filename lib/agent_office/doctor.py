@@ -590,7 +590,8 @@ tool itself) and whether this release is tested with that version, or it is the 
 Also herdr's integration for your harness, and your Firstmate source, checkout and home.
 For the herdr config and the meter it shows what is installed and, when the office's herdr
 session runs, what is active in it: an update on disk is not active until the session loads it.
-It starts nothing and changes nothing. Exit 0 only when it finds no problem: a version, owner or
-state it cannot find out counts as a problem.
+It changes nothing. Exit 0 only when it finds no problem: a version, owner or state it cannot
+find out counts as a problem.
 It also asks your zsh (`whence -w`, in a new interactive login shell) whether a function or an
-alias hides the office or fm command, and names the file and line it comes from."""
+alias hides the office or fm command, and names the file and line it comes from. That runs your
+zsh startup files once; what they leave running in that shell is stopped again."""

@@ -209,7 +209,7 @@ check("it asks herdr for Firstmate and its pane's argv, nothing else",
       and all(l.split()[2] in ("status", "agent", "pane") for l in log.read_text().splitlines() if l), log.read_text())
 for fake, said in ((dict(FAKE_FM="rc", FAKE_CLAUDE="old"), "too old"),
                    (dict(FAKE_FM="rc", FAKE_AUTH="apikey"), "not a claude.ai account"),
-                   (dict(FAKE_FM="rc", FAKE_AUTH="out"), "`claude auth status` did not answer"),
+                   (dict(FAKE_FM="rc", FAKE_AUTH="out"), "not signed in"),
                    (dict(FAKE_FM="plain"), "started without --remote-control"),
                    (dict(FAKE_FM="none"), "not running")):
     r = remote(port=CLOSED, tailscale=False, **fake)

@@ -37,8 +37,8 @@ USAGE = "usage: office remote    read-only: can your phone reach the running off
 RC_FLAG = "--remote-control"
 
 
-def _claude(env, *args) -> str | None:
-    """What `claude <args>` prints, or None when it does not run or fails."""
+def _claude(env, *args, any_exit=False) -> str | None:
+    """What `claude <args>` prints, or None when it does not run or fails (any exit, with any_exit)."""
     exe = shutil.which("claude", path=env.get("PATH"))
     if exe is None:
         return None
@@ -46,7 +46,7 @@ def _claude(env, *args) -> str | None:
         r = subprocess.run([exe, *args], env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=20)
     except (OSError, subprocess.TimeoutExpired):
         return None
-    return r.stdout if r.returncode == 0 else None
+    return r.stdout if r.returncode == 0 or any_exit else None
 
 
 def _rc_name(argv: list) -> str | None:
@@ -78,7 +78,8 @@ def remote_control(cfg: dict, env, running) -> tuple:
     else:
         facts.append(("claude", f"has {RC_FLAG}"))
     try:
-        auth = json.loads(_claude(env, "auth", "status", "--json") or "")
+        # signed out, `claude auth status` exits 1 and still says so in its JSON
+        auth = json.loads(_claude(env, "auth", "status", "--json", any_exit=True) or "")
     except ValueError:
         auth = None
     if not isinstance(auth, dict):

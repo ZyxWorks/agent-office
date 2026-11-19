@@ -533,6 +533,16 @@ else:
     r = h.run("install", "--check", PATH=zpath)
     check("office install --check lists both as yours to fix", r.returncode == 0 and "~/conf/workspace.zsh" in r.stdout
           and "line 2: office() {" in r.stdout and 'line 3: alias fm="echo mine"' in r.stdout, r.stdout + r.stderr)
+    # a startup file that leaves a job running, and a definition behind a guard on the caller's variables
+    (h.home / ".zshrc").write_text('if [[ -z $HERDR_ENV ]]; then\n  FN { echo old; }\nfi\n( sleep 40 ) &!\n'.replace("FN", "office()"))
+    began = time.monotonic()
+    r = h.run("doctor", PATH=zpath, HERDR_ENV="1")
+    took = time.monotonic() - began
+    left = subprocess.run(["pgrep", "-f", "sleep 40"], capture_output=True, text=True).stdout.split()
+    check("a job the startup files leave running: zsh answers at once, and the job is stopped",
+          took < 15 and "did not answer" not in r.stdout and not left, f"{took:.1f}s {left} " + r.stdout)
+    check("zsh runs as in a new terminal, not with the caller's HERDR_ENV: the guarded function is found",
+          "office: a shell function from ~/.zshrc line 2" in r.stdout, r.stdout)
     (h.home / ".zshrc").write_text('export EDITOR=vi\n')
     r = h.run("doctor", PATH=zpath)
     check("a zsh that hides neither: no such problem", "command in every zsh" not in r.stdout

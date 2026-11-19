@@ -244,7 +244,9 @@ class Installer:
                          "run `office doctor` in a new terminal")]
         out = []
         for s in found or []:
-            if doctor.install_fixes(s, self.env) and any(st.path == s.loader[0] and st.kind == "edit" for st in steps):
+            # the tmux office's loader line already has a step of its own: an edit, or a manual step
+            # for a startup file that is a link
+            if s.loader and LEGACY_ZSH[0].match(s.loader[2].rstrip("\"'")) and any(st.path == s.loader[0] for st in steps):
                 continue
             # the line the fix names: the tmux office's loader, else the definition itself
             legacy = s.loader and LEGACY_ZSH[0].match(s.loader[2].rstrip("\"'"))
