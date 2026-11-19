@@ -438,6 +438,35 @@ try:
     meta.unlink()
     stale.unlink()
 
+    print("office status names the workers a herdr restart left without their launch flags")
+    office("on")
+    wt = {k: root / f"wt-{k}" for k in ("husk", "bare", "full")}
+    panes = {}
+    for k, d in wt.items():
+        d.mkdir()
+        panes[k] = herdr(A, "tab", "create", "--cwd", str(d), "--no-focus")["root_pane"]["pane_id"]
+        (fmhome / "state" / f"{k}-task.meta").write_text(
+            f"backend=herdr\nherdr_session={A}\nherdr_pane_id={panes[k]}\nworktree={d}\n")
+    time.sleep(1)
+    # what herdr's default runs after a restart, and a worker started again with its own flags.
+    # The husk is the shell a restart leaves when the preset turns that resume off.
+    herdr(A, "agent", "start", "bare", "--kind", "claude", "--pane", panes["bare"], "--", "--resume", "4c1d")
+    herdr(A, "agent", "start", "full", "--kind", "claude", "--pane", panes["full"], "--",
+          "--permission-mode", "auto", "--add-dir", str(fmhome), "--resume", "4c1d")
+    r = office("status")
+    check("the husk and the bare `claude --resume` are named by their tasks, each a problem; the worker "
+          "with its flags is not", r.returncode == 1 and f"worker husk-task: no agent runs in pane {panes['husk']}"
+          in r.stdout and f"worker bare-task: pane {panes['bare']} runs as a bare `claude --resume`" in r.stdout
+          and "full-task" not in r.stdout, r.stdout + r.stderr)
+    for k in ("husk", "bare"):
+        (fmhome / "state" / f"{k}-task.meta").unlink()
+    r = office("status")
+    check("a worker started again with its flags: no problem", r.returncode == 0
+          and "1 task record(s) here: no husk, no bare resume" in r.stdout, r.stdout + r.stderr)
+    (fmhome / "state" / "full-task.meta").unlink()
+    r = office("off", "--yes")
+    check("and office off stops it", r.returncode == 0 and not running(A), r.stdout + r.stderr)
+
     print("office off typed in a pane of the session it stops")
     office("on")
     rec = record(A)

@@ -469,7 +469,29 @@ name, is somebody else's: `office off` says so, leaves it running and exits 1.
   config it started with and the meter (the same checks as `office doctor`),
   Firstmate and the other agents with their state, the terminals attached by
   `office on` or `fm`, whether herdr says its server needs a restart, other
-  offices this installation started, and the last `office off`.
+  offices this installation started, and the last `office off`. It also names
+  each Firstmate worker that a herdr restart left without its launch flags, as
+  the next part says.
+
+#### After a restart
+
+When the herdr server starts again, after a reboot say, herdr's default
+(`[session] resume_agents_on_restore = true`) resumes every agent pane as a bare
+`claude --resume <id>`. The conversation comes back. The flags the agent started
+with do not: the permission mode, the `--add-dir` folders, `--settings` and the
+effort. For a Firstmate worker those flags are its contract. The office preset
+turns the resume off. The pane then comes back as a shell that still holds the
+agent's session id: a husk, which is what Firstmate's own herdr doc expects
+after a restart. Firstmate starts the worker again; started with its own flags
+and `--resume <id>`, it keeps the same conversation and the same contract.
+
+`office status` names each worker that a task record in Firstmate's home places
+in this session and that runs without its contract: a husk (a pane with no
+agent) or a bare `claude --resume`. Each one is a problem until Firstmate starts
+it again. Measured on herdr 0.9.1 and Claude Code 2.1.328 in a herdr lab: a bare
+resume kept the model and the appended system prompt, which Claude Code reads
+back from the conversation, and lost the effort and every other flag; a resume
+with the flags kept all of them and the session id.
 
 A session `office on` did not start is stopped by its owner only. After `herdr update --handoff` replaces a running server,
 the record no longer names the process, and `office off` leaves that session

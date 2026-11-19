@@ -138,6 +138,16 @@ type = "plugin_action"
 command = "agent-office.meter.editor"
 description = "editor pane in this worktree"
 
+# After a restart of the herdr server (a reboot, say), herdr's default resumes each agent pane as a
+# bare `claude --resume <id>`: the conversation comes back, but not the flags the agent started
+# with (permission mode, --add-dir folders, settings, effort). For a Firstmate worker that is its
+# contract. Off, the pane comes back as a shell that still holds the agent's session id: a husk,
+# as Firstmate expects after a restart. Started again with its own flags and `--resume <id>`, the
+# worker keeps its conversation and its contract. `office status` names a worker left either way.
+# Measured on herdr 0.9.1 and Claude Code 2.1.328 in a herdr lab (README, "After a restart").
+[session]
+resume_agents_on_restore = false
+
 [ui]
 # Agents panel grouped by space. herdr's default too, kept explicit because it is a choice
 # (the other one, "priority", reorders the list as agents change state).

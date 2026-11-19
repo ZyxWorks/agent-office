@@ -312,6 +312,12 @@ def main():
     # 6. A new user still gets herdr's onboarding.
     check(re.search(r"^\s*onboarding\s*=", text, re.M) is None, "onboarding is left to herdr")
 
+    # 6b. A herdr restart never resumes an agent without its launch flags (README, "After a
+    # restart"): the pane comes back as a shell, and Firstmate starts the worker again.
+    session = re.search(r"^\[session\]\n(.*?)(?=^\[)", text, re.S | re.M)
+    check(bool(session) and re.search(r"^resume_agents_on_restore\s*=\s*false\s*$", session.group(1), re.M),
+          "[session] resume_agents_on_restore = false")
+
     # 7. The done sound is there and silent.
     check(os.path.getsize(SOUND) > 0, "sounds/silent.mp3 exists")
     if shutil.which("ffmpeg"):
