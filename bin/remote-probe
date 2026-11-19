@@ -15,6 +15,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -35,13 +36,41 @@ cfg.write_text('schema = 1\n[office]\nsession = "probe-office"\n')
 shim = root / "bin"
 shim.mkdir()
 log = root / "herdr.log"
+code = root / "fm-code"
+code.mkdir()
+# Firstmate as herdr reports it, and the argv its pane runs: FAKE_FM is none, plain or rc
 (shim / "herdr").write_text(f"""#!/bin/sh
 echo "$*" >> '{log}'
 [ "$FAKE_HERDR" = garbled ] && {{ echo nonsense; exit 0; }}
+if [ "$3 $4" = "agent get" ]; then
+  if [ "${{FAKE_FM:-none}}" = none ]; then echo '{{"error":{{"code":"agent_not_found","message":"no"}}}}' >&2; exit 1; fi
+  echo '{{"result":{{"agent":{{"agent":"claude","agent_status":"idle","cwd":"{code}","pane_id":"w1:p1"}}}}}}'; exit 0
+fi
+if [ "$3 $4" = "pane process-info" ]; then
+  if [ "$FAKE_FM" = rc ]; then rc=',"--remote-control","firstmate"'; else rc=''; fi
+  echo '{{"result":{{"process_info":{{"foreground_processes":[{{"pid":7,"argv":["claude","--model","x"'"$rc"']}}]}}}}}}'; exit 0
+fi
 if [ "$FAKE_HERDR" = running ]; then echo '{{"server":{{"running":true}}}}'; else echo '{{"server":{{"running":false}}}}'; fi
 """)
 (shim / "tailscale").write_text('#!/bin/sh\n[ "$1 $2" = "status --json" ] && cat "$FAKE_TS"\n')
-for f in ("herdr", "tailscale"):
+# Claude Code: FAKE_CLAUDE is old (no --remote-control) or new; FAKE_AUTH the sign-in it reports
+(shim / "claude").write_text("""#!/bin/sh
+if [ "$1" = --help ]; then
+  echo "Usage: claude [options]"
+  [ "$FAKE_CLAUDE" = old ] || echo "  --remote-control [name]  Start an interactive session with Remote Control enabled"
+  exit 0
+fi
+if [ "$1 $2 $3" = "auth status --json" ]; then
+  case "$FAKE_AUTH" in
+    apikey) echo '{"loggedIn": true, "authMethod": "api_key"}';;
+    out) echo '{"loggedIn": false}'; exit 1;;
+    *) echo '{"loggedIn": true, "authMethod": "claude.ai"}';;
+  esac
+  exit 0
+fi
+exit 2
+""")
+for f in ("herdr", "tailscale", "claude"):
     (shim / f).chmod(0o755)
 ts = root / "ts.json"
 
@@ -49,6 +78,19 @@ listener = socket.socket()
 listener.bind(("127.0.0.1", 0))
 listener.listen(8)
 OPEN = listener.getsockname()[1]
+
+
+def answer():
+    # accept and close each check's connection, as an SSH server does: a backlog nobody empties
+    # fills up, and then the port no longer answers
+    while True:
+        try:
+            listener.accept()[0].close()
+        except OSError:
+            return
+
+
+threading.Thread(target=answer, daemon=True).start()
 s = socket.socket()
 s.bind(("127.0.0.1", 0))
 CLOSED = s.getsockname()[1]
@@ -66,8 +108,8 @@ env = {k: v for k, v in os.environ.items() if not k.startswith(("XDG_", "HERDR_"
 env.update(HOME=str(home), PYTHONDONTWRITEBYTECODE="1", PATH=f"{shim}:/usr/bin:/bin", FAKE_TS=str(ts))
 
 
-def remote(*args, port=OPEN, herdr="running", tailscale=True, app=str(root / "no-app")):
-    e = dict(env, FAKE_HERDR=herdr or "")
+def remote(*args, port=OPEN, herdr="running", tailscale=True, app=str(root / "no-app"), **fake):
+    e = dict(env, FAKE_HERDR=herdr or "", **fake)
     if not tailscale:
         e["PATH"] = "/usr/bin:/bin" if herdr is None else f"{root / 'herdr-only'}:/usr/bin:/bin"
     elif herdr is None:
@@ -78,6 +120,7 @@ def remote(*args, port=OPEN, herdr="running", tailscale=True, app=str(root / "no
 
 (root / "herdr-only").mkdir()
 (root / "herdr-only" / "herdr").symlink_to(shim / "herdr")
+(root / "herdr-only" / "claude").symlink_to(shim / "claude")
 (root / "ts-only").mkdir()
 (root / "ts-only" / "tailscale").symlink_to(shim / "tailscale")
 RUNNING = ('{"BackendState": "Running", "Self": {"DNSName": "desk.example-tailnet.ts.net.", '
@@ -144,6 +187,46 @@ ts.write_text("not json")
 r = remote()
 check("an answer it cannot read is unknown, not ready", r.returncode == 1 and "Tailscale is unknown" in r.stdout,
       r.stdout + r.stderr)
+
+print("Remote Control, the first way")
+ts.write_text(RUNNING)
+RC = f'schema = 1\n[office]\nsession = "probe-office"\n[firstmate]\ncode = "{code}"\nremote_control = "firstmate"\n'
+plain = cfg.read_text()
+r = remote(port=CLOSED, tailscale=False)
+check("not set: says how to set it, and SSH decides the exit", r.returncode == 1 and "off (firstmate.remote_control)" in r.stdout
+      and 'remote_control = "firstmate"' in r.stdout, r.stdout + r.stderr)
+cfg.write_text(RC)
+r = remote(port=CLOSED, tailscale=False, FAKE_FM="rc")
+check("all three Remote Control checks pass with SSH off: exit 0", r.returncode == 0
+      and "has --remote-control" in r.stdout and "a claude.ai account" in r.stdout
+      and "Remote Control on as `firstmate`" in r.stdout, r.stdout + r.stderr)
+check("and it says where on the phone, and how to get pushes",
+      "open the Claude app, go to Code, and open `firstmate`" in r.stdout and "Push when Claude decides" in r.stdout
+      and r.stdout.index("Remote Control") < r.stdout.index("SSH"), r.stdout)
+check("it asks herdr for Firstmate and its pane's argv, nothing else",
+      any(l.endswith("agent get firstmate") for l in log.read_text().splitlines())
+      and any(l.endswith("pane process-info --pane w1:p1") for l in log.read_text().splitlines())
+      and all(l.split()[2] in ("status", "agent", "pane") for l in log.read_text().splitlines() if l), log.read_text())
+for fake, said in ((dict(FAKE_FM="rc", FAKE_CLAUDE="old"), "too old"),
+                   (dict(FAKE_FM="rc", FAKE_AUTH="apikey"), "not a claude.ai account"),
+                   (dict(FAKE_FM="rc", FAKE_AUTH="out"), "`claude auth status` did not answer"),
+                   (dict(FAKE_FM="plain"), "started without --remote-control"),
+                   (dict(FAKE_FM="none"), "not running")):
+    r = remote(port=CLOSED, tailscale=False, **fake)
+    check(f"Remote Control not ready ({said}) and SSH off: exit 1, said so", r.returncode == 1 and said in r.stdout
+          and "Remote Control is not ready" in r.stdout and "open the Claude app" not in r.stdout, r.stdout + r.stderr)
+r = remote(FAKE_FM="plain")
+check("Remote Control not ready, SSH ready: exit 0 by SSH", r.returncode == 0 and "Remote Control is not ready" in r.stdout
+      and "Ready. On your phone, in an SSH app" in r.stdout, r.stdout + r.stderr)
+r = remote(port=CLOSED, tailscale=False, herdr="stopped", FAKE_FM="rc")
+check("the office not running: Remote Control is not ready either", r.returncode == 1
+      and "the office is not running" in r.stdout, r.stdout + r.stderr)
+cfg.write_text(RC + 'harness = "codex"\n')
+r = remote()
+check("remote_control with harness codex is a config error", r.returncode == 1
+      and 'firstmate.remote_control needs firstmate.harness = "claude"' in r.stderr, r.stdout + r.stderr)
+cfg.write_text(plain)
+log.write_text("")
 
 print("usage, config and side effects")
 ts.write_text(RUNNING)

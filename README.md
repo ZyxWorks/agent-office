@@ -162,6 +162,12 @@ source = "<public-upstream-or-your-fork>"
 code = "<local-code-checkout>"
 home = "<private-operational-home>"
 harness = "claude"
+args = []                             # extra harness arguments, one word each
+remote_control = false                # a name such as "firstmate": Remote Control, for your phone
+
+[hooks]                               # your own commands, each a list of words
+on = []                               # office on: once the session and Firstmate are up
+off = []                              # office off: once the session has stopped
 
 [treehouse]
 # root = "<local-pool-root>"          # optional; treehouse's own default otherwise
@@ -190,6 +196,8 @@ What each part does:
 | `[editor]` | the editor pane, off by default: `enabled`, `command` (the editor; else `$VISUAL`, `$EDITOR`, then `nvim`), `office_config` (nvim gets the office's config, `true`) and `split` (`"right"` or `"down"`). Used by `office editor` and `prefix+i`. See [Editor](#editor) |
 | `[notify]` | phone notifications, off by default: `enabled`, `provider` (`"ntfy"`), `url` (your server and topic, which only your file holds) and `quiet`. Used by `office notify` and the meter plugin's hook |
 | `[setup]` | the agent working setup: test workers and subagents, models, the cold-cache minutes, branches, gate commands, review and captain preferences, Firstmate's switches, the Claude Code theme. Checked like the rest. `office setup` fills [setup/](setup)'s templates in from it |
+| `[firstmate]` `args`, `remote_control` | `args`: extra arguments for the harness each time `fm` or `office on` starts Firstmate, a list of words such as `["--model", "claude-opus-5-5"]`, before the ones typed on `fm`. `remote_control`: `false`, or a name such as `"firstmate"`; with `harness = "claude"` Firstmate then starts with `--remote-control <name>`, so the Claude app on your phone lists it. See [From your phone](#from-your-phone) |
+| `[hooks]` | your own commands: `on` runs each time `office on` has the session and Firstmate up, `off` once `office off` has stopped `office.session`. Each is a list of commands, and each command a list of words, such as `on = [["~/bin/pull-all"], ["zyx", "on"]]`. The first word is the program (a leading `~/` is your home); no shell runs them, so `;` or `$(...)` is only text. A hook that fails stops nothing: the command names it and exits 1, and `office status` shows the last result. A hook gets 10 minutes |
 | `[office]`, `[firstmate]`, `[treehouse]`, `[meter]` | checked (an unknown key or a wrong type is an error). `office install` writes `[meter]` where the meter plugin reads it on every pass. `office doctor` reports `[firstmate]`, `treehouse.root` and the settings the running meter uses. `fm`, `office on`, `office off` and `office status` use `office.session` and `[firstmate]` except `source`. `treehouse.root` is only reported |
 
 The generated herdr config is written to
@@ -224,13 +232,13 @@ The rules the config follows:
 | `office setup agents` | write the agent working setup into your home from your `[setup]` keys: the agent rules (`~/AGENTS.md`, linked as `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), the review and release process, Claude Code's settings and hooks, Firstmate's model picks and switches, the no-mistakes and gnhf settings. Agent Office owns only what it puts in: a marked block, its own keys, its own files; yours stay. Shows every change first; asks before changing what you changed, and backs it up. `--check` only plans; `--remove` takes out what it put in. See [setup/README.md](setup/README.md). |
 | `office tools` | install the tools the office uses that are missing, at pinned versions, each through its owner. A tool you have is left as it is. Shows the list and asks first. `--check` only plans; `--workstation` adds the optional workstation tools. |
 | `office config check` / `office config show` | check the config, and the herdr config made from it / print the config in effect |
-| `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; attach. Running it again focuses what is there. Starts no workers. |
+| `office on` | check the config, the generated herdr config and herdr's version; create the configured herdr session against the generated config, or use the one that runs; make sure one Firstmate is running for the configured home; run the walk-in hooks (`hooks.on`); attach. Running it again focuses what is there. Starts no workers. |
 | `office break` | detach only: the terminals `office on` and `fm` attached. Firstmate, the workers and the terminals keep running. herdr has no detach command, so a herdr you attached yourself detaches with its key, which `office break` prints. |
-| `office off` | stop this office: show what will stop, ask, let Firstmate save its work, and only when the save is confirmed stop the owned session and its meter. A session `office on` did not start is left running. It refuses while an agent in the session is working or waiting; `--stop-workers` has Firstmate stop its own busy workers first, keeping their worktrees and task records. `--force`, confirmed separately on the terminal, stops when the save fails. Repos and worktree pools are kept. |
+| `office off` | stop this office: show what will stop, ask, let Firstmate save its work, and only when the save is confirmed stop the owned session and its meter. A session `office on` did not start is left running. It refuses while an agent in the session is working or waiting; `--stop-workers` has Firstmate stop its own busy workers first, keeping their worktrees and task records. `--force`, confirmed separately on the terminal, stops when the save fails. Then it runs the go-home hooks (`hooks.off`), which its plan lists. Repos and worktree pools are kept. |
 | `office off --all` / `officeoff-all` | stop every office this installation owns, after showing the targets and asking to confirm. Two spellings, one implementation. Anything left running makes it exit non-zero. |
-| `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, the agent working setup, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing. |
-| `office doctor` | read-only: each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active; the agent working setup that `office setup agents` wrote, in place or behind. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. |
-| `office status` | read-only: what is running, what the office owns, meter health, pending restarts, and the result of the last `office off`. Unknown is never reported as healthy: it exits 1 on any problem. Pending updates are planned, with `office update`. |
+| `office update` | move every component (this checkout with its CLI, preset and meter, the generated config, the agent working setup, herdr, treehouse, no-mistakes, the npm tools and Firstmate) to the version this release names, each through its owner. Shows the plan and asks first; restarts nothing. Reports each as updated, unchanged, skipped, failed, or updated on disk but not yet active, and exits 0 only when all are updated or unchanged. `--check` only plans: it changes nothing, and exits 0 when it could make the plan, blocked components too: the plan names each blocker, and `office update` itself exits 1 for it. |
+| `office doctor` | read-only: whether your zsh hides `office` or `fm` with a function or an alias, and where that is defined; each component's installed version, who updates it (a package manager or the tool itself), and whether this release is tested with that version; herdr's integration for your harness; your Firstmate source, checkout, revision and home; the herdr config and meter, installed and, while the office session runs, active; the agent working setup that `office setup agents` wrote, in place or behind. Changes nothing. Unknown is never reported as healthy: it exits 1 on any problem. |
+| `office status` | read-only: what is running, what the office owns, its agents by state, meter health, pending restarts, the other herdr sessions on this machine, an Agent Office update the last fetch saw, and the result of the last `office off` and of the hooks. Unknown is never reported as healthy: it exits 1 on any problem. Pending updates are planned, with `office update`. |
 | `office open [<project>]` | go to a project's space in the office's herdr session, or make one with its first pane in the project; attach when the terminal is outside herdr. With no project named, fzf picks one from the projects Firstmate has registered and cloned (its `data/projects.md`, read only) and the git checkouts directly inside each `open.roots` folder. An exact name opens without a picker, a part of one opens the picker typed in, a folder (`office open .`) opens that folder. A space is the project's when its label is the project's name and one of its panes is in the project's folder; nothing is closed or renamed. `--list` prints the projects. Inside the office, `prefix+f` runs it in a popup. Needs the herdr session running; `office on` starts it. |
 | `fm [args]` | open or focus the configured Firstmate, with your arguments passed through unchanged. Needs the herdr session running; `office on` starts it. |
 | `fm restart` | make Firstmate save its work, check that the save worked, then reset it. If the save fails, nothing is reset. Harness `claude` only. |
@@ -238,7 +246,7 @@ The rules the config follows:
 | `office dictate` / `office dictate cancel` | push-to-talk, if `[dictate]` is on: the first run records from the microphone, the next one stops, transcribes on this machine and types the words into the focused pane, without Enter. `prefix+m` runs it. `cancel` throws the recording away. See [Dictation](#dictation). |
 | `office editor` / `office editor --pane PANE` | if `[editor]` is on: the editor in this folder's worktree, or a new pane next to `PANE` that runs it in the worktree of `PANE`'s agent. `prefix+i` runs the second one. See [Editor](#editor). |
 | `office notify needs-you\|pr-ready <message>` | push one line to your phone through `[notify]`. Off by default; quiet mode holds everything but `needs-you`. The meter plugin calls it when an agent turns blocked; anything that knows a PR is ready can call `pr-ready`. |
-| `office remote` | read-only: can your phone reach the running office, and what to type there. Checks the office's herdr session, an SSH server on this machine and Tailscale, then prints the `ssh` line and `office on`, or what is missing. Turns nothing on and opens no port. See [From your phone](#from-your-phone). |
+| `office remote` | read-only: can your phone reach the running office, and how. First Remote Control: a Claude Code with `--remote-control`, a claude.ai sign-in, and the running Firstmate started with it. Then SSH, the fallback: the office's herdr session, an SSH server on this machine and Tailscale, with the `ssh` line and `office on`. It says what is missing, and exits 1 only when neither way is ready. Turns nothing on and opens no port. See [From your phone](#from-your-phone). |
 
 `office install`, `office setup`, `office config`, `office keys`, `office dictate`, `office editor`, `office notify`, `office remote`, `office tools`, `office doctor`, `office update`, `office help`,
 `office version`, `office on`, `office break`, `office off`, `office status`, `office open`, `officeoff-all`, `fm` and `fm restart` are 1.0. Every other verb still runs the tmux office, documented in the
@@ -247,6 +255,15 @@ The rules the config follows:
 `doctor`, what runs and its RAM, is still there as `office list`.
 
 ### What `office doctor` checks
+
+First, your shell. zsh finds a function or an alias before any command, so a
+zsh that defines `office` or `fm` never runs Agent Office's. `office doctor`
+starts the zsh a new terminal gets (an interactive login shell, with your
+`HOME` and `ZDOTDIR`) and asks it `whence -w office fm`. A function or an
+alias is a problem, with the file and line that define it and the line that
+loaded that file. The fix it names is yours to make, except the tmux office's
+loader line, which `office install` removes. `office install --check` lists the
+rest as manual steps. Without zsh this check is skipped.
 
 The components and the versions this release is tested with are data, in
 [`config/components.toml`](config/components.toml). A version is listed there
@@ -469,9 +486,22 @@ name, is somebody else's: `office off` says so, leaves it running and exits 1.
   config it started with and the meter (the same checks as `office doctor`),
   Firstmate and the other agents with their state, the terminals attached by
   `office on` or `fm`, whether herdr says its server needs a restart, other
-  offices this installation started, and the last `office off`. It also names
-  each Firstmate worker that a herdr restart left without its launch flags, as
-  the next part says.
+  offices this installation started, and the last `office off`. It counts the
+  office's agents by state. It names each other herdr session that runs, with
+  its agent count, as "not this office's": those are no problem. In the managed
+  release checkout it compares `HEAD` with the last fetched `origin/HEAD`, with
+  no network call: "Agent Office update available (`c347b34` to `dd8837e`)".
+  It shows the last result of the walk-in and go-home hooks; a failed one is a
+  problem. It also names each Firstmate worker that a herdr restart left
+  without its launch flags, as "After a restart" below says.
+- **Hooks.** `office on` runs `hooks.on` after the session and Firstmate are
+  up, each time, also when it only focuses what runs; then it attaches. A
+  failed hook is named and makes `office on` exit 1, but on a terminal it
+  still attaches: the office is up. `office off` runs `hooks.off` once
+  `office.session` has stopped, from the helper that stopped it, so they run
+  when `office off` was typed inside the session too. They do not run when
+  nothing was stopped. Each hook runs directly, never through a shell, with
+  your environment.
 
 #### After a restart
 
@@ -605,27 +635,44 @@ Set it up once:
 
 ## From your phone
 
-Look at the office, answer an agent or start a task from your phone, the same way a second terminal does it: an SSH app logs in to this machine over a private network, and `office on` there attaches to the office that already runs. There is no office server and no new port: it is SSH, which you turn on yourself, and herdr, which takes more than one terminal at once. Your terminal at the desk stays attached. Closing the app on the phone only detaches it, and everything keeps running. It is off until you set it up, and Agent Office turns none of it on for you.
+There are two ways in. Remote Control is the first: Firstmate in the Claude app, with pushes. SSH is the fallback: the whole office in a terminal app. Agent Office turns neither on for you, and `office remote` checks both:
+
+```sh
+office remote
+```
+
+### Remote Control: Firstmate in the Claude app
+
+Remote Control is Claude Code's own way to reach a running session from the Claude app. Firstmate runs here, as before; the app on your phone shows it and sends to it. Only Firstmate gets it: one entry on your phone, not one per worker. It needs harness `claude`, a Claude Code that has `--remote-control`, and a sign-in with your claude.ai account (an API key cannot).
+
+1. Set a name in `~/.config/agent-office/config.toml`:
+
+   ```toml
+   [firstmate]
+   remote_control = "firstmate"
+   ```
+
+2. Start Firstmate again: quit it in its pane, then run `fm` (or `office on`). It now starts with `--remote-control firstmate`.
+3. Run `office remote`. When the version, the sign-in and the running Firstmate are all right, it says: open the Claude app, go to Code, and open `firstmate`.
+4. For pushes: in Firstmate, run `/config` and turn on "Push when Claude decides". Claude Code then pushes to your phone when Firstmate needs you.
+
+### SSH: the whole office in a terminal app
+
+An SSH app logs in to this machine over a private network, and `office on` there attaches to the office that already runs, the same way a second terminal does. There is no office server and no new port: it is SSH, which you turn on yourself, and herdr, which takes more than one terminal at once. Your terminal at the desk stays attached. Closing the app on the phone only detaches it, and everything keeps running.
 
 Set it up once:
 
 1. **A private network.** Install [Tailscale](https://tailscale.com/download) on this machine and on your phone, signed in to the same account. Any other private network or VPN works the same way, but `office remote` checks only Tailscale. Never forward the SSH port to the internet.
 2. **SSH on this machine.** On macOS: System Settings > General > Sharing > Remote Login, and under its (i) allow only your own user. On Linux: your distribution's OpenSSH server (`apt install openssh-server`). That listens on port 22 on every network the machine joins, not only Tailscale's, so sign in with a key: make one in your phone's SSH app and add its public key to `~/.ssh/authorized_keys` here. Agent Office writes no key and no SSH config.
 3. **An SSH app on the phone**, such as Blink or Termius on iOS, or Termius or JuiceSSH on Android.
-4. **Check it** at this machine:
-
-   ```sh
-   office remote
-   ```
-
-   It says whether the office runs, whether something answers on port 22 and what Tailscale calls this machine. When all three are there, it prints the two lines to type on the phone:
+4. **Check it** with `office remote`. It says whether the office runs, whether something answers on port 22 and what Tailscale calls this machine. When all three are there, it prints the two lines to type on the phone:
 
    ```sh
    ssh <you>@<this-machine>.<tailnet>.ts.net
    office on
    ```
 
-   Otherwise it says what is missing and exits 1.
+`office remote` exits 1 only when neither Remote Control nor SSH is ready.
 
 Start the office at this machine, and from the phone only attach. An office takes the environment of the shell that starts it and hands it to every agent: started from an SSH login, that is the SSH session's, and on macOS an agent there may not reach the login keychain it signed in with. On the phone, `ctrl+space` `d` detaches (or close the app), and `office break` at the desk detaches the phone too.
 

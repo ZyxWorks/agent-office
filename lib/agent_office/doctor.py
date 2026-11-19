@@ -30,7 +30,7 @@ from pathlib import Path
 
 from . import config as C
 from . import editor as E
-from . import setup_home
+from . import install, setup_home, shell
 
 MANIFEST = C.REPO / "config" / "components.toml"
 METER = C.REPO / "herdr"
@@ -398,6 +398,23 @@ class Report:
         self.fact(name, f"{run.get('version') or 'unknown'}, last pass {_ago(now, last)} ago, "
                         f"{_settings(got)}", problems=problems)
 
+    def shell(self):
+        """Whether your zsh reaches the office and fm commands, or a function or alias hides them."""
+        name = "office and fm in zsh"
+        try:
+            found = shell.shadows(self.env)
+        except shell.Unknown as e:
+            self.fact(name, "unknown", problems=[f"{e}, so whether a function or alias hides office or fm is unknown"])
+            return
+        if found is None:
+            self.fact(name, "no zsh here, so nothing in zsh hides them")
+            return
+        if not found:
+            self.fact(name, "reach the commands: no function or alias hides them")
+            return
+        self.fact(name, ", ".join(f"{s.name} is {'a function' if s.kind == 'function' else 'an alias'}" for s in found),
+                  problems=[f"{s.name}: {shell.problem(s, self.show, install_fixes(s, self.env))}" for s in found])
+
     def print(self, out):
         heads = ("", "", "version", "owner (updates it)", "compatibility")
         widths = [max(len(r[i]) for r in [heads, *self.rows]) for i in range(len(heads))]
@@ -414,6 +431,16 @@ class Report:
         print(f"{len(self.problems)} problem(s):", file=out)
         for p in self.problems:
             print("  " + p, file=out)
+
+
+def install_fixes(s, env) -> bool:
+    """Whether `office install` removes the line that loads this one: the tmux office's loader, in a
+    startup file it edits (a link is never written through)."""
+    if not s.loader or not install.LEGACY_ZSH[0].match(s.loader[2]):
+        return False
+    f = s.loader[0]
+    dirs = {C.home(env), Path(env.get("ZDOTDIR") or C.home(env))}
+    return f.name in install.ZSH_STARTUP and f.parent in dirs and not f.is_symlink()
 
 
 def _plugin_version(root: Path) -> str | None:
@@ -544,6 +571,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, manifest: Path = MANIFES
     rep.agents(cfg)
     rep.meter_plugin()
     rep.active(cfg, cfg["office"]["session"])
+    rep.shell()
     rep.print(out)
     return 1 if rep.problems else 0
 
@@ -563,4 +591,6 @@ Also herdr's integration for your harness, and your Firstmate source, checkout a
 For the herdr config and the meter it shows what is installed and, when the office's herdr
 session runs, what is active in it: an update on disk is not active until the session loads it.
 It starts nothing and changes nothing. Exit 0 only when it finds no problem: a version, owner or
-state it cannot find out counts as a problem."""
+state it cannot find out counts as a problem.
+It also asks your zsh (`whence -w`, in a new interactive login shell) whether a function or an
+alias hides the office or fm command, and names the file and line it comes from."""

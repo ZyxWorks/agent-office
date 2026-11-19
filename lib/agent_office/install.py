@@ -13,7 +13,8 @@ What it writes, and nothing else:
   config/components.toml pins and checked against their SHA-256,
 - and it removes the line that loads the tmux office's (0.x) `office` function from your zsh
   startup files: zsh finds a function before any command on PATH, so while it is loaded the
-  1.0 command is never reached.
+  1.0 command is never reached. Any other function or alias that hides office or fm is found by
+  asking zsh itself (shell.py) and pointed out with its file and line, never removed.
 
 ~/.tmux.conf keeps its tmux office lines: every verb 1.0 has not built yet still runs the tmux
 office, and without them its tmux has no prefix, keys or borders.
@@ -53,9 +54,6 @@ LEGACY_ZSH = (
     "# office — one command for a multi-agent tmux cockpit",
 )
 ZSH_STARTUP = (".zshenv", ".zprofile", ".zshrc", ".zlogin")
-# A shell function or alias named fm hides the fm command the same way. It is your own code, not
-# something an installer wrote, so it is only pointed out, never removed.
-OWN_FM = re.compile(r"^\s*(function\s+fm\b|fm\s*\(\s*\)|alias\s+fm=)")
 
 
 def _sha(data: bytes) -> str:
@@ -234,16 +232,27 @@ class Installer:
             self._write(p, keep, mode)
         return Step("edit", p, "stop loading the tmux office (0.x) function", go, self._diff(raw, keep, p.name))
 
-    def own_fm(self, p: Path) -> Optional[Step]:
+    def hidden(self, steps: list) -> list:
+        """A function or alias that hides office or fm in your zsh, asked of zsh itself (shell.py), as
+        a step for you. Any other function or alias is your own code: pointed out, never removed. The
+        tmux office's loader line is the one exception, and a legacy step already removes it."""
+        from . import doctor, shell
         try:
-            lines = p.read_text().splitlines()
-        except (OSError, UnicodeDecodeError):
-            return None
-        found = [f"line {i + 1}: {line}" for i, line in enumerate(lines) if OWN_FM.match(line)]
-        if not found:
-            return None
-        return Step("manual", p, "your own fm, which hides the fm command in zsh: "
-                    "remove it yourself to use Agent Office's", diff=found)
+            found = shell.shadows(self.env)
+        except shell.Unknown as e:
+            return [Step("manual", self.home, f"{e}, so whether a function or alias hides office or fm is unknown: "
+                         "run `office doctor` in a new terminal")]
+        out = []
+        for s in found or []:
+            if doctor.install_fixes(s, self.env) and any(st.path == s.loader[0] and st.kind == "edit" for st in steps):
+                continue
+            # the line the fix names: the tmux office's loader, else the definition itself
+            legacy = s.loader and LEGACY_ZSH[0].match(s.loader[2].rstrip("\"'"))
+            line = s.loader if legacy or not s.line else (s.where, s.line, s.text)
+            out.append(Step("manual", line[0] if line else (s.where or self.home),
+                            f"your own {s.name}: {shell.problem(s, self.show)}",
+                            diff=[f"line {line[1]}: {line[2]}"] if line else []))
+        return out
 
     def want_plugin(self) -> Step:
         """The meter plugin, linked into herdr by herdr itself: `herdr plugin link`.
@@ -363,7 +372,6 @@ class Installer:
         dirs = [self.home, Path(self.env.get("ZDOTDIR") or self.home)]
         for path in dict.fromkeys(d / n for d in dirs for n in ZSH_STARTUP):
             steps.append(self.legacy(path, *LEGACY_ZSH))
-            steps.append(self.own_fm(path))
         return [s for s in steps if s is not None]
 
     def print_plan(self, steps):
@@ -470,6 +478,7 @@ def run(args, env=None, out=sys.stdout, err=sys.stderr, outcome: Optional[dict] 
         return 1
 
     steps = inst.plan(starter, herdr_text, meter_text, editor)
+    steps += inst.hidden(steps)
     inst.say(f"office install{' --check' if check_only else ''}: config {inst.show(cfg_path)}")
     inst.print_plan(steps)
     asks = [s for s in steps if s.asks]
@@ -512,7 +521,8 @@ your config (a starter, only if there is none), herdr's config generated from th
 your [herdr] keys, the meter's settings from your [meter] keys, the office, fm and officeoff-all
 commands in ~/.local/bin, the meter plugin linked into herdr (`herdr plugin link`), with [editor]
 on the editor pane's nvim plugins at their pinned commits, and the line
-that loads the tmux office's (0.x) function removed from your zsh startup files. Anything it
+that loads the tmux office's (0.x) function removed from your zsh startup files. Any other
+function or alias that hides office or fm in your zsh is named, with its file and line. Anything it
 replaces or edits is backed up first. It starts nothing and never touches your own
 ~/.config/herdr/config.toml or ~/.tmux.conf. A running meter reads its new settings on its next
 pass; a running herdr needs a restart (or `herdr server reload-config`) to load its new config.

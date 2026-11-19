@@ -81,9 +81,10 @@ BASE = {"HOME": str(home), "PATH": PATH, "TERM": "xterm-256color", "LANG": "C.UT
 log, mode = code / ".fake-log", code / ".fake-mode"
 
 
-def config(**fm):
+def config(extra="", **fm):
     keys = {"code": str(code), "home": str(fmhome), **fm}
-    text = f'schema = 1\n[office]\nsession = "{SESSION}"\n[firstmate]\n' + "".join(f'{k} = "{v}"\n' for k, v in keys.items())
+    text = (f'schema = 1\n[office]\nsession = "{SESSION}"\n[firstmate]\n' + "".join(f'{k} = "{v}"\n' for k, v in keys.items())
+            + extra)
     cfg = home / ".config" / "agent-office" / "config.toml"
     cfg.parent.mkdir(parents=True, exist_ok=True)
     cfg.write_text(text)
@@ -138,10 +139,14 @@ try:
     r = fm("restart")
     check("fm restart with no Firstmate resets nothing", r.returncode == 1 and "nothing to restart" in r.stderr,
           r.stdout + r.stderr)
+    # firstmate.args and remote_control come first, each word as it is written, then the typed ones
+    config(extra='args = ["--model", "m 1", "x;y"]\nremote_control = "firstmate"\n')
     r = fm("--", "restart", "a b", "x;y $(no)")
     check("fm -- ... starts it", r.returncode == 0 and "started Firstmate" in r.stdout, r.stdout + r.stderr)
-    check("every argument arrives as it was given, restart included",
-          lines()[:1] == [f"start ['restart', 'a b', 'x;y $(no)'] FM_HOME={fmhome}"], str(lines()))
+    check("firstmate.args in order, then --remote-control firstmate, then every typed argument as it was given",
+          lines()[:1] == [f"start ['--model', 'm 1', 'x;y', '--remote-control', 'firstmate', 'restart', 'a b', "
+                          f"'x;y $(no)'] FM_HOME={fmhome}"], str(lines()))
+    config()
     a = agents()
     check("one agent, named firstmate, in the checkout", len(a) == 1 and a[0].get("name") == "firstmate"
           and os.path.realpath(a[0].get("cwd", "")) == os.path.realpath(code), str(a))

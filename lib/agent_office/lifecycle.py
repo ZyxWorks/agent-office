@@ -43,7 +43,7 @@ import time
 from pathlib import Path
 
 from . import config as C
-from . import doctor, fm
+from . import doctor, fm, hooks
 from .install import _confirm, ask
 
 START_SECONDS = 30
@@ -58,11 +58,13 @@ usage: office on
 
 office on      check the config and herdr, start the herdr session office.session against the
                generated herdr config (or use the one that runs), make sure one Firstmate runs
-               in it, and attach. Run again, it focuses what is there. It starts no workers.
+               in it, run the walk-in hooks (hooks.on), and attach. Run again, it focuses what
+               is there and runs the hooks again. It starts no workers.
 office break   detach the terminals office on and fm attached. Everything keeps running.
 office off     stop this office: list what stops, ask, let Firstmate save its work (/stow), and
                only when the save is confirmed stop the herdr session and its meter. Only a
                session office on started is ever stopped. Repos, worktrees and pools are kept.
+               Once office.session has stopped, it runs the go-home hooks (hooks.off).
   --all        every office this installation started, not only the configured one
   --yes        do not ask before stopping. It never forces.
   --stop-workers
@@ -72,8 +74,11 @@ office off     stop this office: list what stops, ask, let Firstmate save its wo
   --force      when the save fails or agents are still busy, offer to stop anyway: asked
                separately, on the terminal, by typing the session name. Unsaved work may be lost.
   --timeout    minutes to wait for Firstmate's save (default 30)
-office status  read-only: what runs, what the office owns, the meter, pending restarts, and the
-               result of the last office off. Exit 0 only when nothing is wrong or unknown."""
+office status  read-only: what runs, what the office owns, its agents by state, the meter, pending
+               restarts, the other herdr sessions, an Agent Office update the last fetch saw,
+               and the last office off and hooks. Exit 0 only when nothing is wrong or unknown.
+
+A hook that fails does not stop office on or office off: it is named, and the command exits 1."""
 
 
 # --- records ----------------------------------------------------------------------------------
@@ -287,9 +292,14 @@ def on(args, env, out, err) -> int:
     except (fm.Fail, fm.HerdrError, C.ConfigError) as e:
         print(f"office on: {e}", file=err)
         return 1
+    # after the lock: a hook may take minutes, and must not hold up an fm in another terminal
+    failed = hooks.run(cfg["hooks"]["on"], "on", env, out)
+    for f in failed:
+        print(f"office on: {f}. The office runs; `office status` shows it.", file=err)
     if client:
-        fm.attach(client, env)
-    return 0
+        out.flush()
+        fm.attach(client, env)  # the office is up: a failed hook is reported above, not a reason to stay out
+    return 1 if failed else 0
 
 
 # --- office break -----------------------------------------------------------------------------
@@ -476,7 +486,7 @@ def _agent_line(a: dict, show) -> str:
             f"{show(a.get('cwd') or '?')}{name}")
 
 
-def _plan(t: Target, show, out, stop_workers: bool):
+def _plan(t: Target, show, out, stop_workers: bool, home: list = ()):
     o, rec = t.o, t.rec
     if t.state == "stopped":
         print(f"  office '{t.session}': not running any more. Only its record is cleared.", file=out)
@@ -516,6 +526,10 @@ def _plan(t: Target, show, out, stop_workers: bool):
         print(f"    terminals      {n} attached by office on or fm: they detach", file=out)
     if t.inside:
         print("    this pane      is in that session: it ends with it. The result is recorded first.", file=out)
+    if home:
+        print(f"    go-home hooks  {len(home)}, run in order once the session has stopped (hooks.off):", file=out)
+        for h in home:
+            print(f"      {hooks.show(h)}", file=out)
 
 
 def _stop(rec: dict, env) -> dict:
@@ -603,8 +617,10 @@ def _claude_only(o: fm.Office) -> str:
             f"is {o.harness}, so the save cannot be confirmed")
 
 
-def _one(t: Target, run: Run, minutes: int, force: bool, stop_workers: bool, out) -> tuple:
-    """Stop one office, or say why not. Returns (result, detail)."""
+def _one(t: Target, run: Run, minutes: int, force: bool, stop_workers: bool, out,
+         home: list = (), nonce: str = "") -> tuple:
+    """Stop one office, or say why not. Returns (result, detail). Once it has stopped, the
+    helper that stopped it runs the go-home hooks `home`, so they run even when this pane ends."""
     if t.state == "stopped":
         _forget(t.session, t.env)
         return "already stopped", "its record is cleared"
@@ -694,7 +710,16 @@ def _one(t: Target, run: Run, minutes: int, force: bool, stop_workers: bool, out
     if t.inside:
         print(f"office off: stopping '{t.session}' from inside it. If this pane ends before the result is "
               f"printed, `office status` shows it ({run.path}).", file=out)
-    _detached(lambda: run.set(t.session, **_stop(t.rec, t.env)))
+
+    def work():
+        got = _stop(t.rec, t.env)
+        run.set(t.session, **got)
+        if got["result"] == "stopped" and home:
+            # the session is gone: its pane variables name nothing a hook should follow
+            henv = {k: v for k, v in t.env.items() if k not in ("HERDR_ENV", "HERDR_SOCKET_PATH", "HERDR_PANE_ID")}
+            hooks.run(list(home), "off", henv, None, nonce)
+
+    _detached(work)
     got = run.get(t.session)
     if got.get("result") in ("stopped", "incomplete"):
         return got["result"], got.get("detail", "")
@@ -738,9 +763,14 @@ def off(args, env, out, err) -> int:
             return _nothing(session, everything, env, out, err)
         ts = [Target(r, _office(r, cfg, env, "office off"), env) for r in recs]
         ts.sort(key=lambda t: t.inside)  # the session this command sits in goes last
+        home = cfg["hooks"]["off"]
+        nonce = os.urandom(8).hex()
+
+        def home_of(t):
+            return home if t.session == session and t.state == "owned" else []
         print(f"{who}: this stops" + (" every office this installation started" if everything else "") + ":", file=out)
         for t in ts:
-            _plan(t, show, out, stop_workers)
+            _plan(t, show, out, stop_workers, home_of(t))
         for p in bad:
             print(f"  office '{p.stem}': its record {show(p)} cannot be read. Nothing is stopped.", file=out)
         print("Kept: repos, worktrees, worktree pools and Firstmate's own records. Nothing is deleted.", file=out)
@@ -764,7 +794,7 @@ def off(args, env, out, err) -> int:
                 result, detail = "kept", "cancelled before its turn. Nothing was stopped."
             else:
                 try:
-                    result, detail = _one(t, run, minutes, force, stop_workers, out)
+                    result, detail = _one(t, run, minutes, force, stop_workers, out, home_of(t), nonce)
                 except KeyboardInterrupt:
                     cancelled = True
                     result, detail = "kept", ("cancelled. The session was not stopped. A save or a worker stop "
@@ -774,11 +804,28 @@ def off(args, env, out, err) -> int:
             print(f"{who}: office '{t.session}': {result if good else result.upper()}: {detail}",
                   file=out if good else err)
             code = code if good else 1
+            if result == "stopped" and home_of(t):
+                code = max(code, _went_home(who, home_of(t), nonce, env, out, err))
         if code:
             print(f"{who}: incomplete. What still runs is listed above; `office status` shows it again.", file=err)
         return code
     finally:
         lock.close()
+
+
+def _went_home(who: str, home: list, nonce: str, env, out, err) -> int:
+    """Report the go-home hooks the stop's helper ran: 1 when one failed or none was recorded."""
+    rec = hooks.last(env, "off")
+    if not rec or rec.get("nonce") != nonce:
+        print(f"{who}: the go-home hooks recorded no result ({hooks.path(env)}).", file=err)
+        return 1
+    for r in rec.get("results", []):
+        if r.get("result") == "ok":
+            print(f"{who}: go-home hook `{hooks.show(r.get('hook') or [])}` ran.", file=out)
+    failed = hooks.failures(rec)
+    for f in failed:
+        print(f"{who}: go-home hook {f}. The session did stop.", file=err)
+    return 1 if failed else 0
 
 
 def _nothing(session: str, everything: bool, env, out, err) -> int:
@@ -800,12 +847,19 @@ def _nothing(session: str, everything: bool, env, out, err) -> int:
     return 1
 
 
-def _others(env, mine: set, out):
-    """The running herdr sessions a stop-all leaves alone, named so the list shown is complete."""
+def _sessions(env) -> list | None:
+    """The names of the herdr sessions that run, or None when herdr does not list them."""
     got = doctor._run(["herdr", "session", "list", "--json"], {k: v for k, v in env.items() if k != "HERDR_SOCKET_PATH"})
     try:
-        names = [s.get("name") for s in json.loads(got or "").get("sessions", []) if s.get("running")]
+        return [s.get("name") for s in json.loads(got or "").get("sessions", []) if s.get("running")]
     except (ValueError, AttributeError):
+        return None
+
+
+def _others(env, mine: set, out):
+    """The running herdr sessions a stop-all leaves alone, named so the list shown is complete."""
+    names = _sessions(env)
+    if names is None:
         print("Other herdr sessions: herdr did not list them. None is touched.", file=out)
         return
     left = [n for n in names if n not in mine]
@@ -853,6 +907,7 @@ def status(args, env, out, err) -> int:
                 "foreign": "another server runs under its name: left alone", "unknown": "unknown"}[st]
         rep.fact(f"office '{r['session']}', also started here", said,
                  problems=["herdr does not say whether it runs"] if st == "unknown" else [])
+    _foreign(rep, env, {session} | {r["session"] for r in mine})
     last = C.read_json(last_off_path(env))
     for t in (last or {}).get("targets", []):
         good = t.get("result") in ("stopped", "already stopped")
@@ -862,6 +917,9 @@ def status(args, env, out, err) -> int:
         rep.fact(f"last office off, '{t.get('session')}'",
                  f"{t.get('result')}, {doctor._ago(_now(), last.get('at'))} ago" + ("" if good else f": {t.get('detail')}"),
                  problems=["the stop began and recorded no result: check what still runs"] if pending else [])
+    for kind in hooks.KINDS:
+        _hooks_fact(rep, cfg, kind, env)
+    _update(rep, env)
 
     print("office status: read-only. Your home folder is shown as ~.", file=out)
     print(f"office '{session}' (office.session)", file=out)
@@ -892,6 +950,7 @@ def _running(o: fm.Office, rep, srv: dict, env):
                  else ["herdr does not know its state"])
     else:
         rep.fact("firstmate", f"not running ({where}): fm starts it")
+    rep.fact("agents", _by_state(agents))
     others = [x for x in agents if x.get("pane_id") != (a or {}).get("pane_id")]
     rep.fact("other agents", str(len(others)) if others else "none")
     for x in others:
@@ -972,6 +1031,69 @@ def _restored(o: fm.Office, rep, agents: list):
                 "office preset does), and let Firstmate start it again"])
     if not bad:
         rep.fact("workers after a restart", f"{len(tasks)} task record(s) here: no husk, no bare resume")
+
+
+def _by_state(agents: list) -> str:
+    """ "3: 1 working, 2 idle" """
+    if not agents:
+        return "none"
+    n = {}
+    for x in agents:
+        k = x.get("agent_status") or "unknown"
+        n[k] = n.get(k, 0) + 1
+    return f"{len(agents)}: " + ", ".join(f"{v} {k}" for k, v in sorted(n.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def _foreign(rep, env, mine: set):
+    """One line per other herdr session that runs: what else this machine runs, beside the office."""
+    names = _sessions(env)
+    if names is None:
+        rep.fact("other sessions", "unknown", problems=["herdr did not list its sessions (`herdr session list`)"])
+        return
+    for name in [n for n in names if n and n not in mine]:
+        try:
+            agents = fm.Herdr(name, env).call("agent", "list").get("agents", [])
+        except (fm.Fail, fm.HerdrError):
+            said = "running, its agents unknown"
+        else:
+            said = f"{len(agents)} agent{'' if len(agents) == 1 else 's'}"
+        rep.fact(f"session '{name}'", f"{said}, not this office's: office off leaves it running")
+
+
+def _hooks_fact(rep, cfg: dict, kind: str, env):
+    rec, have = hooks.last(env, kind), cfg["hooks"][kind]
+    if not rec and not have:
+        return
+    name = f"{hooks.KINDS[kind]} ({len(have)})"
+    if not rec:
+        rep.fact(name, "have not run yet")
+        return
+    failed = hooks.failures(rec)
+    ran = len(rec.get("results", []))
+    said = f"{ran} ran {doctor._ago(_now(), rec.get('at'))} ago: " + (
+        f"{len(failed)} failed" if failed else "all ok")
+    rep.fact(name, said, problems=[f"last run: {f}" for f in failed])
+
+
+def _update(rep, env):
+    """An Agent Office update the last fetch of origin saw. No network call: office update fetches."""
+    if C.REPO.resolve() != C.release_dir(env).resolve():
+        return  # a development checkout: office update never moves it
+    git = ["git", "-C", str(C.REPO)]
+    head = doctor._run([*git, "rev-parse", "--verify", "-q", "HEAD^{commit}"], env)
+    tip = next((t for t in (doctor._run([*git, "rev-parse", "--verify", "-q", f"{r}^{{commit}}"], env)
+                            for r in ("refs/remotes/origin/HEAD", "refs/remotes/origin/main")) if t), None)
+    if not head or not tip:
+        rep.fact("agent office", "unknown: no fetched origin to compare with")
+        return
+    head, tip = head.strip(), tip.strip()
+    short = {c: (doctor._run([*git, "rev-parse", "--short", c], env) or c[:7]).strip() for c in (head, tip)}
+    behind = head != tip and doctor._run([*git, "merge-base", "--is-ancestor", head, tip], env) is not None
+    if behind:
+        rep.fact("agent office", f"Agent Office update available (`{short[head]}` to `{short[tip]}`), "
+                                 "from the last fetch: `office update` installs it")
+    else:
+        rep.fact("agent office", f"`{short[head]}`, up to date with the last fetch of origin")
 
 
 def run(verb: str, args, env=None, out=sys.stdout, err=sys.stderr) -> int:
