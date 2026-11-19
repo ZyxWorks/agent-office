@@ -896,6 +896,7 @@ def _running(o: fm.Office, rep, srv: dict, env):
     rep.fact("other agents", str(len(others)) if others else "none")
     for x in others:
         rep.fact("", _agent_line(x, rep.show))
+    _restored(o, rep, agents)
     n = len(fm.clients(o.session, env))
     rep.fact("terminals", f"{n} attached by office on or fm: office break detaches them" if n
              else "none attached by office on or fm (herdr does not report the ones it attached itself)")
@@ -908,6 +909,69 @@ def _running(o: fm.Office, rep, srv: dict, env):
         rep.fact("restart pending", "none that herdr reports")
     else:
         rep.fact("restart pending", "unknown", problems=["herdr did not say whether its server needs a restart"])
+
+
+def bare_resume(argv: list, harness: str) -> bool:
+    """Whether a process is the harness started with nothing but a resume: what herdr runs for an
+    agent pane after a server restart (`claude --resume <id>`), without the flags it started with.
+    The harness may run under an interpreter, so its own argv entry is found by name."""
+    at = next((i for i, x in enumerate(argv) if os.path.basename(x) == harness), None)
+    if at is None:
+        return False
+    rest = argv[at + 1:]
+    return (len(rest) == 2 and rest[0] in ("--resume", "-r")) or (len(rest) == 1 and rest[0].startswith("--resume="))
+
+
+def _restored(o: fm.Office, rep, agents: list):
+    """Firstmate's workers that a herdr restart left without their launch contract.
+
+    After a server restart herdr either resumes an agent pane as a bare `claude --resume <id>`
+    ([session] resume_agents_on_restore, herdr's default) or, with that off as the preset sets it,
+    brings the pane back as a shell that still holds the agent's session id. A bare resume runs
+    without the permission mode, folders, system prompt, effort and settings Firstmate started it
+    with; a shell is a husk. Both are Firstmate's to start again with its own flags. Only panes a
+    task record names count, and only while their folder is the task's worktree: a new server can
+    reuse a pane id."""
+    tasks = _tasks(o, o.session)
+    if not tasks:
+        return
+    try:
+        panes = {p.get("pane_id"): p for p in o.herdr.call("pane", "list").get("panes", [])}
+    except fm.HerdrError as e:
+        rep.fact("workers after a restart", "unknown", problems=[f"herdr did not list the panes: {e}"])
+        return
+    by_pane = {x.get("pane_id"): x for x in agents}
+    bad = 0
+    for pane, (task, worktree) in sorted(tasks.items()):
+        p = panes.get(pane)
+        if not p or not _in(p.get("foreground_cwd") or p.get("cwd") or "", worktree):
+            continue  # gone, or a pane id a new server gave to something else: not this task's
+        name = f"worker {task}"
+        if pane not in by_pane:
+            bad += 1
+            rep.fact(name, f"pane {pane}: a husk, no agent runs in it", problems=[
+                f"no agent runs in pane {pane}, as after a herdr restart: a husk. Firstmate has to "
+                "start it again, with its own flags and `--resume` with the session id herdr kept"])
+            continue
+        kind = by_pane[pane].get("agent")
+        if kind != "claude":
+            continue  # a bare resume is measured for Claude only; the worker's own harness, not Firstmate's
+        try:
+            procs = o.herdr.call("pane", "process-info", "--pane", pane).get("process_info", {})
+        except fm.HerdrError as e:
+            bad += 1  # not checked, so no all-clear line
+            rep.fact(name, f"pane {pane}: unknown", problems=[f"herdr did not say what runs in it: {e}"])
+            continue
+        argv = next((x.get("argv") or [] for x in procs.get("foreground_processes") or []
+                     if bare_resume(x.get("argv") or [], kind)), None)
+        if argv is not None:
+            bad += 1
+            rep.fact(name, f"pane {pane}: {' '.join(argv)}", problems=[
+                f"pane {pane} runs as a bare `claude --resume`: herdr restored it without the flags "
+                "Firstmate started it with. Set [session] resume_agents_on_restore = false (the "
+                "office preset does), and let Firstmate start it again"])
+    if not bad:
+        rep.fact("workers after a restart", f"{len(tasks)} task record(s) here: no husk, no bare resume")
 
 
 def run(verb: str, args, env=None, out=sys.stdout, err=sys.stderr) -> int:
