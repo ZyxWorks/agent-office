@@ -16,6 +16,12 @@ schema = 1
 # code = "~/firstmate"                # the Firstmate code checkout
 # home = "~/firstmate-home"           # its private operational home; unset: the checkout
 # harness = "claude"                  # or "codex"
+# args = ["--model", "claude-opus-5-5"]   # extra harness arguments, one word each, never a shell line
+# remote_control = "firstmate"        # Claude Code Remote Control: Firstmate in the Claude app on your phone
+
+# [hooks]                             # your own commands, each a list of words, never a shell line
+# on = [["~/bin/sync-repos"], ["my-tool", "start"]]   # office on runs these when it starts the office
+# off = [["my-tool", "stop"]]         # office off runs these once the session has stopped
 
 # [treehouse]
 # root = "~/worktrees"                # the worktree pool root; unset: treehouse's own

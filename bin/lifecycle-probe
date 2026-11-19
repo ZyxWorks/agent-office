@@ -110,11 +110,26 @@ state = home / ".local" / "state" / "agent-office"
 meters = home / ".local" / "state" / "herdr" / "plugins" / "agent-office.meter"
 
 
-def config(session):
+def config(session, extra=""):
     cfg = home / ".config" / "agent-office" / "config.toml"
     cfg.parent.mkdir(parents=True, exist_ok=True)
     cfg.write_text(f'schema = 1\n[office]\nsession = "{session}"\n[firstmate]\ncode = "{code[session]}"\n'
-                   f'home = "{fmhome}"\n[meter]\ninterval_seconds = 5\n')
+                   f'home = "{fmhome}"\n[meter]\ninterval_seconds = 5\n' + extra)
+
+
+# A hook of the user's: logs its words, whether the session runs and its agent count, then exits
+# with the code its last word names
+HOOK = f'''#!{sys.executable}
+import json, subprocess, sys
+name, session, code = sys.argv[1], sys.argv[2], int(sys.argv[-1])
+st = subprocess.run(["herdr", "--session", session, "status", "--json"], capture_output=True, text=True).stdout
+up = st.startswith("{{") and json.loads(st).get("server", {{}}).get("running") is True
+n = len(json.loads(subprocess.run(["herdr", "--session", session, "agent", "list"], capture_output=True,
+                                  text=True).stdout or "{{}}").get("result", {{}}).get("agents", [])) if up else 0
+open(sys.argv[0] + ".log", "a").write(
+    "%s running=%s agents=%d words=%r\\n" % (name, up, n, sys.argv[3:-1]))
+sys.exit(code)
+'''
 
 
 def herdr(session, *args, check_rc=True):
@@ -559,6 +574,73 @@ try:
     r = office("off", "--yes")
     check("office off leaves the session that took the name, and drops the stale record", r.returncode == 1
           and "LEFT" in r.stderr and running(A) and record(A) is None, r.stdout + r.stderr)
+
+    print("hooks, the other sessions and the update line")
+    herdr(A, "server", "stop")  # the stranger the last case started under A's name, in the probe's own home
+    foreign.pop().wait(timeout=10)
+    (home / "bin").mkdir(exist_ok=True)
+    hook = home / "bin" / "hook"
+    hook.write_text(HOOK)
+    hook.chmod(0o755)
+    hlog = Path(str(hook) + ".log")
+    pwned = root / "pwned"
+    # w3 starts a service and exits at once: the service keeps what the hook writes to open
+    config(A, '[hooks]\non = [["~/bin/hook", "w1", "%s", "0"], ["~/bin/hook", "w2", "%s", "0"], '
+              '["sh", "-c", "sleep 45 & echo service started"]]\n'
+              'off = [["~/bin/hook", "g1", "%s", "1"], ["~/bin/hook", "g2", "%s", "x; touch %s", "$(touch %s)", "0"]]\n'
+           % (A, A, A, A, pwned, pwned))
+    began = time.monotonic()
+    r = office("on")
+    check("office on runs the walk-in hooks in order, once the session and Firstmate are up", r.returncode == 0
+          and hlog.read_text().splitlines() == ["w1 running=True agents=1 words=[]", "w2 running=True agents=1 words=[]"],
+          r.stdout + r.stderr + (hlog.read_text() if hlog.exists() else ""))
+    check("a hook that starts a service is done when it exits, not when the service does",
+          time.monotonic() - began < 40 and "service started" in r.stdout, r.stdout)
+    r = office("on")
+    check("office on again only focuses: it runs no walk-in hook", r.returncode == 0 and "focused it" in r.stdout
+          and len(hlog.read_text().splitlines()) == 2 and "running ~/bin/hook" not in r.stdout, r.stdout + r.stderr)
+    r = office("status")
+    check("office status names the other session that runs, and still exits 0", r.returncode == 0
+          and f"session '{F}'" in r.stdout and "0 agents, not this office's" in r.stdout, r.stdout + r.stderr)
+    check("office status counts the office's agents by state, and shows the walk-in hooks",
+          "1: 1 idle" in r.stdout and "walk-in hooks (3)" in r.stdout and "3 ran" in r.stdout
+          and "all ok" in r.stdout, r.stdout)
+    check("a development checkout shows no update line", "update available" not in r.stdout, r.stdout)
+    hlog.unlink()
+    r = office("off", "--yes")
+    plan = r.stdout.split("Kept:")[0]
+    check("office off lists the go-home hooks in its plan", "go-home hooks  2" in plan
+          and f"~/bin/hook g1 {A} 1" in plan and "'x; touch " in plan, r.stdout)
+    got = hlog.read_text().splitlines() if hlog.exists() else []
+    check("a go-home hook that exits 1: the session stopped all the same, the next hook ran, exit 1, the hook named",
+          r.returncode == 1 and not running(A) and record(A) is None
+          and [g.split()[0] for g in got] == ["g1", "g2"] and all("running=False" in g for g in got)
+          and f"go-home hook `~/bin/hook g1 {A} 1` exited 1" in r.stderr, r.stdout + r.stderr + str(got))
+    check("a hook's ; and $(...) are words, never a shell", not pwned.exists()
+          and got[1:] and got[1].endswith(f"words=['x; touch {pwned}', '$(touch {pwned})']"), str(got))
+    r = office("status")
+    check("office status shows the failed go-home hook as a problem", r.returncode == 1
+          and "go-home hooks (2)" in r.stdout and "1 failed" in r.stdout and "g1" in r.stdout, r.stdout + r.stderr)
+    config(A)
+
+    # the managed release checkout, one commit behind the origin it last fetched
+    git = dict(BASE, GIT_AUTHOR_NAME="probe", GIT_AUTHOR_EMAIL="probe@example.invalid", GIT_COMMITTER_NAME="probe",
+               GIT_COMMITTER_EMAIL="probe@example.invalid", GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1")
+    src, rel = root / "src", home / ".local" / "share" / "agent-office" / "release"
+    shutil.copytree(REPO, src, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+    for argv in (["init", "-q", "-b", "main", str(src)], ["-C", str(src), "add", "-A"],
+                 ["-C", str(src), "commit", "-q", "-m", "one"], ["clone", "-q", str(src), str(rel)],
+                 ["-C", str(src), "commit", "-q", "--allow-empty", "-m", "two"]):
+        subprocess.run(["git", *argv], env=git, check=True, capture_output=True)
+    r = office("status", exe=rel / "bin" / "office")
+    check("a release checkout at its fetched origin never says up to date, only how it stands to that fetch",
+          "the same as origin when last fetched" in r.stdout and "up to date" not in r.stdout, r.stdout + r.stderr)
+    subprocess.run(["git", "-C", str(rel), "fetch", "-q"], env=git, check=True, capture_output=True)
+    old, new = (subprocess.run(["git", "-C", str(rel), "rev-parse", "--short", ref], env=git, capture_output=True,
+                               text=True).stdout.strip() for ref in ("HEAD", "origin/HEAD"))
+    r = office("status", exe=rel / "bin" / "office")
+    check("a release checkout behind its fetched origin shows the update line",
+          f"Agent Office update available (`{old}` to `{new}`)" in r.stdout, r.stdout + r.stderr)
 finally:
     for s in (A, B, F):
         if running(s):

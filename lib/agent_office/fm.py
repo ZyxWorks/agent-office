@@ -43,7 +43,8 @@ usage: fm [--] [harness arguments...]
 
 fm opens the Firstmate this office runs: the herdr agent named firstmate in the herdr session
 office.session, in firstmate.code. Running it again focuses it; arguments are passed to the
-harness (firstmate.harness) unchanged when fm starts it. Start with `--` to pass an argument
+harness (firstmate.harness) unchanged when fm starts it, after firstmate.args and, with
+firstmate.remote_control set, `--remote-control <name>`. Start with `--` to pass an argument
 fm would otherwise read itself, such as `fm -- restart`.
 
 fm restart asks Firstmate to save its work (/stow), checks its answer, and only then starts a
@@ -130,6 +131,9 @@ class Office:
         self.harness = fm["harness"]
         self.code = C.expand(fm["code"], env)
         self.home = C.expand(fm["home"], env) if "home" in fm else None
+        # what every start of this Firstmate gets, before the arguments typed on one fm call
+        self.args = list(fm.get("args") or [])
+        self.remote = fm.get("remote_control") or None
         self.herdr = Herdr(self.session, env)
 
     def check_paths(self):
@@ -245,9 +249,10 @@ def launch(o: Office, args: list, out) -> dict:
     else:
         made = o.herdr.call("workspace", "create", *where)
     pane = made["root_pane"]["pane_id"]
+    argv = harness_args(o, args)
     try:
         o.herdr.call("agent", "start", NAME, "--kind", o.harness, "--pane", pane,
-                     "--timeout", str(START_TIMEOUT_MS), "--", *args)
+                     "--timeout", str(START_TIMEOUT_MS), "--", *argv)
     except HerdrError as e:
         if e.code == "agent_not_ready":
             print(f"{o.who}: started Firstmate in pane {pane}. It is asking something before it is "
@@ -256,6 +261,14 @@ def launch(o: Office, args: list, out) -> dict:
         raise Fail(f"Firstmate did not start in pane {pane}: {e}. The pane is left open to read.")
     print(f"{o.who}: started Firstmate in pane {pane}, herdr session '{o.session}'.", file=out)
     return srv
+
+
+def harness_args(o: Office, typed: list) -> list:
+    """The harness's arguments for a fresh start: firstmate.args, then Remote Control when
+    firstmate.remote_control names a session, then what was typed on this fm call. A list, so
+    herdr hands each one over as it is: nothing here is ever a shell line."""
+    remote = ["--remote-control", o.remote] if o.remote and o.harness == "claude" else []
+    return [*o.args, *remote, *typed]
 
 
 def _show(o: Office, srv: dict, out, what: str = "Firstmate") -> list | None:

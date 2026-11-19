@@ -512,6 +512,43 @@ check("herdr links another checkout's meter",
 check("your home is never printed", str(h.home) not in r.stdout + r.stderr, r.stdout)
 h.done()
 
+print("a zsh function or alias that hides office or fm")
+zsh = shutil.which("zsh")
+if zsh is None:
+    print("  skip: no zsh on this machine")
+else:
+    h = Home()
+    (h.home / "hbin").mkdir()  # herdr alone, for office install's own check of it
+    (h.home / "hbin" / "herdr").symlink_to(shutil.which("herdr") or "/nonexistent")
+    zpath = os.pathsep.join([str(h.home / "hbin"), str(Path(zsh).parent), "/usr/bin", "/bin"])
+    (h.home / "conf").mkdir()
+    # defined in a second file, loaded by a line whose path ends in a quote: no text scan of .zshrc sees it
+    (h.home / "conf" / "workspace.zsh").write_text("export WS=1\noffice() {\n  echo the old office\n}\n")
+    (h.home / ".zshrc").write_text('export EDITOR=vi\nsource "$HOME/conf/workspace.zsh"\nalias fm="echo mine"\n')
+    r = h.run("doctor", PATH=zpath)
+    check("office doctor asks zsh: exit 1, and it names the second file and the line that loads it",
+          r.returncode == 1 and "office: a shell function from ~/conf/workspace.zsh line 2, loaded by ~/.zshrc line 2"
+          in r.stdout and "remove it from ~/conf/workspace.zsh" in r.stdout, r.stdout + r.stderr)
+    check("and the alias, where it is defined", "fm: an alias from ~/.zshrc line 3" in r.stdout, r.stdout)
+    r = h.run("install", "--check", PATH=zpath)
+    check("office install --check lists both as yours to fix", r.returncode == 0 and "~/conf/workspace.zsh" in r.stdout
+          and "line 2: office() {" in r.stdout and 'line 3: alias fm="echo mine"' in r.stdout, r.stdout + r.stderr)
+    # a startup file that leaves a job running, and a definition behind a guard on the caller's variables
+    (h.home / ".zshrc").write_text('if [[ -z $HERDR_ENV ]]; then\n  FN { echo old; }\nfi\n( sleep 40 ) &!\n'.replace("FN", "office()"))
+    began = time.monotonic()
+    r = h.run("doctor", PATH=zpath, HERDR_ENV="1")
+    took = time.monotonic() - began
+    left = subprocess.run(["pgrep", "-f", "sleep 40"], capture_output=True, text=True).stdout.split()
+    check("a job the startup files leave running: zsh answers at once, and the job is stopped",
+          took < 15 and "did not answer" not in r.stdout and not left, f"{took:.1f}s {left} " + r.stdout)
+    check("zsh runs as in a new terminal, not with the caller's HERDR_ENV: the guarded function is found",
+          "office: a shell function from ~/.zshrc line 2" in r.stdout, r.stdout)
+    (h.home / ".zshrc").write_text('export EDITOR=vi\n')
+    r = h.run("doctor", PATH=zpath)
+    check("a zsh that hides neither: no such problem", "command in every zsh" not in r.stdout
+          and "no function or alias hides them" in r.stdout, r.stdout)
+    h.done()
+
 # --- office tools ----------------------------------------------------------------------------
 # Never the network and never this machine's npm or Homebrew: the downloads are local files and
 # npm, node and brew are fakes that write down how they were called.

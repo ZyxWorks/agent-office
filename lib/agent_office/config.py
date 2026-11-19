@@ -177,6 +177,31 @@ def _names(v):
     return None
 
 
+def _words(v):
+    # argv, never a shell line: each item reaches the program as one argument, exactly as written
+    if not isinstance(v, list) or any(not isinstance(x, str) or not x or any(ord(c) < 32 or ord(c) == 127 for c in x)
+                                      for x in v):
+        return "must be a list of words, each a non-empty string with no control characters"
+    return None
+
+
+def _remote(v):
+    # Claude Code's --remote-control <name>: the name the Claude app lists the session under
+    if v is False:
+        return None
+    if isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}", v) and v == v.strip():
+        return None
+    return 'must be false or a session name of 1-64 letters, digits, spaces, ".", "_" or "-", such as "firstmate"'
+
+
+def _hooks(v):
+    # each hook is an argv list run without a shell: ["my-tool", "stop"], never "my-tool stop; x"
+    if not isinstance(v, list) or any(not isinstance(h, list) or not h or _words(h) for h in v):
+        return ('must be a list of commands, each a list of words such as ["my-tool", "stop"]: '
+                "a command is run directly, never by a shell")
+    return None
+
+
 _MODEL = {
     "model": _plain(r"[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,127}", "a model id, say \"claude-opus-5-5\""),
     "effort": _one_of("low", "medium", "high", "xhigh", "max"),
@@ -191,7 +216,10 @@ KEYS = {
         "code": _path,
         "home": _path,
         "harness": _one_of("claude", "codex"),
+        "args": _words,
+        "remote_control": _remote,
     },
+    "hooks": {"on": _hooks, "off": _hooks},
     "treehouse": {"root": _path},
     "open": {"roots": _paths},
     "meter": {
@@ -361,6 +389,10 @@ def effective(user: dict | None, where: str) -> dict:
     notify = out.get("notify", {})
     if not problems and notify.get("enabled") and not notify.get("url"):
         problems.append(f"{where}: notify.url is required when notify.enabled is true")
+    fmc = out.get("firstmate", {})
+    if not problems and fmc.get("remote_control") and fmc.get("harness") != "claude":
+        problems.append(f"{where}: firstmate.remote_control needs firstmate.harness = \"claude\": "
+                        "Remote Control is Claude Code's")
     dictate = out.get("dictate", {})
     if not problems and dictate.get("enabled") and not dictate.get("model"):
         problems.append(f"{where}: dictate.model is required when dictate.enabled is true")

@@ -13,6 +13,14 @@ source = "https://github.com/kunchenguid/firstmate.git"
 code = "~/firstmate"                  # where the Firstmate code checkout lives
 # home: Firstmate's private operational home. Unset means the code checkout, as in Firstmate.
 harness = "claude"
+args = []                             # extra harness arguments when fm or office on starts it, one word each
+remote_control = false                # a name, such as "firstmate": Claude Code Remote Control, for your phone
+
+# Commands office on runs once it has started the session or Firstmate (walking in), and office off
+# runs once the session has stopped (going home). Each is a list of words, run directly, never by a shell.
+[hooks]
+on = []
+off = []
 
 [treehouse]
 # root: the worktree pool root. Unset means treehouse picks its own.
