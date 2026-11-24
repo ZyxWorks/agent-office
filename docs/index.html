@@ -64,10 +64,6 @@
     @view-transition { navigation: auto; }
     ::view-transition-group(root) { animation-duration: var(--z-d-dialog); animation-timing-function: var(--z-ease); }
   }
-  /* A heading breaks a word only when it is a long compound (13 letters or more), at a real
-     hyphenation point, with 6 letters before and 7 after the break; short words never split. A word
-     too long for the line still wraps instead of running out of the frame. */
-  :where(h1, h2, h3) { hyphenate-limit-chars: 13 6 7; -webkit-hyphenate-limit-before: 6; -webkit-hyphenate-limit-after: 7; overflow-wrap: break-word; }
 </style>
 <!-- Hovering a link to another page on zyxworks.github.io prerenders it, so the step there is instant (Chromium; elsewhere a normal load). -->
 <script type="speculationrules">{"prerender":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}]}</script>
