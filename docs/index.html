@@ -56,7 +56,21 @@
   .ao-prose > p { max-width: 68ch; margin: 0; color: var(--z-text-2); font-size: var(--z-t-read); line-height: var(--z-lead-read); }
   .ao-prose > p + p { margin-top: 16px; }
   .ao-after { margin: 24px 0 0; }
+  /* Page to page across zyxworks.github.io (the tools index, MurmurFlow, Agent Office): one short
+     cross-fade, the library's dialog time and ease, as a cross-document View Transition. No slide and
+     no rise of the whole page (brand rule). A browser without it just loads the page; with less motion
+     there is no transition. */
+  @media (prefers-reduced-motion: no-preference) {
+    @view-transition { navigation: auto; }
+    ::view-transition-group(root) { animation-duration: var(--z-d-dialog); animation-timing-function: var(--z-ease); }
+  }
+  /* A heading breaks a word only when it is a long compound (13 letters or more), at a real
+     hyphenation point, with 6 letters before and 7 after the break; short words never split. A word
+     too long for the line still wraps instead of running out of the frame. */
+  :where(h1, h2, h3) { hyphenate-limit-chars: 13 6 7; -webkit-hyphenate-limit-before: 6; -webkit-hyphenate-limit-after: 7; overflow-wrap: break-word; }
 </style>
+<!-- Hovering a link to another page on zyxworks.github.io prerenders it, so the step there is instant (Chromium; elsewhere a normal load). -->
+<script type="speculationrules">{"prerender":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}]}</script>
 </head>
 <body class="ao-page">
 <a class="zyx-skip" href="#main">Skip to the content</a>
